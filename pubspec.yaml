@@ -32,10 +32,10 @@ dependencies:
     sdk: flutter
   google_sign_in: ^6.2.0
   shared_preferences: ^2.0.18
-  firebase_core: 
-  firebase_database: 
+  firebase_core: ^3.6.0 
+  firebase_database:
+  firebase_auth:
   otp: ^3.0.0  # 用於 TOTP
-  flutter_native_splash: ^2.4.1
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -44,7 +44,7 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-
+  flutter_native_splash: ^2.4.1  # 或使用最新版本
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
   # activated in the `analysis_options.yaml` file located at the root of your

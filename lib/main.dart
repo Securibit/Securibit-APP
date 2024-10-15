@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
-import 'pages/splash_screen.dart';  // 匯入 SplashScreen
+import 'pages/login_page.dart';  // 匯入 SplashScreen
+import 'package:firebase_core/firebase_core.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(); // Initialize Firebase
   runApp(const MyApp());
 }
 
@@ -10,9 +13,9 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return const MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: SplashScreen(),  // 設定 SplashScreen 作為啟動頁面
+      home: LoginPage(),
     );
   }
 }

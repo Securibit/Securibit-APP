@@ -4,6 +4,8 @@ import 'home_page.dart';
 import 'login_page.dart';
 
 class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+
   @override
   _SplashScreenState createState() => _SplashScreenState();
 }
@@ -20,16 +22,16 @@ class _SplashScreenState extends State<SplashScreen> {
     final isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
 
     // 根據登入狀態導航到對應頁面
-    await Future.delayed(Duration(seconds: 3));  // 模擬3秒載入時間
+    await Future.delayed(const Duration(seconds: 3));  // 模擬3秒載入時間
     if (isLoggedIn) {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => HomePage()),
+        MaterialPageRoute(builder: (context) => const HomePage()),
       );
     } else {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => LoginPage()),
+        MaterialPageRoute(builder: (context) => const LoginPage()),
       );
     }
   }

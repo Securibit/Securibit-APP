@@ -1,0 +1,41 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "totp-auth-website",
+          "appId": "1:648773336207:android:5a35fd64851fecfd32c4fa",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "ios": {
+        "default": {
+          "projectId": "totp-auth-website",
+          "appId": "1:648773336207:ios:0147b67aa61bdb0532c4fa",
+          "uploadDebugSymbols": false,
+          "fileOutput": "ios/Runner/GoogleService-Info.plist"
+        }
+      },
+      "macos": {
+        "default": {
+          "projectId": "totp-auth-website",
+          "appId": "1:648773336207:ios:4fd257c3f0355a7832c4fa",
+          "uploadDebugSymbols": false,
+          "fileOutput": "macos/Runner/GoogleService-Info.plist"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "totp-auth-website",
+          "configurations": {
+            "android": "1:648773336207:android:5a35fd64851fecfd32c4fa",
+            "ios": "1:648773336207:ios:0147b67aa61bdb0532c4fa",
+            "macos": "1:648773336207:ios:4fd257c3f0355a7832c4fa",
+            "web": "1:648773336207:web:913e849e2713703e32c4fa",
+            "windows": "1:648773336207:web:b6f72fcb43381c2932c4fa"
+          }
+        }
+      }
+    }
+  }
+}
