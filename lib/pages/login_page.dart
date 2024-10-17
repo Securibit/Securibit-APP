@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../main.dart';
 import 'home_page.dart'; // Your main page after login
+import 'package:base32/base32.dart'; // Import Base32 decoder
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -17,13 +19,15 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> _handleLocalLogin() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('isLoggedIn', true);  // 儲存登入狀態
+    await prefs.setBool('isLoggedIn', true); // 儲存登入狀態
     _navigateToHome();
   }
 
-
   Future<void> _handleGoogleLogin() async {
     try {
+      // 清除任何現有會話
+      await _googleSignIn.signOut();
+
       // Step 1: Sign in with Google
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       if (googleUser == null) {
@@ -59,6 +63,7 @@ class _LoginPageState extends State<LoginPage> {
         // Save login status
         final prefs = await SharedPreferences.getInstance();
         await prefs.setBool('isLoggedIn', true);
+        await prefs.setString('UserUid', uid);
         _navigateToHome();
       }
     } catch (error) {
@@ -70,11 +75,10 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-
   void _navigateToHome() {
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (context) => const HomePage()),
+      MaterialPageRoute(builder: (context) => const MainScreen()),
     );
   }
 

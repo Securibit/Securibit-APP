@@ -45,6 +45,6 @@ flutter {
 }
 
 dependencies {
-    implementation 'com.google.android.gms:play-services-auth:20.5.0'
-
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.gms:play-services-auth:20.8.0'
 }
