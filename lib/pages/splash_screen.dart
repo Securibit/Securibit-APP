@@ -45,7 +45,7 @@ class _SplashScreenState extends State<SplashScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Image.asset(
-              'assets/icon.png',  // 使用自定義圖片
+              'assets/Icon.png',  // 使用自定義圖片
               width: 150,  // 根據需要調整寬度
             ),
             const SizedBox(height: 20),

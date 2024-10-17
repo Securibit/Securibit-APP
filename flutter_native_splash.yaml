@@ -1,6 +1,6 @@
 flutter_native_splash:
   color: "#ffffff"  # 背景色
-  image: assets/icon.png  # 圖片路徑
+  image: assets/Icon.png  # 圖片路徑
   android: true  # 啟用 Android 支援
   ios: true  # 啟用 iOS 支援
   android_gravity: center  # 圖片置中
