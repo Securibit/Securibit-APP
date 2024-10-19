@@ -17,12 +17,25 @@ class _LoginPageState extends State<LoginPage> {
   final GoogleSignIn _googleSignIn = GoogleSignIn();
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  Future<void> _handleLocalLogin() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('isLoggedIn', true); // 儲存登入狀態
-    _navigateToHome();
+  @override
+  void initState() {
+    super.initState();
+    CheckLogged(); // 在页面加载时执行的函数
   }
 
+  Future<void> CheckLogged() async{
+    final prefs = await SharedPreferences.getInstance();
+    final isLoggedIn = prefs.getString("isLoggedIn");
+    if(isLoggedIn != null && isLoggedIn == true){
+      _navigateToHome();
+    }
+  }
+  // Future<void> _handleLocalLogin() async {
+  //   final prefs = await SharedPreferences.getInstance();
+  //   await prefs.setBool('isLoggedIn', true); // 儲存登入狀態
+  //   _navigateToHome();
+  // }
+  // void
   Future<void> _handleGoogleLogin() async {
     try {
       // 清除任何現有會話
@@ -55,10 +68,10 @@ class _LoginPageState extends State<LoginPage> {
         String? displayName = user.displayName; // Get the display name
         String? photoURL = user.photoURL; // Get the photo URL
 
-        print('User UID: $uid'); // Print the UID
-        print('User Email: $email');
-        print('User Display Name: $displayName');
-        print('User Photo URL: $photoURL');
+        // print('User UID: $uid'); // Print the UID
+        // print('User Email: $email');
+        // print('User Display Name: $displayName');
+        // print('User Photo URL: $photoURL');
 
         // Save login status
         final prefs = await SharedPreferences.getInstance();
@@ -146,23 +159,23 @@ class _LoginPageState extends State<LoginPage> {
               const SizedBox(height: 20), // Spacing between buttons
 
               // Local Login Button
-              SizedBox(
-                width: double.infinity, // Make button full width
-                child: ElevatedButton.icon(
-                  onPressed: _handleLocalLogin,
-                  icon: const Icon(Icons.phone_android), // Local login icon
-                  label: const Text('本機登入'), // Button text
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white, // Background color
-                    foregroundColor: Colors.black, // Text color
-                    padding: const EdgeInsets.symmetric(vertical: 15), // Adjust padding
-                    elevation: 5, // Set elevation
-                    shape: RoundedRectangleBorder( // Set shape
-                      borderRadius: BorderRadius.circular(10), // Rounded corners
-                    ),
-                  ),
-                ),
-              ),
+              // SizedBox(
+              //   width: double.infinity, // Make button full width
+              //   child: ElevatedButton.icon(
+              //     onPressed: _handleLocalLogin,
+              //     icon: const Icon(Icons.phone_android), // Local login icon
+              //     label: const Text('本機登入'), // Button text
+              //     style: ElevatedButton.styleFrom(
+              //       backgroundColor: Colors.white, // Background color
+              //       foregroundColor: Colors.black, // Text color
+              //       padding: const EdgeInsets.symmetric(vertical: 15), // Adjust padding
+              //       elevation: 5, // Set elevation
+              //       shape: RoundedRectangleBorder( // Set shape
+              //         borderRadius: BorderRadius.circular(10), // Rounded corners
+              //       ),
+              //     ),
+              //   ),
+              // ),
             ],
           ),
         ),
