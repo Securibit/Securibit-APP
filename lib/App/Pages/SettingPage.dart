@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'login_page.dart'; // Import login page
+import 'LoginPage.dart'; // Import login page
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -17,9 +17,9 @@ class SettingPage extends StatelessWidget {
           title: Center(
             child: Container(
               padding: EdgeInsets.only(top: 16.0), // 調整為所需的距離
-              child: Text(
+              child: const Text(
                 '設定',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 24,
                   color: Colors.white,
                   fontWeight: FontWeight.bold,

@@ -41,6 +41,7 @@ dependencies:
   base32: ^2.0.0
   cupertino_icons: ^1.0.8
   flutter_launcher_icons:
+  flutter_svg:
 
 dev_dependencies:
   flutter_test:
@@ -61,6 +62,9 @@ dev_dependencies:
 flutter:
   assets:
     - assets/Icon.png
+
+    #illustration
+    - assets/illustration/galaxy.svg
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
   # the material Icons class.

@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../main.dart';
-import 'home_page.dart'; // Your main page after login
-import 'package:base32/base32.dart'; // Import Base32 decoder
+import '../../../main.dart';
+import 'HomePage.dart'; // Your main page after login
+// import 'package:base32/base32.dart'; // Import Base32 decoder
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -25,7 +25,7 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> CheckLogged() async{
     final prefs = await SharedPreferences.getInstance();
-    final isLoggedIn = prefs.getString("isLoggedIn");
+    final isLoggedIn = prefs.getBool("isLoggedIn");
     if(isLoggedIn != null && isLoggedIn == true){
       _navigateToHome();
     }
