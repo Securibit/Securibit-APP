@@ -80,12 +80,14 @@ class _HomePageState extends State<HomePage> {
           ),
         ),
       ),
-      body: _userTotps.isEmpty
-          ? const NoTotpView()
-          : TotpList(
-        userTotps: _userTotps,
-        generateTotp: _totpService.generateTotp,
-        calculateTimeLeft: _totpService.calculateTimeLeft,
+      body: SingleChildScrollView(
+        child: _userTotps.isEmpty
+            ? const NoTotpView()
+            : TotpList(
+          userTotps: _userTotps,
+          generateTotp: _totpService.generateTotp,
+          calculateTimeLeft: _totpService.calculateTimeLeft,
+        ),
       ),
     );
   }
