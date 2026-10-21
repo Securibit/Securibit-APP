@@ -65,7 +65,7 @@ DOCKER_VOLUMES := \
 DOCKER_RUN := $(DOCKER) run --rm --platform $(DOCKER_PLATFORM) $(DOCKER_VOLUMES) \
   -e WORK_DIR=/work -e OUT_DIR=/src/$(DIST) -e HOST_UID=$(shell id -u) -e HOST_GID=$(shell id -g)
 
-.PHONY: help deps analyze test clean env-check \
+.PHONY: help deps analyze test clean env-check rust-lib rust-test codegen codegen-tool \
   macos ios apk aab \
   linux linux-docker deb appimage linux-all docker-image docker-smoke-image linux-smoke deb-check appimage-check \
   dist docker-clean
@@ -88,8 +88,22 @@ deps: ## 安裝 Dart 套件（flutter pub get）
 analyze: ## 靜態檢查（flutter analyze）
 	$(FLUTTER) analyze
 
-test: ## 執行測試（flutter test）
+test: rust-lib rust-test ## 執行測試（Rust 核心的 cargo test，再 flutter test）
 	$(FLUTTER) test
+
+# ─── Rust 安全核心 ─────────────────────────────────────
+
+rust-lib: ## 建置這台主機用的 Rust 核心函式庫（flutter test 會載入它）
+	cd rust && cargo build --release -p securibit_api
+
+rust-test: ## Rust 核心的單元測試（RFC 6238、網站的加密向量）
+	cd rust && cargo test --workspace --release
+
+codegen: ## 改了 rust/api 之後重新產生 Dart binding（lib/src/rust/）
+	flutter_rust_bridge_codegen generate
+
+codegen-tool: ## 安裝固定版本的 flutter_rust_bridge_codegen
+	cargo install flutter_rust_bridge_codegen --version 2.13.0 --locked
 
 clean: ## 清掉建置結果與 dist/（Docker 的 volume 用 make docker-clean）
 	$(FLUTTER) clean
