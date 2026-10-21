@@ -5,6 +5,7 @@ import '../auth/auth_controller.dart';
 import '../settings/settings_view.dart';
 import 'activity_page.dart';
 import 'profile_frame.dart';
+import 'user_profile_page.dart';
 
 /*
  * 個人資料的入口：其他畫面只透過這裡打開別人的個人頁面與自己的活動紀錄
@@ -17,6 +18,7 @@ Future<void> openUserProfile(BuildContext context, String userId) async {
     await openSettings(context);
     return;
   }
+  await showProfilePage(context, (inDialog) => UserProfilePage(userId: userId, inDialog: inDialog));
 }
 
 /// 打開自己的登入紀錄與帳號操作紀錄
