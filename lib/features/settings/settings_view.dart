@@ -14,6 +14,7 @@ import 'lock/lock_policy.dart';
 import 'lock/lock_secret.dart';
 import 'lock/lock_setup_page.dart';
 import 'lock/lock_wait.dart';
+import 'screen_privacy.dart';
 import 'settings_controller.dart';
 
 /// 設定：寬視窗用對話框，窄螢幕用整頁
@@ -30,7 +31,7 @@ Future<void> openSettings(BuildContext context) {
   return Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const SettingsView()));
 }
 
-// 設定頁：帳戶資料（可複製）、主題、加密群組、App 鎖定、登出
+// 設定頁：帳戶資料（可複製）、主題、加密群組、App 鎖定、截圖、登出
 class SettingsView extends StatelessWidget {
   const SettingsView({super.key});
 
@@ -131,6 +132,21 @@ class SettingsView extends StatelessWidget {
           ],
           const SizedBox(height: 24),
           const _LockSection(),
+          const SizedBox(height: 24),
+          GroupedList(
+            header: '隱私',
+            footer: ScreenPrivacy.description,
+            children: [
+              GroupedRow(
+                label: '允許截圖',
+                trailing: Switch.adaptive(
+                  // Linux 擋不了，一律顯示為允許且不能切換
+                  value: ScreenPrivacy.canBlockCapture ? settings.allowScreenshots : true,
+                  onChanged: ScreenPrivacy.canBlockCapture ? settings.setAllowScreenshots : null,
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 24),
           GroupedList(
             children: [
