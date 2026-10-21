@@ -1,12 +1,10 @@
 # Linux 版在 GitHub 的 Linux 主機上直接建置（不用 Docker）：x64 與 arm64 各一台，產出 .tar.gz、.deb。
-# 手動執行（Actions → Linux → Run workflow），或 push v* 標籤時建置並附到 Release。
+# 手動執行（Actions → Linux → Run workflow）；從 v* 標籤執行時建置並附到同名的 Release。
 # 需要在 repo 的 Settings → Secrets and variables → Actions 設定 SUPABASE_URL、SUPABASE_ANON_KEY、GOOGLE_WEB_CLIENT_ID。
 name: Linux
 
 on:
   workflow_dispatch:
-  push:
-    tags: ['v*']
 
 permissions:
   contents: write

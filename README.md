@@ -240,7 +240,7 @@ make deb REMOTE=user@192.168.1.20 REMOTE_SSH_OPTS='-i ~/.ssh/id_ed25519' DISTRO=
 
 #### GitHub Actions
 
-不想在自己的電腦上建置的話，用 GitHub Actions（`.github/workflows/linux.yml`）：在 GitHub 的 Ubuntu 22.04 主機上直接建置 x64 與 arm64（和 `make linux-deps`、`make linux-all` 相同的流程），跑完安裝檢查，產出放在該次執行的 Artifacts。到 Actions → Linux → Run workflow 手動執行，或 push `v*` 標籤時自動建置並附到 Release。第一次要先在 repo 的 Settings → Secrets and variables → Actions 設定 `SUPABASE_URL`、`SUPABASE_ANON_KEY`、`GOOGLE_WEB_CLIENT_ID`。
+不想在自己的電腦上建置的話，用 GitHub Actions（`.github/workflows/linux.yml`）：在 GitHub 的 Ubuntu 22.04 主機上直接建置 x64 與 arm64（和 `make linux-deps`、`make linux-all` 相同的流程），跑完安裝檢查，產出放在該次執行的 Artifacts。到 Actions → Linux → Run workflow 手動執行；選 `v*` 標籤執行時會附到同名的 Release。第一次要先在 repo 的 Settings → Secrets and variables → Actions 設定 `SUPABASE_URL`、`SUPABASE_ANON_KEY`、`GOOGLE_WEB_CLIENT_ID`。
 
 #### 打包內容與檢查
 
