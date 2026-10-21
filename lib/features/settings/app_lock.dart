@@ -7,6 +7,7 @@ import 'package:local_auth/local_auth.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/platform.dart';
+import '../../core/window_visibility.dart';
 import '../auth/auth_controller.dart';
 import 'lock/app_lock_controller.dart';
 import 'lock/lock_policy.dart';
@@ -69,7 +70,8 @@ Future<String?> authenticateOwner() async {
  * App 鎖定：設定圖形或密碼後，打開 App 時、以及離開 App 超過設定的時間再回來時要先解鎖。
  * 包在 MaterialApp.builder，連設定頁、對話框等推上去的畫面一起蓋住；
  * 鎖定時下面的畫面不繪製（Offstage），看不到內容但狀態保留，解鎖後回到原本的畫面。
- * 桌面視窗只是失去焦點不會鎖，最小化或切到背景才算離開。沒有登入時沒有資料要保護，不顯示鎖定畫面。
+ * 桌面視窗只是失去焦點不會鎖，最小化、切到背景或（macOS 選單列常駐時）關掉視窗才算離開。
+ * 沒有登入時沒有資料要保護，不顯示鎖定畫面。
  */
 class AppLockGate extends StatefulWidget {
   const AppLockGate({super.key, required this.child});
@@ -84,52 +86,74 @@ class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
   late final AppLockController _lock = context.read<SettingsController>().appLock;
   // 冷啟動一定要解鎖
   late bool _locked = _lock.enabled;
-  DateTime? _backgroundedAt;
 
   @override
   void initState() {
     super.initState();
+    _lock.screenLocked = _locked;
+    _lock.leftAt = null;
     WidgetsBinding.instance.addObserver(this);
+    WindowVisibility.visible.addListener(_onWindowVisibility);
     _lock.addListener(_onLockChanged);
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    WindowVisibility.visible.removeListener(_onWindowVisibility);
     _lock.removeListener(_onLockChanged);
     super.dispose();
   }
 
+  // 鎖定狀態同步給 AppLockController（選單列看它決定能不能列出驗證碼）
+  void _setLocked(bool value) {
+    _locked = value;
+    _lock.screenLocked = value;
+  }
+
   // 關閉鎖定或忘記密碼之後就不再鎖著
   void _onLockChanged() {
-    if (!_lock.enabled && _locked) setState(() => _locked = false);
+    if (!_lock.enabled && _locked) setState(() => _setLocked(false));
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (!_lock.enabled || _biometricPromptActive) return;
     if (state == AppLifecycleState.hidden || state == AppLifecycleState.paused) {
-      _backgroundedAt ??= DateTime.now();
-      // 「立即」在離開時就鎖，回來的第一個畫面就是鎖定畫面
-      if (_lock.timeout == LockTimeout.immediate) _lockNow();
+      _leave();
     } else if (state == AppLifecycleState.resumed) {
-      final at = _backgroundedAt;
-      _backgroundedAt = null;
-      if (shouldLockAfterBackground(backgroundedAt: at, now: DateTime.now(), timeout: _lock.timeout)) _lockNow();
+      // macOS 選單列常駐時，視窗藏著也可能收到 resumed（例如從選單列複製），視窗顯示時才算回來
+      if (WindowVisibility.visible.value) _return();
     }
+  }
+
+  // macOS 選單列常駐：主視窗藏起來算離開 App，重新顯示算回來
+  void _onWindowVisibility() => WindowVisibility.visible.value ? _return() : _leave();
+
+  void _leave() {
+    if (!_lock.enabled || _biometricPromptActive) return;
+    _lock.leftAt ??= DateTime.now();
+    // 「立即」在離開時就鎖，回來的第一個畫面就是鎖定畫面
+    if (_lock.timeout == LockTimeout.immediate) _lockNow();
+  }
+
+  void _return() {
+    if (!_lock.enabled || _biometricPromptActive) return;
+    final at = _lock.leftAt;
+    _lock.leftAt = null;
+    if (shouldLockAfterBackground(backgroundedAt: at, now: DateTime.now(), timeout: _lock.timeout)) _lockNow();
   }
 
   void _lockNow() {
     if (_locked) return;
     FocusManager.instance.primaryFocus?.unfocus();
-    setState(() => _locked = true);
+    setState(() => _setLocked(true));
   }
 
   @override
   Widget build(BuildContext context) {
     final signedOut = context.select<AuthController, bool>((auth) => auth.status == AuthStatus.signedOut);
     // 登出後不用再解鎖，剛登入完也不要馬上要求解鎖
-    if (signedOut) _locked = false;
+    if (signedOut) _setLocked(false);
     final showLock = _locked && _lock.enabled;
     return Stack(
       fit: StackFit.expand,
@@ -140,7 +164,7 @@ class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
           HeroControllerScope.none(
             child: Navigator(
               onGenerateRoute: (_) => PageRouteBuilder<void>(
-                pageBuilder: (_, _, _) => LockScreen(lock: _lock, onUnlocked: () => setState(() => _locked = false)),
+                pageBuilder: (_, _, _) => LockScreen(lock: _lock, onUnlocked: () => setState(() => _setLocked(false))),
               ),
             ),
           ),

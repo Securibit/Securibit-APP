@@ -192,4 +192,26 @@ void main() {
       expect(shouldLockAfterBackground(backgroundedAt: at, now: earlier, timeout: LockTimeout.fifteenMinutes), isTrue);
     });
   });
+
+  group('選單列判斷是否鎖定', () {
+    test('畫面鎖著，或視窗藏起來超過自動鎖定時間，都算鎖定', () async {
+      final lock = AppLockController(storage: MemoryLockStorage(), iterations: 1000);
+      await lock.load();
+      final now = DateTime(2026, 1, 1, 12);
+      // 沒設定鎖定時永遠不算
+      lock.screenLocked = true;
+      expect(lock.lockedAt(now), isFalse);
+
+      await lock.setLock(LockType.pin4, '2580');
+      await lock.setTimeout(LockTimeout.fiveMinutes);
+      expect(lock.lockedAt(now), isTrue);
+
+      lock.screenLocked = false;
+      expect(lock.lockedAt(now), isFalse);
+      lock.leftAt = now.subtract(const Duration(minutes: 4));
+      expect(lock.lockedAt(now), isFalse);
+      lock.leftAt = now.subtract(const Duration(minutes: 5));
+      expect(lock.lockedAt(now), isTrue);
+    });
+  });
 }

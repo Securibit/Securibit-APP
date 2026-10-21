@@ -71,6 +71,11 @@ class AppLockController extends ChangeNotifier {
   // 安全儲存讀不到（例如 Linux 沒有 Secret Service）時不能設定鎖定
   bool available = true;
 
+  // 目前畫面是不是鎖著、什麼時候離開 App（由 AppLockGate 維護，不通知）；
+  // 選單列用來判斷能不能列出驗證碼：視窗藏起來超過設定的時間，就算還沒回到 App 也當作已鎖定
+  bool screenLocked = false;
+  DateTime? leftAt;
+
   LockHash? _hash;
   // 同時只驗證一次，避免連按繞過錯誤次數
   bool _checking = false;
@@ -78,6 +83,10 @@ class AppLockController extends ChangeNotifier {
   bool get enabled => type != LockType.off && _hash != null;
 
   Duration get waitRemaining => attempts.remaining(_clock());
+
+  /// 現在是不是要先解鎖才能看驗證碼
+  bool lockedAt(DateTime now) =>
+      enabled && (screenLocked || shouldLockAfterBackground(backgroundedAt: leftAt, now: now, timeout: timeout));
 
   Future<void> load() async {
     try {
