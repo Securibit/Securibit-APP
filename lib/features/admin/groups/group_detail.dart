@@ -130,23 +130,20 @@ class _AdminGroupDetailViewState extends State<AdminGroupDetailView> {
         DetailTitle(title: detail.group.name, subtitle: detail.group.description),
         _identity(context, detail, myUid),
         const SizedBox(height: 16),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              for (final (value, label) in [
-                (_Tab.members, '成員 ${detail.members.length}'),
-                (_Tab.roles, '身分組'),
-                (_Tab.settings, '設定'),
-                if (showAudit) (_Tab.audit, '紀錄'),
-              ])
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: Pill(label: label, active: tab == value, onTap: () => setState(() => _tab = value)),
-                ),
-            ],
-          ),
-        ),
+        Builder(builder: (context) {
+          final tabs = [
+            (_Tab.members, '成員 ${detail.members.length}'),
+            (_Tab.roles, '身分組'),
+            (_Tab.settings, '設定'),
+            if (showAudit) (_Tab.audit, '紀錄'),
+          ];
+          // 選中的反白底色會滑到新點的分頁
+          return PillBar(
+            labels: [for (final (_, label) in tabs) label],
+            selectedIndex: tabs.indexWhere((t) => t.$1 == tab),
+            onSelect: (i) => setState(() => _tab = tabs[i].$1),
+          );
+        }),
         const SizedBox(height: 20),
         KeyedSubtree(key: ValueKey(tab), child: tabBody),
       ],
