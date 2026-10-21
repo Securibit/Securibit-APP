@@ -1,33 +1,75 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:local_auth/error_codes.dart' as auth_error;
 import 'package:local_auth/local_auth.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/platform.dart';
-import '../../core/theme/tokens.dart';
-import '../../core/widgets/logo.dart';
+import '../auth/auth_controller.dart';
+import 'lock/app_lock_controller.dart';
+import 'lock/lock_policy.dart';
+import 'lock/lock_screen.dart';
 import 'settings_controller.dart';
 
 final _localAuth = LocalAuthentication();
 
-/// 用 Face ID / Touch ID / 指紋（或裝置密碼）驗證本人；回傳錯誤訊息，成功為 null
+// 生物辨識的對話框也會讓 App 進入 inactive / hidden，跳出來的期間鎖定畫面不要把它當成離開 App
+bool _biometricPromptActive = false;
+
+/// 設定頁的開關文字，依平台寫實際能用的方式
+String get biometricUnlockLabel {
+  if (Platform.isIOS) return '也可用 Face ID／Touch ID 解鎖';
+  if (Platform.isMacOS) return '也可用 Touch ID 解鎖';
+  return '也可用指紋或臉部解鎖';
+}
+
+/// 這台裝置的生物辨識是不是臉部（決定鎖定畫面的圖示與文字）
+Future<bool> biometricIsFace() async {
+  if (!AppPlatform.canUseBiometrics) return false;
+  try {
+    final types = await _localAuth.getAvailableBiometrics();
+    return types.contains(BiometricType.face) && !types.contains(BiometricType.fingerprint);
+  } on PlatformException {
+    return false;
+  }
+}
+
+// 使用者取消或沒有通過時的訊息（鎖定畫面不顯示）
+const biometricRejected = '沒有通過驗證';
+
+/// 用 Face ID / Touch ID / 指紋驗證本人；只接受生物辨識，不接受裝置密碼（圖形或密碼才是備用方式）
+/// 回傳錯誤訊息，成功為 null
 Future<String?> authenticateOwner() async {
   if (!AppPlatform.canUseBiometrics) return '這個平台不支援生物辨識';
+  _biometricPromptActive = true;
   try {
-    if (!await _localAuth.isDeviceSupported()) return '這台裝置沒有設定生物辨識或裝置密碼';
+    if (!await _localAuth.isDeviceSupported()) return '這台裝置不支援生物辨識';
     final ok = await _localAuth.authenticate(
       localizedReason: '解鎖 Securibit',
-      options: const AuthenticationOptions(stickyAuth: true),
+      options: const AuthenticationOptions(stickyAuth: true, biometricOnly: true),
     );
-    return ok ? null : '沒有通過驗證';
+    return ok ? null : biometricRejected;
   } on PlatformException catch (error) {
-    return error.message ?? '無法使用生物辨識';
+    return switch (error.code) {
+      auth_error.notEnrolled => '這台裝置還沒有設定 Face ID、Touch ID 或指紋',
+      auth_error.notAvailable || auth_error.biometricOnlyNotSupported => '這台裝置無法使用生物辨識',
+      auth_error.passcodeNotSet => '這台裝置還沒有設定螢幕密碼',
+      auth_error.lockedOut => '生物辨識錯誤太多次，請稍後再試',
+      auth_error.permanentlyLockedOut => '生物辨識已停用，請先用裝置密碼解鎖',
+      _ => error.message ?? '無法使用生物辨識',
+    };
+  } finally {
+    _biometricPromptActive = false;
   }
 }
 
 /*
- * 生物辨識鎖定：設定開啟後，App 開啟時、以及離開 App 再回來時要先通過驗證。
- * 桌面視窗只是失去焦點不會鎖，最小化或切到背景才會。
+ * App 鎖定：設定圖形或密碼後，打開 App 時、以及離開 App 超過設定的時間再回來時要先解鎖。
+ * 包在 MaterialApp.builder，連設定頁、對話框等推上去的畫面一起蓋住；
+ * 鎖定時下面的畫面不繪製（Offstage），看不到內容但狀態保留，解鎖後回到原本的畫面。
+ * 桌面視窗只是失去焦點不會鎖，最小化或切到背景才算離開。沒有登入時沒有資料要保護，不顯示鎖定畫面。
  */
 class AppLockGate extends StatefulWidget {
   const AppLockGate({super.key, required this.child});
@@ -39,72 +81,70 @@ class AppLockGate extends StatefulWidget {
 }
 
 class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
-  late bool _locked = context.read<SettingsController>().biometricLock && AppPlatform.canUseBiometrics;
-  bool _authenticating = false;
-  String? _error;
+  late final AppLockController _lock = context.read<SettingsController>().appLock;
+  // 冷啟動一定要解鎖
+  late bool _locked = _lock.enabled;
+  DateTime? _backgroundedAt;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    if (_locked) WidgetsBinding.instance.addPostFrameCallback((_) => _unlock());
+    _lock.addListener(_onLockChanged);
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _lock.removeListener(_onLockChanged);
     super.dispose();
+  }
+
+  // 關閉鎖定或忘記密碼之後就不再鎖著
+  void _onLockChanged() {
+    if (!_lock.enabled && _locked) setState(() => _locked = false);
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    final enabled = context.read<SettingsController>().biometricLock && AppPlatform.canUseBiometrics;
-    // 驗證對話框本身也會讓 App 進入 inactive / hidden，驗證中不要再鎖
-    if (enabled && !_authenticating && (state == AppLifecycleState.hidden || state == AppLifecycleState.paused)) {
-      setState(() => _locked = true);
+    if (!_lock.enabled || _biometricPromptActive) return;
+    if (state == AppLifecycleState.hidden || state == AppLifecycleState.paused) {
+      _backgroundedAt ??= DateTime.now();
+      // 「立即」在離開時就鎖，回來的第一個畫面就是鎖定畫面
+      if (_lock.timeout == LockTimeout.immediate) _lockNow();
+    } else if (state == AppLifecycleState.resumed) {
+      final at = _backgroundedAt;
+      _backgroundedAt = null;
+      if (shouldLockAfterBackground(backgroundedAt: at, now: DateTime.now(), timeout: _lock.timeout)) _lockNow();
     }
-    if (state == AppLifecycleState.resumed && _locked && !_authenticating) _unlock();
   }
 
-  Future<void> _unlock() async {
-    if (_authenticating) return;
-    setState(() {
-      _authenticating = true;
-      _error = null;
-    });
-    final error = await authenticateOwner();
-    if (!mounted) return;
-    setState(() {
-      _authenticating = false;
-      _error = error;
-      if (error == null) _locked = false;
-    });
+  void _lockNow() {
+    if (_locked) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    setState(() => _locked = true);
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!_locked) return widget.child;
-    final colors = context.colors;
-    return Scaffold(
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const AppLogo(size: 64),
-              const SizedBox(height: 16),
-              const Text('Securibit 已鎖定', style: TextStyle(fontSize: AppText.title, fontWeight: FontWeight.w700)),
-              if (_error != null) ...[
-                const SizedBox(height: 8),
-                Text(_error!, textAlign: TextAlign.center, style: TextStyle(fontSize: AppText.secondary, color: colors.alarm)),
-              ],
-              const SizedBox(height: 24),
-              FilledButton(onPressed: _authenticating ? null : _unlock, child: const Text('解鎖')),
-            ],
+    final signedOut = context.select<AuthController, bool>((auth) => auth.status == AuthStatus.signedOut);
+    // 登出後不用再解鎖，剛登入完也不要馬上要求解鎖
+    if (signedOut) _locked = false;
+    final showLock = _locked && _lock.enabled;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Offstage(offstage: showLock, child: TickerMode(enabled: !showLock, child: widget.child)),
+        if (showLock)
+          // 鎖定畫面有自己的 Navigator，「忘記密碼」的確認對話框才跳得出來（不和 App 的 Navigator 共用 HeroController）
+          HeroControllerScope.none(
+            child: Navigator(
+              onGenerateRoute: (_) => PageRouteBuilder<void>(
+                pageBuilder: (_, _, _) => LockScreen(lock: _lock, onUnlocked: () => setState(() => _locked = false)),
+              ),
+            ),
           ),
-        ),
-      ),
+      ],
     );
   }
 }

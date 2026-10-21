@@ -9,6 +9,11 @@ import '../../core/widgets/grouped_list.dart';
 import '../auth/auth_controller.dart';
 import '../vault/vault_controller.dart';
 import 'app_lock.dart';
+import 'lock/app_lock_controller.dart';
+import 'lock/lock_policy.dart';
+import 'lock/lock_secret.dart';
+import 'lock/lock_setup_page.dart';
+import 'lock/lock_wait.dart';
 import 'settings_controller.dart';
 
 /// 設定：寬視窗用對話框，窄螢幕用整頁
@@ -25,7 +30,7 @@ Future<void> openSettings(BuildContext context) {
   return Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const SettingsView()));
 }
 
-// 設定頁：帳戶資料（可複製）、主題、加密群組與生物辨識、登出
+// 設定頁：帳戶資料（可複製）、主題、加密群組、App 鎖定、登出
 class SettingsView extends StatelessWidget {
   const SettingsView({super.key});
 
@@ -99,52 +104,33 @@ class SettingsView extends StatelessWidget {
                 ),
             ],
           ),
-          if (vault.status != VaultStatus.off || AppPlatform.canUseBiometrics) ...[
+          if (vault.status != VaultStatus.off) ...[
             const SizedBox(height: 24),
             GroupedList(
-              header: '安全',
-              footer: AppPlatform.canUseBiometrics ? '開啟生物辨識鎖定後，每次打開 App 都要先通過 Face ID、Touch ID、指紋或裝置密碼' : null,
+              header: '加密',
               children: [
-                if (vault.status != VaultStatus.off)
-                  GroupedRow(
-                    label: '加密群組',
-                    value: switch (vault.status) {
-                      VaultStatus.unlocked => '已解鎖',
-                      VaultStatus.loading => '確認中',
-                      _ => '已鎖定',
-                    },
-                    trailing: vault.status == VaultStatus.unlocked
-                        ? TextButton(
-                            onPressed: () async {
-                              await vault.lock();
-                              if (context.mounted) showToast(context, '已鎖定加密群組');
-                            },
-                            child: const Text('立即鎖定'),
-                          )
-                        : null,
-                  ),
-                if (AppPlatform.canUseBiometrics)
-                  GroupedRow(
-                    label: '生物辨識鎖定',
-                    trailing: Switch.adaptive(
-                      value: settings.biometricLock,
-                      onChanged: (value) async {
-                        // 開啟前先驗證一次，確定這台裝置可以用
-                        if (value) {
-                          final error = await authenticateOwner();
-                          if (!context.mounted) return;
-                          if (error != null) {
-                            await showErrorDialog(context, '無法開啟生物辨識鎖定', error);
-                            return;
-                          }
-                        }
-                        settings.setBiometricLock(value);
-                      },
-                    ),
-                  ),
+                GroupedRow(
+                  label: '加密群組',
+                  value: switch (vault.status) {
+                    VaultStatus.unlocked => '已解鎖',
+                    VaultStatus.loading => '確認中',
+                    _ => '已鎖定',
+                  },
+                  trailing: vault.status == VaultStatus.unlocked
+                      ? TextButton(
+                          onPressed: () async {
+                            await vault.lock();
+                            if (context.mounted) showToast(context, '已鎖定加密群組');
+                          },
+                          child: const Text('立即鎖定'),
+                        )
+                      : null,
+                ),
               ],
             ),
           ],
+          const SizedBox(height: 24),
+          const _LockSection(),
           const SizedBox(height: 24),
           GroupedList(
             children: [
@@ -191,4 +177,88 @@ class _CopyButton extends StatelessWidget {
         onPressed: () => copyText(context, text, message: message),
         icon: Icon(Icons.copy_rounded, size: 18, color: context.colors.inkMuted),
       );
+}
+
+/*
+ * App 鎖定：鎖定方式（關閉／九宮格圖形／四位數／六位數密碼）、變更、生物辨識、自動鎖定時間。
+ * 換方式或關閉前要先輸入目前的圖形或密碼；生物辨識只在設定了圖形或密碼後才能打開。
+ */
+class _LockSection extends StatelessWidget {
+  const _LockSection();
+
+  Future<void> _choose(BuildContext context, AppLockController lock, LockType type) async {
+    if (type == lock.type && type != LockType.off) return;
+    if (type == LockType.off && !lock.enabled) return;
+    await openLockSetup(context, lock, type);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final lock = context.watch<SettingsController>().appLock;
+    final current = lock.enabled ? lock.type : LockType.off;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GroupedList(
+          header: '鎖定方式',
+          footer: lock.available ? '設定後，打開 App 或離開一段時間再回來都要先解鎖' : '這台裝置無法使用安全儲存，不能設定鎖定',
+          children: [
+            for (final type in LockType.values)
+              GroupedRow(
+                label: type.label,
+                onTap: lock.available ? () => _choose(context, lock, type) : null,
+                trailing: current == type ? Icon(Icons.check_rounded, color: colors.accent) : null,
+              ),
+          ],
+        ),
+        if (lock.enabled) ...[
+          const SizedBox(height: 24),
+          GroupedList(
+            footer: AppPlatform.canUseBiometrics ? '生物辨識失敗或取消時，可以改用${lockNoun(lock.type)}解鎖' : null,
+            children: [
+              GroupedRow(
+                label: '變更${lockNoun(lock.type)}',
+                accent: true,
+                onTap: () => openLockSetup(context, lock, lock.type),
+              ),
+              if (AppPlatform.canUseBiometrics)
+                GroupedRow(
+                  label: biometricUnlockLabel,
+                  trailing: Switch.adaptive(
+                    value: lock.biometric,
+                    onChanged: (value) async {
+                      // 打開前先驗證一次，確定這台裝置可以用
+                      if (value) {
+                        final error = await authenticateOwner();
+                        if (!context.mounted) return;
+                        if (error != null) {
+                          if (error != biometricRejected) await showErrorDialog(context, '無法使用生物辨識', error);
+                          return;
+                        }
+                      }
+                      await lock.setBiometric(value);
+                    },
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          GroupedList(
+            header: '自動鎖定',
+            footer: '離開 App 超過這段時間再回來要重新解鎖；重新打開 App 一定要解鎖',
+            children: [
+              for (final timeout in LockTimeout.values)
+                GroupedRow(
+                  label: timeout.label,
+                  onTap: () => lock.setTimeout(timeout),
+                  trailing: lock.timeout == timeout ? Icon(Icons.check_rounded, color: colors.accent) : null,
+                ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
 }

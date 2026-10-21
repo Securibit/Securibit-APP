@@ -32,6 +32,8 @@ class SecuribitApp extends StatelessWidget {
       locale: _locale,
       supportedLocales: const [_locale],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
+      // App 鎖定蓋在 Navigator 外層，推上去的頁面與對話框也一起遮住
+      builder: (context, child) => AppLockGate(child: child ?? const SizedBox.shrink()),
       home: home,
     );
   }
@@ -51,7 +53,7 @@ class RootView extends StatelessWidget {
       AuthStatus.signedIn when auth.profileError != null => _ProfileError(message: auth.profileError!),
       AuthStatus.signedIn => const _Splash(),
     };
-    return AppLockGate(child: child);
+    return child;
   }
 }
 
