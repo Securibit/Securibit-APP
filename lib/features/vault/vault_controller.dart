@@ -3,22 +3,44 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
+import '../../core/result.dart';
 import '../../core/secure_store.dart';
+import '../../src/rust/api/secrets.dart' show SupabaseConnection;
 import '../../src/rust/api/vault.dart' as core;
 import '../auth/profile.dart';
+import '../groups/group_models.dart';
+import '../groups/groups_repository.dart' as groups_repo;
 import 'vault_info.dart';
+import 'vault_repository.dart' as repo;
 
 // off：未啟用；loading：確認這台裝置有沒有記住金鑰中；locked：要輸入密碼；unlocked：可以使用
 enum VaultStatus { off, loading, locked, unlocked }
 
+/// 設定、更改、停用、重設的結果：error 是失敗原因（成功為 null），note 是成功時的補充說明
+class VaultResult {
+  const VaultResult.ok([this.note]) : error = null;
+  const VaultResult.fail(String this.error) : note = null;
+
+  final String? error;
+  final String? note;
+
+  bool get ok => error == null;
+}
+
 /*
- * 加密群組的解鎖狀態（同網站 VaultProvider，但這裡只負責解鎖；設定、更改、停用加密請到網站）。
+ * 加密群組的狀態（同網站 VaultProvider）：解鎖、設定／更改／停用加密密碼、忘記密碼重設、開關群組加密。
  * 金鑰的推導（PBKDF2 60 萬次）、驗證與解開的金鑰都在 Rust 安全核心（rust/core/src/vault.rs），Dart 拿不到金鑰；
  * 勾選「在這台裝置記住」時，Rust 用這台裝置的金鑰把它包起來，Dart 只把包過的密文存進系統的安全儲存。
  * 存的時候連同 vault.check 一起存，別的裝置改過密碼就不再使用。
+ * 設定、更改、停用時要重新加密的金鑰由 Rust 直接連 Supabase 取得、轉換、寫回（rust/api/src/api/vault.rs），也不經過 Dart。
+ * 這些操作成功後，呼叫端要重新讀取 profile 與群組；這裡先換上新的設定，重新讀到 profile 時就不會被當成別的裝置改過而鎖住。
  */
 class VaultController extends ChangeNotifier {
   VaultStatus status = VaultStatus.off;
+
+  // 設定、更改、停用、重設或開關群組加密成功後，重新讀取 profile（在 main.dart 接到 AuthController.refreshProfile）；
+  // 沒有接時設定頁改用 AuthController.loadProfile
+  Future<void> Function()? onProfileChanged;
 
   // 每次解鎖換一個新的編號（鎖定時是 null）：金鑰在 Rust，畫面用這個判斷要不要重新建立驗證碼清單
   int? keyId;
@@ -117,7 +139,7 @@ class VaultController extends ChangeNotifier {
     }
     switch (result) {
       case core.VaultUnlockResult.badInfo:
-        return '加密設定的格式不正確，請到網站重新設定';
+        return '加密設定的格式不正確，請用「忘記密碼」重設';
       case core.VaultUnlockResult.wrongPassphrase:
         return '密碼錯誤';
       case core.VaultUnlockResult.unlocked:
@@ -160,6 +182,172 @@ class VaultController extends ChangeNotifier {
       await secureStore.delete(key: _storeKey(uid));
     } catch (_) {
       // 沒有存就沒有東西要刪
+    }
+  }
+
+  // ---------- 設定、更改、停用、重設 ----------
+
+  // 換上新的加密設定（null 是停用）：舊的非同步結果不算數；有新金鑰時已經在 Rust 生效
+  void _replaceInfo(VaultInfo? info) {
+    _generation++;
+    _info = info;
+    if (info == null) {
+      _forgetKey();
+      status = VaultStatus.off;
+    } else {
+      _adoptKey();
+    }
+    notifyListeners();
+  }
+
+  static VaultInfo _infoOf(core.VaultSetup setup) =>
+      VaultInfo(v: 1, salt: setup.salt, iterations: setup.iterations, check: setup.check);
+
+  /// 設定加密密碼；預設群組只有自己一個成員時順便開啟它的加密（同網站 enable）
+  Future<VaultResult> enable(String passphrase, {required bool remember}) async {
+    final uid = _uid;
+    if (uid == null) return const VaultResult.fail('尚未登入');
+    final expected = _info?.check;
+    final generation = _generation;
+    final SupabaseConnection conn;
+    switch (await repo.vaultConnection()) {
+      case Ok(:final data):
+        conn = data;
+      case Err(:final message):
+        return VaultResult.fail(message);
+    }
+
+    final setup = await core.vaultCreate(passphrase: passphrase);
+    // 還沒有加密的群組，只需要存加密設定
+    final error = await core.vaultRewriteAll(connection: conn, usePending: true, expectedCheck: expected);
+    if (generation != _generation) return _superseded();
+    if (error != null) return VaultResult.fail(error);
+
+    final info = _infoOf(setup);
+    _replaceInfo(info);
+    if (remember) {
+      await _saveDeviceKey(uid, info);
+    } else {
+      await _deleteDeviceKey(uid);
+    }
+    return VaultResult.ok(await _encryptHomeGroup(conn, info.check));
+  }
+
+  // 預設群組：只有自己一個成員就加密，有其他成員就說明要先移除
+  Future<String?> _encryptHomeGroup(SupabaseConnection connection, String check) async {
+    final groups = await groups_repo.loadMyGroupsRaw();
+    final home = groups.dataOrNull?.map(GroupSummary.fromJson).where((g) => g.isDefault && g.isOwner).firstOrNull;
+    if (home == null || home.encrypted) return null;
+    if (home.memberCount > 1) return '「${home.name}」還有其他成員，沒有加密；移除成員後可以在群組設定開啟';
+    final error = await core.vaultSetGroupEncrypted(connection: connection, gid: home.id, encrypted: true, expectedCheck: check);
+    return error == null ? '已加密「${home.name}」' : '加密「${home.name}」失敗：$error';
+  }
+
+  /// 更改密碼：用目前的密碼解開，再用新密碼重新加密全部加密群組的金鑰
+  Future<VaultResult> changePassphrase(String currentPassphrase, String nextPassphrase) async {
+    final uid = _uid;
+    final info = _info;
+    if (uid == null || info == null) return const VaultResult.fail('尚未啟用加密');
+    final generation = _generation;
+    final SupabaseConnection conn;
+    switch (await repo.vaultConnection()) {
+      case Ok(:final data):
+        conn = data;
+      case Err(:final message):
+        return VaultResult.fail(message);
+    }
+
+    final setup = await core.vaultCreate(passphrase: nextPassphrase);
+    final error = await core.vaultRewriteAll(
+      connection: conn,
+      current: _current(info, currentPassphrase),
+      usePending: true,
+      expectedCheck: info.check,
+    );
+    if (generation != _generation) return _superseded();
+    if (error != null) return VaultResult.fail(error);
+
+    // 原本有記住就改記新的金鑰
+    final remembered = await _hasDeviceKey(uid);
+    final next = _infoOf(setup);
+    _replaceInfo(next);
+    if (remembered) await _saveDeviceKey(uid, next);
+    return const VaultResult.ok();
+  }
+
+  /// 停用加密：全部加密群組的金鑰改回明文，群組改成沒加密
+  Future<VaultResult> disable(String passphrase) async {
+    final uid = _uid;
+    final info = _info;
+    if (uid == null || info == null) return const VaultResult.fail('尚未啟用加密');
+    final generation = _generation;
+    final SupabaseConnection conn;
+    switch (await repo.vaultConnection()) {
+      case Ok(:final data):
+        conn = data;
+      case Err(:final message):
+        return VaultResult.fail(message);
+    }
+
+    final error = await core.vaultRewriteAll(
+      connection: conn,
+      current: _current(info, passphrase),
+      usePending: false,
+      expectedCheck: info.check,
+    );
+    if (generation != _generation) return const VaultResult.fail('帳號已變更，請重新操作');
+    if (error != null) return VaultResult.fail(error);
+    _replaceInfo(null);
+    await _deleteDeviceKey(uid);
+    return const VaultResult.ok();
+  }
+
+  /// 忘記密碼：清空全部加密群組裡的驗證碼並停用加密（不需要密碼）
+  Future<VaultResult> reset() async {
+    final uid = _uid;
+    if (uid == null) return const VaultResult.fail('尚未登入');
+    final result = await repo.resetVault();
+    if (result case Err(:final message)) return VaultResult.fail(message);
+    if (_uid != uid) return const VaultResult.ok();
+    _replaceInfo(null);
+    await _deleteDeviceKey(uid);
+    return const VaultResult.ok();
+  }
+
+  /// 開關一個群組的加密：要先設定密碼並解鎖（同網站 setGroupEncryption）；成功回傳 null
+  Future<String?> setGroupEncrypted(String gid, bool encrypted) async {
+    final info = _info;
+    if (info == null) return '請先到「設定」的「加密」設定加密密碼';
+    if (status != VaultStatus.unlocked) return '請先輸入加密密碼解鎖';
+    final SupabaseConnection conn;
+    switch (await repo.vaultConnection()) {
+      case Ok(:final data):
+        conn = data;
+      case Err(:final message):
+        return message;
+    }
+    return core.vaultSetGroupEncrypted(
+      connection: conn,
+      gid: gid,
+      encrypted: encrypted,
+      expectedCheck: info.check,
+    );
+  }
+
+  // 操作到一半登出或換了帳號：Rust 裡剛換上的新金鑰不能留給別人
+  VaultResult _superseded() {
+    if (status != VaultStatus.unlocked) core.vaultLock();
+    return const VaultResult.fail('帳號已變更，請重新操作');
+  }
+
+  static core.VaultCurrent _current(VaultInfo info, String passphrase) =>
+      core.VaultCurrent(salt: info.salt, iterations: info.iterations, check: info.check, passphrase: passphrase);
+
+  Future<bool> _hasDeviceKey(String uid) async {
+    try {
+      return await secureStore.read(key: _storeKey(uid)) != null;
+    } catch (_) {
+      return false;
     }
   }
 }

@@ -4,10 +4,11 @@ import 'package:provider/provider.dart';
 import '../../core/theme/tokens.dart';
 import '../groups/group_models.dart';
 import 'vault_controller.dart';
+import 'vault_settings_section.dart' show confirmVaultReset;
 
 /*
  * 加密群組還沒解鎖時顯示（同網站 GroupCodes 的鎖定畫面 + VaultUnlock）。
- * 不是擁有者的人解不開；忘記密碼只能到網站清空加密群組重來。
+ * 不是擁有者的人解不開；忘記密碼只能清空加密群組重來（confirmVaultReset）。
  */
 class VaultUnlockView extends StatefulWidget {
   const VaultUnlockView({super.key, required this.group});
@@ -119,10 +120,14 @@ class _VaultUnlockViewState extends State<VaultUnlockView> {
                 child: Text(_pending ? '解鎖中…' : '解鎖'),
               ),
             ),
-            const SizedBox(height: 12),
-            Text(
-              '忘記密碼的話，請到網站的帳戶設定重設加密',
-              style: TextStyle(fontSize: AppText.caption, color: colors.inkMuted),
+            const SizedBox(height: 4),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                onPressed: _pending ? null : () => confirmVaultReset(context),
+                style: TextButton.styleFrom(foregroundColor: colors.alarm),
+                child: const Text('忘記密碼？'),
+              ),
             ),
           ],
         ],
