@@ -3,13 +3,16 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../../core/theme/tokens.dart';
 
-/// 用相機掃描 QR Code（只在 iOS / Android 開啟），掃到就把內容帶回上一頁
+/// 用相機掃描 QR Code（iOS、Android、macOS），掃到就把內容帶回上一頁
 class QrScanPage extends StatefulWidget {
   const QrScanPage({super.key});
 
   @override
   State<QrScanPage> createState() => _QrScanPageState();
 }
+
+// 相機畫面周圍的底色：深灰，不用純黑
+const _backdrop = Color(0xFF1C1C1E);
 
 class _QrScanPageState extends State<QrScanPage> {
   final _controller = MobileScannerController(formats: const [BarcodeFormat.qrCode]);
@@ -33,9 +36,9 @@ class _QrScanPageState extends State<QrScanPage> {
   Widget build(BuildContext context) {
     final colors = context.colors;
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: _backdrop,
       appBar: AppBar(
-        backgroundColor: Colors.black,
+        backgroundColor: _backdrop,
         foregroundColor: Colors.white,
         title: const Text('掃描 QR Code'),
       ),
@@ -51,7 +54,7 @@ class _QrScanPageState extends State<QrScanPage> {
                 child: Text(
                   error.errorCode == MobileScannerErrorCode.permissionDenied
                       ? '沒有相機權限，請到系統設定允許 Securibit 使用相機'
-                      : '無法開啟相機',
+                      : '無法開啟相機，請確認這台裝置有相機而且沒有被其他 App 使用',
                   textAlign: TextAlign.center,
                   style: const TextStyle(color: Colors.white, fontSize: AppText.body),
                 ),
@@ -73,7 +76,7 @@ class _QrScanPageState extends State<QrScanPage> {
             right: 24,
             bottom: 48,
             child: Text(
-              '對準服務在兩步驟驗證設定頁顯示的 QR Code',
+              '對準服務在兩步驟驗證設定頁顯示的 QR Code，或 Google Authenticator 的匯出 QR Code',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.white, fontSize: AppText.secondary, fontWeight: FontWeight.w600),
             ),

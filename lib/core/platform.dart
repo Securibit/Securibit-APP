@@ -1,12 +1,14 @@
 import 'dart:io' show Platform;
 
-// 依平台決定功能：桌面用三欄版面、相機掃描只在手機、生物辨識在 iOS / Android / macOS
+// 依平台決定功能：桌面用三欄版面、相機掃描與從圖片讀 QR Code 在 iOS / Android / macOS、生物辨識在 iOS / Android / macOS
 class AppPlatform {
   AppPlatform._();
 
   static bool get isMobile => Platform.isIOS || Platform.isAndroid;
   static bool get isDesktop => Platform.isMacOS || Platform.isLinux || Platform.isWindows;
-  static bool get canScanQr => isMobile;
+  static bool get canScanQr => isMobile || Platform.isMacOS;
+  // 從圖片讀 QR Code（mobile_scanner 的 analyzeImage）：Linux 不支援，只能匯入文字備份檔
+  static bool get canReadQrImage => isMobile || Platform.isMacOS;
   static bool get canUseBiometrics => Platform.isIOS || Platform.isAndroid || Platform.isMacOS;
 
   /// Linux 的 Flutter 引擎不會依字元向系統要備援字型（只掃 /usr/share/fonts，系統預設字型多半沒有中文），
