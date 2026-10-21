@@ -3,6 +3,8 @@
  * 使用者密碼（UTF-8）→ PBKDF2-SHA256（600,000 次）→ AES-GCM 256。
  * 密文格式 enc:v1:<iv base64>:<密文＋16 位元組 tag base64>，iv 12 位元組。
  * 解開的金鑰只放在 VaultKey 裡，離開作用域時自動歸零。
+ *
+ * 設定、更改、停用密碼與開關群組加密時，整批金鑰的重新加密也在這裡（同網站 VaultProvider 的 rewrite、rewriteGroup）。
  */
 
 use aes_gcm::aead::{Aead, AeadCore, KeyInit, OsRng};
@@ -11,10 +13,12 @@ use sha2::Sha256;
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 use crate::b64;
+use crate::sealed::RawSecrets;
 
 pub const PREFIX: &str = "enc:v1:";
 pub const ITERATIONS: u32 = 600_000;
 pub const CHECK_TEXT: &str = "securibit-vault-check";
+const SALT_LENGTH: usize = 16;
 const IV_LENGTH: usize = 12;
 const TAG_LENGTH: usize = 16;
 
@@ -138,6 +142,59 @@ pub fn unlock(salt_b64: &str, iterations: u32, check: &str, passphrase: &str) ->
     Ok(verify_key(check, &key).then_some(key))
 }
 
+/// 新的加密設定（設定或更改密碼）：salt、iterations、check 存進 profiles.vault，金鑰留在 Rust
+pub struct NewVault {
+    pub key: VaultKey,
+    // PBKDF2 的 salt（base64）
+    pub salt: String,
+    pub iterations: u32,
+    pub check: String,
+}
+
+impl std::fmt::Debug for NewVault {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("NewVault").field("salt", &self.salt).field("check", &self.check).finish_non_exhaustive()
+    }
+}
+
+/// 同網站 createVault：隨機 16 位元組 salt，PBKDF2 60 萬次，check 是用新金鑰加密的固定字串
+pub fn create(passphrase: &str) -> NewVault {
+    let mut salt = [0u8; SALT_LENGTH];
+    getrandom::getrandom(&mut salt).expect("系統亂數無法使用");
+    let key = derive_key(passphrase, &salt, ITERATIONS);
+    let check = encrypt_text(&key, CHECK_TEXT);
+    NewVault { key, salt: b64::encode(&salt), iterations: ITERATIONS, check }
+}
+
+/// 更改密碼、停用加密：每一筆先用舊金鑰解開（本來就是明文的照舊），next 有值就用新金鑰加密，沒有就寫回明文。
+/// 有任何一筆解不開就整批失敗（同網站 rewrite）
+pub fn reencrypt(raw: &RawSecrets, old: &VaultKey, next: Option<&VaultKey>) -> Result<RawSecrets, VaultError> {
+    let mut out = RawSecrets::new();
+    for (id, value) in raw {
+        let plain = if is_encrypted(value) { decrypt_text(old, value)? } else { value.clone() };
+        let value = match next {
+            Some(key) => Zeroizing::new(encrypt_text(key, &plain)),
+            None => plain,
+        };
+        out.insert(id.clone(), value);
+    }
+    Ok(out)
+}
+
+/// 開關一個群組的加密：開啟時把明文加密（已經是 enc:v1 的保留），關閉時解開（同網站 rewriteGroup）
+pub fn toggle(raw: &RawSecrets, key: &VaultKey, encrypted: bool) -> Result<RawSecrets, VaultError> {
+    let mut out = RawSecrets::new();
+    for (id, value) in raw {
+        let value = match (encrypted, is_encrypted(value)) {
+            (true, false) => Zeroizing::new(encrypt_text(key, value)),
+            (false, true) => decrypt_text(key, value)?,
+            _ => value.clone(),
+        };
+        out.insert(id.clone(), value);
+    }
+    Ok(out)
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
@@ -191,5 +248,62 @@ pub(crate) mod tests {
     fn is_encrypted_prefix() {
         assert!(is_encrypted(CIPHER));
         assert!(!is_encrypted(SECRET));
+    }
+
+    fn raw(pairs: &[(&str, &str)]) -> RawSecrets {
+        pairs.iter().map(|(k, v)| (k.to_string(), Zeroizing::new(v.to_string()))).collect()
+    }
+
+    // 新設定的密碼用網站的 unlock 流程（同一套 PBKDF2、check）解得開，格式同網站 createVault
+    #[test]
+    fn create_matches_website_format() {
+        let next = create("新的密碼 12345678");
+        assert_eq!(next.iterations, ITERATIONS);
+        assert_eq!(b64::decode(&next.salt).unwrap().len(), 16);
+        assert!(next.check.starts_with(PREFIX));
+        let again = unlock(&next.salt, next.iterations, &next.check, "新的密碼 12345678").unwrap().expect("密碼正確");
+        assert_eq!(again.as_bytes(), next.key.as_bytes());
+        assert!(unlock(&next.salt, next.iterations, &next.check, "wrong").unwrap().is_none());
+        assert_ne!(create("新的密碼 12345678").salt, next.salt, "salt 每次不同");
+    }
+
+    // 網站加密的金鑰（向量）改成新密碼後，用新密碼解得回原文；再改回網站的金鑰，網站的金鑰也解得開
+    #[test]
+    fn reencrypt_website_vector() {
+        let website = website_key();
+        let next = create("另一組密碼 abcdefgh");
+        let rewritten = reencrypt(&raw(&[("a", CIPHER), ("b", "PLAINTEXT234567")]), &website, Some(&next.key)).unwrap();
+        assert!(is_encrypted(&rewritten["a"]) && is_encrypted(&rewritten["b"]));
+        assert_eq!(decrypt_text(&next.key, &rewritten["a"]).unwrap().as_str(), SECRET);
+        assert_eq!(decrypt_text(&next.key, &rewritten["b"]).unwrap().as_str(), "PLAINTEXT234567");
+        assert!(decrypt_text(&website, &rewritten["a"]).is_err());
+
+        let back = reencrypt(&rewritten, &next.key, Some(&website)).unwrap();
+        assert_eq!(decrypt_text(&website, &back["a"]).unwrap().as_str(), SECRET);
+
+        // 停用：寫回明文
+        let plain = reencrypt(&back, &website, None).unwrap();
+        assert_eq!(plain["a"].as_str(), SECRET);
+        assert_eq!(plain["b"].as_str(), "PLAINTEXT234567");
+
+        // 有一筆是用別的金鑰加密的：整批失敗
+        assert_eq!(reencrypt(&raw(&[("a", CIPHER)]), &next.key, None).err(), Some(VaultError::Decrypt));
+    }
+
+    #[test]
+    fn toggle_group() {
+        let key = website_key();
+        let on = toggle(&raw(&[("a", SECRET), ("b", CIPHER)]), &key, true).unwrap();
+        assert!(is_encrypted(&on["a"]));
+        assert_eq!(on["b"].as_str(), CIPHER, "已經加密的保留");
+        assert_eq!(decrypt_text(&key, &on["a"]).unwrap().as_str(), SECRET);
+
+        let off = toggle(&on, &key, false).unwrap();
+        assert_eq!(off["a"].as_str(), SECRET);
+        assert_eq!(off["b"].as_str(), SECRET);
+        assert_eq!(toggle(&off, &key, false).unwrap()["a"].as_str(), SECRET);
+
+        let other = derive_key("x", b"salt", 1);
+        assert_eq!(toggle(&raw(&[("b", CIPHER)]), &other, false).err(), Some(VaultError::Decrypt));
     }
 }

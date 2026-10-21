@@ -1268,10 +1268,12 @@ name = "securibit_api"
 version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
+ "bytes",
  "flutter_rust_bridge",
  "reqwest",
  "securibit-core",
  "serde_json",
+ "tokio",
  "zeroize",
 ]
 

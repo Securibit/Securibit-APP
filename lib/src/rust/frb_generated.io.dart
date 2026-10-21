@@ -40,6 +40,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   SupabaseConnection dco_decode_box_autoadd_supabase_connection(dynamic raw);
 
   @protected
+  VaultCurrent dco_decode_box_autoadd_vault_current(dynamic raw);
+
+  @protected
   int dco_decode_i_32(dynamic raw);
 
   @protected
@@ -65,6 +68,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   OtpauthLink? dco_decode_opt_box_autoadd_otpauth_link(dynamic raw);
+
+  @protected
+  VaultCurrent? dco_decode_opt_box_autoadd_vault_current(dynamic raw);
 
   @protected
   List<SecretMeta>? dco_decode_opt_list_secret_meta(dynamic raw);
@@ -106,6 +112,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void dco_decode_unit(dynamic raw);
 
   @protected
+  VaultCurrent dco_decode_vault_current(dynamic raw);
+
+  @protected
+  VaultSetup dco_decode_vault_setup(dynamic raw);
+
+  @protected
   VaultUnlockResult dco_decode_vault_unlock_result(dynamic raw);
 
   @protected
@@ -127,6 +139,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   SupabaseConnection sse_decode_box_autoadd_supabase_connection(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  VaultCurrent sse_decode_box_autoadd_vault_current(
     SseDeserializer deserializer,
   );
 
@@ -158,6 +175,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   OtpauthLink? sse_decode_opt_box_autoadd_otpauth_link(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  VaultCurrent? sse_decode_opt_box_autoadd_vault_current(
     SseDeserializer deserializer,
   );
 
@@ -207,6 +229,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_decode_unit(SseDeserializer deserializer);
 
   @protected
+  VaultCurrent sse_decode_vault_current(SseDeserializer deserializer);
+
+  @protected
+  VaultSetup sse_decode_vault_setup(SseDeserializer deserializer);
+
+  @protected
   VaultUnlockResult sse_decode_vault_unlock_result(
     SseDeserializer deserializer,
   );
@@ -235,6 +263,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_supabase_connection(
     SupabaseConnection self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_vault_current(
+    VaultCurrent self,
     SseSerializer serializer,
   );
 
@@ -274,6 +308,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_otpauth_link(
     OtpauthLink? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_vault_current(
+    VaultCurrent? self,
     SseSerializer serializer,
   );
 
@@ -327,6 +367,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_unit(void self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_vault_current(VaultCurrent self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_vault_setup(VaultSetup self, SseSerializer serializer);
 
   @protected
   void sse_encode_vault_unlock_result(

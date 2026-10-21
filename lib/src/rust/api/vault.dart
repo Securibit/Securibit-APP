@@ -5,8 +5,9 @@
 
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
+import 'secrets.dart';
 
-// These functions are ignored because they are not marked as `pub`: `adopt`
+// These functions are ignored because they are not marked as `pub`: `adopt`, `load_encrypted_secrets`
 
 /// 用密碼解鎖（PBKDF2 60 萬次，在背景執行緒計算）；成功時金鑰留在 Rust
 Future<VaultUnlockResult> vaultUnlock({
@@ -21,7 +22,7 @@ Future<VaultUnlockResult> vaultUnlock({
   passphrase: passphrase,
 );
 
-/// 鎖定：金鑰歸零，加密群組的驗證碼金鑰也一起清掉
+/// 鎖定：金鑰歸零，加密群組的驗證碼金鑰也一起清掉（還沒存好的新設定也丟掉）
 void vaultLock() => RustLib.instance.api.crateApiVaultVaultLock();
 
 bool vaultIsUnlocked() => RustLib.instance.api.crateApiVaultVaultIsUnlocked();
@@ -47,5 +48,99 @@ bool vaultRestoreLegacy({required String check, required String keyBase64}) =>
 /// 加密群組新增或修改金鑰時先在這裡加密成 enc:v1；還沒解鎖是 null
 String? vaultEncrypt({required String text}) =>
     RustLib.instance.api.crateApiVaultVaultEncrypt(text: text);
+
+/// 設定或更改密碼的第一步：產生新的加密設定（PBKDF2 60 萬次，在背景執行緒計算），
+/// 新金鑰暫存在 Rust、還沒生效，要等 vault_rewrite_all 存到伺服器才換上
+Future<VaultSetup> vaultCreate({required String passphrase}) =>
+    RustLib.instance.api.crateApiVaultVaultCreate(passphrase: passphrase);
+
+/// 用新的加密設定重新寫入「我擁有且已加密的群組」的全部金鑰（同網站 VaultProvider 的 rewrite、enable）：
+/// - 設定密碼：current 是 null、use_pending 是 true；還沒有加密的群組，只存加密設定
+/// - 更改密碼：current 有值、use_pending 是 true；用舊金鑰解開，新金鑰加密
+/// - 停用加密：current 有值、use_pending 是 false；解開後寫回明文，群組改成沒加密
+/// expected_check 是目前 profile 的 vault.check（未啟用是 null），別的裝置先改過時資料庫會拒絕。
+/// 成功回傳 null；失敗回傳給使用者看的訊息。成功後新金鑰（停用時是沒有金鑰）立即生效，加密群組的驗證碼金鑰要重新讀取
+Future<String?> vaultRewriteAll({
+  required SupabaseConnection connection,
+  VaultCurrent? current,
+  required bool usePending,
+  String? expectedCheck,
+}) => RustLib.instance.api.crateApiVaultVaultRewriteAll(
+  connection: connection,
+  current: current,
+  usePending: usePending,
+  expectedCheck: expectedCheck,
+);
+
+/// 開關一個群組的加密（同網站 rewriteGroup）：用目前解鎖的金鑰把群組裡的金鑰加密或解開，再整批寫回。
+/// expected_check 是目前 profile 的 vault.check；成功回傳 null，失敗回傳給使用者看的訊息
+Future<String?> vaultSetGroupEncrypted({
+  required SupabaseConnection connection,
+  required String gid,
+  required bool encrypted,
+  required String expectedCheck,
+}) => RustLib.instance.api.crateApiVaultVaultSetGroupEncrypted(
+  connection: connection,
+  gid: gid,
+  encrypted: encrypted,
+  expectedCheck: expectedCheck,
+);
+
+/// 目前的加密設定與使用者輸入的目前密碼（更改密碼、停用時要先用它解開舊的金鑰）
+class VaultCurrent {
+  final String salt;
+  final int iterations;
+  final String check;
+  final String passphrase;
+
+  const VaultCurrent({
+    required this.salt,
+    required this.iterations,
+    required this.check,
+    required this.passphrase,
+  });
+
+  @override
+  int get hashCode =>
+      salt.hashCode ^
+      iterations.hashCode ^
+      check.hashCode ^
+      passphrase.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is VaultCurrent &&
+          runtimeType == other.runtimeType &&
+          salt == other.salt &&
+          iterations == other.iterations &&
+          check == other.check &&
+          passphrase == other.passphrase;
+}
+
+/// 新的加密設定裡可以公開的部分（存進 profiles.vault）
+class VaultSetup {
+  final String salt;
+  final int iterations;
+  final String check;
+
+  const VaultSetup({
+    required this.salt,
+    required this.iterations,
+    required this.check,
+  });
+
+  @override
+  int get hashCode => salt.hashCode ^ iterations.hashCode ^ check.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is VaultSetup &&
+          runtimeType == other.runtimeType &&
+          salt == other.salt &&
+          iterations == other.iterations &&
+          check == other.check;
+}
 
 enum VaultUnlockResult { unlocked, wrongPassphrase, badInfo }

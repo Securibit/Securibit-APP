@@ -8,12 +8,14 @@
  * - vault：加密群組 enc:v1（PBKDF2-SHA256 60 萬次 → AES-GCM 256，與網站 src/lib/vault/crypto.ts 逐位元組相容）
  * - lock：App 鎖定的圖形 / 密碼雜湊（PBKDF2-SHA256 2 萬次，固定時間比對）
  * - sealed：用這台裝置的金鑰把離線快取的金鑰封起來
+ * - rpc_body：送給伺服器、含金鑰的 JSON（寫在會歸零的緩衝區）
  * - store：記憶體裡的金鑰保管（依群組、驗證碼 id），只回傳驗證碼
  */
 
 pub mod base32;
 pub mod lock;
 pub mod otpauth;
+pub mod rpc_body;
 pub mod sealed;
 pub mod secret;
 pub mod store;

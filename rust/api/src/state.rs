@@ -3,13 +3,15 @@
 use std::sync::{LazyLock, Mutex, MutexGuard};
 
 use securibit_core::store::SecretStore;
-use securibit_core::vault::VaultKey;
+use securibit_core::vault::{NewVault, VaultKey};
 
 #[derive(Default)]
 pub(crate) struct State {
     pub store: SecretStore,
     // 加密群組解鎖後的金鑰
     pub vault: Option<VaultKey>,
+    // 設定或更改密碼時新產生、還沒存到伺服器的加密設定（存好才換成 vault）
+    pub pending: Option<NewVault>,
     // 這台裝置的金鑰：Dart 從系統安全儲存讀出來交給這裡；沒有安全儲存時用這次執行才有效的隨機金鑰
     pub device: Option<VaultKey>,
 }

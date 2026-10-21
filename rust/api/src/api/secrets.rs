@@ -187,6 +187,7 @@ pub fn secrets_clear_all() {
     let mut state = state();
     state.store.clear_all();
     state.vault = None;
+    state.pending = None;
 }
 
 /// App 鎖定：清掉全部金鑰，解鎖前不再接受新的（加密群組的金鑰保留，解鎖後不用重新輸入密碼）
