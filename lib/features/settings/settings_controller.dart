@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../menubar/mac_menu_bar.dart';
+import '../menubar/desktop_tray.dart';
 
 import 'lock/app_lock_controller.dart';
 import 'screen_privacy.dart';
@@ -10,7 +10,7 @@ import 'screen_privacy.dart';
 /*
  * App 的偏好設定，存在這台裝置：
  * 主題（預設跟隨系統）、隱藏驗證碼（同網站，所有群組共用）、允許截圖（手機預設不允許，macOS 預設允許）、App 鎖定，
- * 以及只有 macOS 有的「在選單列顯示」（預設打開）與「登入時自動開啟」（預設關閉）。
+ * 以及只有桌面版有的「在選單列顯示」（Linux 叫「在系統匣顯示」，預設打開）與「登入時自動開啟」（預設關閉；macOS、Linux）。
  * App 鎖定的設定存在安全儲存（見 AppLockController），這裡轉發它的變更通知。
  */
 class SettingsController extends ChangeNotifier {
@@ -32,7 +32,7 @@ class SettingsController extends ChangeNotifier {
   bool hideCodes = false;
   bool allowScreenshots = ScreenPrivacy.allowByDefault;
   bool showInMenuBar = true;
-  // 系統裡實際的狀態（使用者也可能在系統設定的「登入項目」改掉）
+  // 系統裡實際的狀態（使用者也可能在系統設定的「登入項目」或桌面環境的自動啟動設定改掉）
   LaunchAtLoginState launchAtLogin = LaunchAtLoginState.unsupported;
 
   SharedPreferences? _prefs;
@@ -60,7 +60,7 @@ class SettingsController extends ChangeNotifier {
 
   // 以系統的登記狀態為準，存下來的值只是記錄
   Future<void> _loadLaunchAtLogin() async {
-    if (!MacMenuBar.supported) return;
+    if (!DesktopTray.supported) return;
     launchAtLogin = await LaunchAtLogin.status();
     if (launchAtLogin != LaunchAtLoginState.unsupported) await _prefs?.setBool(_launchAtLoginKey, launchAtLogin.on);
   }

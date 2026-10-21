@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -7,7 +9,7 @@ import '../../core/widgets/avatar.dart';
 import '../../core/widgets/feedback.dart';
 import '../../core/widgets/grouped_list.dart';
 import '../auth/auth_controller.dart';
-import '../menubar/mac_menu_bar.dart';
+import '../menubar/desktop_tray.dart';
 import '../vault/vault_controller.dart';
 import 'app_lock.dart';
 import 'lock/app_lock_controller.dart';
@@ -161,7 +163,7 @@ class SettingsView extends StatelessWidget {
               ),
             ],
           ),
-          if (MacMenuBar.supported) ...[
+          if (DesktopTray.supported) ...[
             const SizedBox(height: 24),
             const _MenuBarSection(),
           ],
@@ -298,8 +300,8 @@ class _LockSection extends StatelessWidget {
 }
 
 /*
- * macOS 選單列：常駐在選單列（關視窗只是藏起來）與登入時自動開啟。
- * 登入時自動開啟用 SMAppService，macOS 13 以前沒有，開關停用並說明。
+ * 常駐圖示：macOS 的選單列、Linux 的系統匣（關視窗只是藏起來）與登入時自動開啟。
+ * macOS 的登入時自動開啟用 SMAppService，macOS 13 以前沒有，開關停用並說明；Linux 寫 autostart 檔，一律可用。
  */
 class _MenuBarSection extends StatelessWidget {
   const _MenuBarSection();
@@ -308,17 +310,25 @@ class _MenuBarSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsController>();
     final launch = settings.launchAtLogin;
+    final place = DesktopTray.place;
+    final linux = Platform.isLinux;
     final notes = [
-      settings.showInMenuBar ? '關閉視窗後 Securibit 會留在選單列，點圖示就能複製驗證碼；按 ⌘Q 才會結束' : '關閉視窗就會結束 Securibit',
+      if (!settings.showInMenuBar)
+        '關閉視窗就會結束 Securibit'
+      else if (linux)
+        '關閉視窗後 Securibit 會留在系統匣，點圖示就能複製驗證碼；選「結束 Securibit」才會結束。桌面沒有系統匣時關閉視窗一樣會結束'
+      else
+        '關閉視窗後 Securibit 會留在選單列，點圖示就能複製驗證碼；按 ⌘Q 才會結束',
+      if (linux) 'GNOME 要先安裝 AppIndicator 擴充功能才看得到系統匣圖示；KDE、XFCE、Cinnamon 可以直接使用',
       if (launch == LaunchAtLoginState.unsupported) '登入時自動開啟需要 macOS 13 以上',
       if (launch == LaunchAtLoginState.requiresApproval) '要到「系統設定 › 一般 › 登入項目」允許 Securibit 才會自動開啟',
     ];
     return GroupedList(
-      header: '選單列',
+      header: place,
       footer: notes.join('\n'),
       children: [
         GroupedRow(
-          label: '在選單列顯示',
+          label: '在$place顯示',
           trailing: Switch.adaptive(value: settings.showInMenuBar, onChanged: settings.setShowInMenuBar),
         ),
         GroupedRow(
@@ -331,7 +341,7 @@ class _MenuBarSection extends StatelessWidget {
                     final error = await settings.setLaunchAtLogin(value);
                     if (!context.mounted) return;
                     if (error != null) {
-                      await showErrorDialog(context, '無法變更登入項目', error);
+                      await showErrorDialog(context, linux ? '無法變更自動啟動' : '無法變更登入項目', error);
                     } else if (settings.launchAtLogin == LaunchAtLoginState.requiresApproval) {
                       await LaunchAtLogin.openSystemSettings();
                     }

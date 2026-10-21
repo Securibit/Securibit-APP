@@ -10,14 +10,15 @@ import '../groups/groups_controller.dart';
 import '../settings/settings_controller.dart';
 import '../settings/settings_view.dart';
 import '../vault/vault_controller.dart';
-import 'mac_menu_bar.dart';
+import 'desktop_tray.dart';
 import 'menu_bar_codes.dart';
 import 'menu_bar_model.dart';
 
 /*
- * macOS 選單列的 Dart 端：Dart 是唯一的資料來源，原生端只負責畫 NSMenu。
+ * 桌面常駐選單（macOS 選單列、Linux 系統匣）的 Dart 端：Dart 是唯一的資料來源，原生端只負責畫選單。
  * - 選單關著：資料有變時只送結構（群組、名稱，驗證碼是佔位文字），打開時馬上就有東西可畫
  * - 選單打開（menuWillOpen）與開著的每一秒（tick，計時器在原生端）：回傳含驗證碼的完整內容
+ * - Linux 不一定知道選單什麼時候打開，主視窗藏起來時也當作開著，每秒送完整內容（見 DesktopTray.refreshWhileHidden）
  * - 點了某一筆（copy）：在這裡（由 Rust）算當下的碼並複製，原生端與 Dart 都不會拿到金鑰
  * - 主視窗藏起來或重新顯示時通知 App 鎖定（見 WindowVisibility）
  */
@@ -44,8 +45,8 @@ class MenuBarService {
   String? _lastPushed;
 
   void start() {
-    if (!MacMenuBar.supported) return;
-    MacMenuBar.channel.setMethodCallHandler(_handle);
+    if (!DesktopTray.supported) return;
+    DesktopTray.channel.setMethodCallHandler(_handle);
     for (final source in <Listenable>[settings, auth, groups, vault, codes]) {
       source.addListener(_onChanged);
     }
@@ -54,13 +55,16 @@ class MenuBarService {
 
   bool get _active => settings.showInMenuBar;
 
+  // 要不要送含驗證碼的完整內容：選單開著，或 Linux 主視窗藏著（只能從系統匣看驗證碼）
+  bool get _live => _open || (DesktopTray.refreshWhileHidden && !WindowVisibility.visible.value);
+
   void _onChanged() {
     final enabled = _active;
     if (enabled != _enabled) {
       _enabled = enabled;
       _lastPushed = null;
       if (!enabled) codes.reset(null);
-      unawaited(MacMenuBar.setEnabled(enabled));
+      unawaited(DesktopTray.setEnabled(enabled));
     }
     // 登出後不留任何群組的資料
     if (auth.profile == null) codes.reset(null);
@@ -70,8 +74,8 @@ class MenuBarService {
     scheduleMicrotask(() {
       _pushScheduled = false;
       if (!_active) return;
-      _refreshCodes(network: _open);
-      unawaited(_push(_model(withCodes: _open)));
+      _refreshCodes(network: _live);
+      unawaited(_push(_model(withCodes: _live)));
     });
   }
 
@@ -102,7 +106,7 @@ class MenuBarService {
     final encoded = jsonEncode(map);
     if (encoded == _lastPushed) return;
     _lastPushed = encoded;
-    await MacMenuBar.update(map);
+    await DesktopTray.update(map);
   }
 
   Map<String, Object?> _snapshot() {
@@ -118,11 +122,11 @@ class MenuBarService {
         _open = true;
         return _snapshot();
       case 'tick':
-        return _open ? _snapshot() : null;
+        return _live ? _snapshot() : null;
       case 'menuDidClose':
         _open = false;
-        // 關起來後原生端只留結構，不留驗證碼
-        unawaited(_push(_model(withCodes: false)));
+        // 關起來後原生端只留結構，不留驗證碼（Linux 視窗藏著時繼續送完整內容）
+        if (!_live) unawaited(_push(_model(withCodes: false)));
         return null;
       case 'copy':
         final id = (call.arguments as Map?)?['id'];
@@ -141,6 +145,7 @@ class MenuBarService {
         return null;
       case 'windowDidShow':
         WindowVisibility.visible.value = true;
+        if (!_live) unawaited(_push(_model(withCodes: false)));
         return null;
     }
     throw MissingPluginException();

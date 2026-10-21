@@ -113,7 +113,7 @@ class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
     super.dispose();
   }
 
-  // 鎖定狀態同步給 AppLockController（選單列看它決定能不能列出驗證碼）
+  // 鎖定狀態同步給 AppLockController（選單列／系統匣看它決定能不能列出驗證碼）
   void _setLocked(bool value) {
     _locked = value;
     _lock.screenLocked = value;
@@ -132,12 +132,12 @@ class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
     if (state == AppLifecycleState.hidden || state == AppLifecycleState.paused) {
       _leave();
     } else if (state == AppLifecycleState.resumed) {
-      // macOS 選單列常駐時，視窗藏著也可能收到 resumed（例如從選單列複製），視窗顯示時才算回來
+      // 選單列／系統匣常駐時，視窗藏著也可能收到 resumed（例如從選單列複製），視窗顯示時才算回來
       if (WindowVisibility.visible.value) _return();
     }
   }
 
-  // macOS 選單列常駐：主視窗藏起來算離開 App，重新顯示算回來
+  // 選單列／系統匣常駐：主視窗藏起來算離開 App，重新顯示算回來
   void _onWindowVisibility() => WindowVisibility.visible.value ? _return() : _leave();
 
   void _leave() {

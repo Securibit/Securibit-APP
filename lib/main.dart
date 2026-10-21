@@ -52,7 +52,7 @@ Future<void> main() async {
     },
   )..start();
 
-  // macOS 選單列（其他平台不做事）
+  // macOS 選單列、Linux 系統匣（其他平台不做事）
   final navigatorKey = GlobalKey<NavigatorState>();
   MenuBarService(
     settings: settings,

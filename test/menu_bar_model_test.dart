@@ -6,7 +6,7 @@ import 'package:securibit/features/groups/group_models.dart';
 import 'package:securibit/features/menubar/menu_bar_model.dart';
 import 'package:securibit/src/rust/api/secrets.dart';
 
-// macOS 選單列的內容：分組、釘選順序、遮住驗證碼、鎖定與未登入
+// 選單列／系統匣共用的內容：分組、釘選順序、遮住驗證碼、鎖定與未登入，以及 Linux 用的一行文字
 const _secret = 'JBSWY3DPEHPK3PXP';
 
 // 金鑰放進 Rust 記憶體（每次一格新的 scope），回傳指向它的 handle
@@ -134,6 +134,44 @@ void main() {
       );
       expect(model.items.single.name.runes.length, 32);
       expect(model.items.single.name, endsWith('…'));
+    });
+  });
+
+  group('一行文字（Linux 系統匣）', () {
+    test('名稱、驗證碼、剩餘秒數用全形空白隔開，和欄位的內容一致', () {
+      final model = _build(
+        groups: [_group('g1', 'A')],
+        data: {'g1': MenuGroupData(accounts: [_account('a', 'GitHub')], secrets: {'a': _secret})},
+      );
+      final item = model.items.single;
+      expect(item.label, 'GitHub\u3000${formatOtp(expected)}\u300025 秒');
+      final map = (model.toMap()['sections'] as List).single as Map;
+      expect(((map['items'] as List).single as Map)['label'], item.label);
+    });
+
+    test('快到期時秒數前加「剩」，沒有秒數時只有名稱與狀態', () {
+      final data = {'g1': MenuGroupData(accounts: [_account('a', 'GitHub')], secrets: {'a': _secret})};
+      final late = _build(groups: [_group('g1', 'A')], data: data, now: _now + 20000);
+      expect(late.items.single.label, endsWith('\u3000剩 5 秒'));
+
+      final structure = _build(groups: [_group('g1', 'A')], data: data, withCodes: false);
+      expect(structure.items.single.label, 'GitHub\u3000--- ---');
+
+      final bad = _build(
+        groups: [_group('g1', 'A')],
+        data: {'g1': MenuGroupData(accounts: [_account('a', 'Bad')], secrets: {'a': '!!!'})},
+      );
+      expect(bad.items.single.label, 'Bad\u3000金鑰錯誤');
+    });
+
+    test('隱藏驗證碼時一行文字也只有圓點', () {
+      final model = _build(
+        hideCodes: true,
+        groups: [_group('g1', 'A')],
+        data: {'g1': MenuGroupData(accounts: [_account('a', 'GitHub')], secrets: {'a': _secret})},
+      );
+      expect(model.items.single.label, contains('••• •••'));
+      expect(model.toMap().toString(), isNot(contains(expected)));
     });
   });
 

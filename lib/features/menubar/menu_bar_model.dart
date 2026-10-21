@@ -5,8 +5,10 @@ import '../codes/totp/otp.dart';
 import '../groups/group_models.dart';
 
 /*
- * macOS 選單列的內容（純資料，方便測試）：依群組分段、釘選的在前，每一筆是名稱、驗證碼與剩餘秒數。
+ * 桌面常駐選單的內容（macOS 選單列、Linux 系統匣共用；純資料，方便測試）：
+ * 依群組分段、釘選的在前，每一筆是名稱、驗證碼與剩餘秒數。
  * 原生端只拿到這裡算好的顯示文字；金鑰留在 Rust（這裡只有 SecretHandle），點了要複製時再回來用 codeFor 算當下的碼。
+ * macOS 用 name、code、remaining 排成對齊的欄位；Linux 的 AppIndicator 選單只能顯示一行純文字，用 label。
  */
 
 // 驗證碼加起來超過這個數量就每個群組收成一個子選單，選單才不會長到超出螢幕
@@ -14,6 +16,9 @@ const menuBarInlineLimit = 20;
 
 // 名稱太長時截斷，選單才不會被撐得很寬
 const _nameLimit = 32;
+
+// 一行純文字的欄位間隔（全形空白，比半形空白明顯）
+const _labelGap = '\u3000';
 
 enum MenuBarStatus { signedOut, loading, locked, ready }
 
@@ -49,6 +54,12 @@ class MenuBarItem {
   final bool expiring;
   final bool copyable;
 
+  /// 一行純文字（不能排欄位、不能上色的選單用）：「名稱　驗證碼　剩餘秒數」，快到期時秒數前加「剩」
+  String get label {
+    final parts = [name, code, if (remaining != null) expiring ? '剩 $remaining' : remaining!];
+    return parts.join(_labelGap);
+  }
+
   Map<String, Object?> toMap() => {
         'id': id,
         'name': name,
@@ -56,6 +67,7 @@ class MenuBarItem {
         'remaining': remaining,
         'expiring': expiring,
         'copyable': copyable,
+        'label': label,
       };
 }
 
