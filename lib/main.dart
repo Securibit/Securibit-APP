@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -12,6 +14,9 @@ import 'features/groups/groups_controller.dart';
 import 'features/menubar/menu_bar_codes.dart';
 import 'features/menubar/menu_bar_service.dart';
 import 'features/settings/settings_controller.dart';
+import 'features/update/release.dart';
+import 'features/update/update_controller.dart';
+import 'features/update/update_service.dart';
 import 'features/vault/vault_controller.dart';
 
 Future<void> main() async {
@@ -63,6 +68,10 @@ Future<void> main() async {
     navigatorKey: navigatorKey,
   ).start();
 
+  // 檢查更新（GitHub Releases）：在背景讀版本、等幾秒再查，不擋啟動；iOS 不檢查
+  final updates = UpdateController(repo: Env.updateRepo, target: UpdateTarget.current());
+  unawaited(UpdateService(updates: updates, navigatorKey: navigatorKey).start());
+
   runApp(
     MultiProvider(
       providers: [
@@ -71,6 +80,7 @@ Future<void> main() async {
         ChangeNotifierProvider.value(value: auth),
         ChangeNotifierProvider.value(value: vault),
         ChangeNotifierProvider.value(value: groups),
+        ChangeNotifierProvider.value(value: updates),
       ],
       child: SecuribitApp(home: const RootView(), navigatorKey: navigatorKey),
     ),

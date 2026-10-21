@@ -14,5 +14,8 @@ class Env {
   static const googleWebClientId = String.fromEnvironment('GOOGLE_WEB_CLIENT_ID');
   static const googleIosClientId = String.fromEnvironment('GOOGLE_IOS_CLIENT_ID');
 
+  // 檢查更新用的 GitHub repo（owner/name），讀它的 Releases；留空就不檢查更新（自己架後端的人可以關掉或指向自己的 repo）
+  static const updateRepo = String.fromEnvironment('UPDATE_REPO');
+
   static bool get isConfigured => supabaseUrl.isNotEmpty && supabaseAnonKey.isNotEmpty;
 }

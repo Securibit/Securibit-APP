@@ -10,6 +10,8 @@ import '../../core/widgets/feedback.dart';
 import '../../core/widgets/grouped_list.dart';
 import '../auth/auth_controller.dart';
 import '../menubar/desktop_tray.dart';
+import '../update/update_controller.dart';
+import '../update/update_dialog.dart';
 import '../vault/vault_controller.dart';
 import 'app_lock.dart';
 import 'lock/app_lock_controller.dart';
@@ -47,7 +49,7 @@ Future<void> _showSettings(BuildContext context) {
   return Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const SettingsView()));
 }
 
-// 設定頁：帳戶資料（可複製）、主題、加密群組、App 鎖定、截圖、選單列（macOS）、登出
+// 設定頁：帳戶資料（可複製）、主題、加密群組、App 鎖定、截圖、選單列（macOS）、關於與更新（iOS 沒有）、登出
 class SettingsView extends StatelessWidget {
   const SettingsView({super.key});
 
@@ -57,6 +59,7 @@ class SettingsView extends StatelessWidget {
     final auth = context.watch<AuthController>();
     final settings = context.watch<SettingsController>();
     final vault = context.watch<VaultController>();
+    final updatesSupported = context.select<UpdateController, bool>((u) => u.supported);
     final profile = auth.profile;
 
     return Scaffold(
@@ -166,6 +169,10 @@ class SettingsView extends StatelessWidget {
           if (DesktopTray.supported) ...[
             const SizedBox(height: 24),
             const _MenuBarSection(),
+          ],
+          if (updatesSupported) ...[
+            const SizedBox(height: 24),
+            const _UpdateSection(),
           ],
           const SizedBox(height: 24),
           GroupedList(
@@ -348,6 +355,66 @@ class _MenuBarSection extends StatelessWidget {
                   },
           ),
         ),
+      ],
+    );
+  }
+}
+
+/*
+ * 關於與更新：目前版本、手動檢查更新、啟動時檢查更新。
+ * 沒有設定 UPDATE_REPO（自己架後端的人關掉檢查更新）時只顯示版本。
+ */
+class _UpdateSection extends StatelessWidget {
+  const _UpdateSection();
+
+  Future<void> _check(BuildContext context, UpdateController updates) async {
+    final release = await updates.check();
+    if (!context.mounted) return;
+    if (release != null) {
+      // 手動檢查時，略過的版本也照樣提示
+      await showUpdateDialog(context, updates, release);
+    } else if (updates.status == UpdateStatus.failed) {
+      showToast(context, '無法檢查更新，請檢查網路連線');
+    } else if (updates.status == UpdateStatus.upToDate) {
+      showToast(context, '已是最新版本');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final updates = context.watch<UpdateController>();
+    final checking = updates.status == UpdateStatus.checking;
+    final status = switch (updates.status) {
+      UpdateStatus.checking => '檢查中',
+      UpdateStatus.upToDate => '已是最新版本',
+      UpdateStatus.available => '有新版本 ${updates.latest?.version}',
+      UpdateStatus.failed => '無法檢查',
+      UpdateStatus.idle => null,
+    };
+    return GroupedList(
+      header: '關於與更新',
+      footer: updates.enabled
+          ? '從 GitHub 的 ${updates.repo} 檢查新版本，有新版本時提示並用瀏覽器下載，不會自動安裝'
+              '${DesktopTray.supported && updates.checkOnLaunch ? '；常駐在${DesktopTray.place}時每天再檢查一次' : ''}'
+          : null,
+      children: [
+        GroupedRow(label: '版本', value: updates.currentVersion ?? '讀取中'),
+        if (updates.enabled) ...[
+          GroupedRow(
+            label: '檢查更新',
+            accent: true,
+            value: status,
+            trailing: checking
+                ? SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2, color: colors.inkMuted))
+                : null,
+            onTap: checking ? null : () => _check(context, updates),
+          ),
+          GroupedRow(
+            label: '啟動時檢查更新',
+            trailing: Switch.adaptive(value: updates.checkOnLaunch, onChanged: updates.setCheckOnLaunch),
+          ),
+        ],
       ],
     );
   }

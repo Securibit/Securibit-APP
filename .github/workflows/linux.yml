@@ -46,8 +46,9 @@ jobs:
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
         run: |
-          jq -n --arg url "$SUPABASE_URL" --arg key "$SUPABASE_ANON_KEY" --arg google "$GOOGLE_WEB_CLIENT_ID" \
-            '{SUPABASE_URL: $url, SUPABASE_ANON_KEY: $key, SECURIBIT_WEB_URL: "https://2fa.bityo.tw", GOOGLE_WEB_CLIENT_ID: $google, GOOGLE_IOS_CLIENT_ID: ""}' > env.json
+          # 檢查更新讀這個 repo 的 Releases
+          jq -n --arg url "$SUPABASE_URL" --arg key "$SUPABASE_ANON_KEY" --arg google "$GOOGLE_WEB_CLIENT_ID" --arg repo "$GITHUB_REPOSITORY" \
+            '{SUPABASE_URL: $url, SUPABASE_ANON_KEY: $key, SECURIBIT_WEB_URL: "https://2fa.bityo.tw", GOOGLE_WEB_CLIENT_ID: $google, GOOGLE_IOS_CLIENT_ID: "", UPDATE_REPO: $repo}' > env.json
 
       # runner 上有 flutter、cargo、rustup，make 會自動直接建置（不用 Docker）；
       # 在 Ubuntu 22.04 上建，檔名不帶發行版

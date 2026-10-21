@@ -129,6 +129,11 @@ flutter run -d linux --dart-define-from-file=env.json
 
 一般 Android 手機裝 `arm64-v8a` 那個 APK 就好。QR 掃描用的是 Google Play 服務裡的 ML Kit 模型（沒有包進 APK），沒有 Google Play 服務的手機（例如部分華為）無法掃 QR，但可以貼上 otpauth 連結。
 
+### 檢查更新
+
+macOS、Linux、Android 版開啟時（以及常駐在選單列／系統匣時每天一次）會讀 `env.json` 的 `UPDATE_REPO`（例如 `Securibit/Securibit-APP`）在 GitHub 的最新正式 Release，有新版本就提示，「下載」用瀏覽器打開對應的檔案，不會自動安裝；`UPDATE_REPO` 留空就關閉。iOS 不檢查。
+發版時標籤用 `v<版本>`（例如 `v0.4.0`，和 `pubspec.yaml` 的版本相同），附件直接用 `dist/` 的檔名：`Securibit-<版本>-macos.dmg`（其次 `.zip`）、`securibit_<版本>_<amd64|arm64>.deb`（用 .deb 安裝的）、`Securibit-<版本>-linux-<x64|arm64>.tar.gz`、`securibit-<版本>-<arm64-v8a|armeabi-v7a|x86_64>.apk`。找不到對應的檔案時打開 Release 頁面。
+
 ### Linux
 
 Linux 版只有兩種產出：`.tar.gz`（release bundle）和 `.deb`（Debian / Ubuntu 套件），而且要在 Linux 上建置。`make linux`、`make deb`、`make linux-all` 會自動選建置方式：
