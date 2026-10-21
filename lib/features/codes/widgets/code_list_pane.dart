@@ -1,20 +1,28 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/result.dart';
 import '../../../core/theme/tokens.dart';
 import '../../../core/widgets/empty_state.dart';
+import '../../../core/widgets/feedback.dart';
 import '../../../core/widgets/pill.dart';
 import '../../groups/group_models.dart';
 import '../../groups/groups_controller.dart';
+import '../../groups/manage/group_entry.dart';
 import '../../settings/settings_controller.dart';
 import '../../vault/vault_unlock_view.dart';
 import '../codes_controller.dart';
+import '../transfer/export_entry.dart';
 import 'code_form.dart';
 import 'code_row.dart';
 
 /*
  * 中間欄：選中群組的驗證碼清單（同網站 GroupCodes）。
  * 上面是群組名稱、說明、搜尋與類別篩選；寬視窗點一筆在右欄顯示，窄螢幕開下一頁。
+ * 「更多」選單：隱藏驗證碼、調整順序、全部匯出、群組設定、清空全部。
+ * 排序模式時收起搜尋與篩選、顯示全部，每一筆左邊有上下移。
  */
 class CodeListPane extends StatefulWidget {
   const CodeListPane({super.key, required this.onOpen, this.onMenu, this.highlightSelection = true});
@@ -42,6 +50,11 @@ class _CodeListPaneState extends State<CodeListPane> {
     final groups = context.read<GroupsController>();
     final codes = context.read<CodesController>();
     await Future.wait([groups.reload(), if (!codes.locked) codes.load()]);
+  }
+
+  Future<void> _move(CodesController controller, int index, int offset) async {
+    final error = await controller.reorder(index, offset);
+    if (error != null && mounted) await showErrorDialog(context, '排序失敗', error);
   }
 
   @override
@@ -99,6 +112,7 @@ class _CodeListPaneState extends State<CodeListPane> {
     final filtered = controller.filtered;
     final categories = controller.categories;
     final active = controller.activeCategory;
+    final sorting = controller.sorting;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -109,31 +123,37 @@ class _CodeListPaneState extends State<CodeListPane> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               ...banners,
-              TextField(
-                controller: _search,
-                onChanged: controller.setKeyword,
-                textInputAction: TextInputAction.search,
-                decoration: InputDecoration(
-                  hintText: '搜尋',
-                  prefixIcon: Icon(Icons.search_rounded, color: colors.inkMuted),
-                  isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-                  suffixIcon: controller.keyword.isEmpty
-                      ? null
-                      : IconButton(
-                          tooltip: '清除',
-                          icon: Icon(Icons.close_rounded, size: 18, color: colors.inkMuted),
-                          onPressed: () {
-                            _search.clear();
-                            controller.setKeyword('');
-                          },
-                        ),
+              if (sorting)
+                Text(
+                  '用箭頭調整順序，釘選的固定排在最上面；順序對所有成員都一樣',
+                  style: TextStyle(fontSize: AppText.secondary, color: colors.inkMuted),
+                )
+              else
+                TextField(
+                  controller: _search,
+                  onChanged: controller.setKeyword,
+                  textInputAction: TextInputAction.search,
+                  decoration: InputDecoration(
+                    hintText: '搜尋',
+                    prefixIcon: Icon(Icons.search_rounded, color: colors.inkMuted),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+                    suffixIcon: controller.keyword.isEmpty
+                        ? null
+                        : IconButton(
+                            tooltip: '清除',
+                            icon: Icon(Icons.close_rounded, size: 18, color: colors.inkMuted),
+                            onPressed: () {
+                              _search.clear();
+                              controller.setKeyword('');
+                            },
+                          ),
+                  ),
                 ),
-              ),
             ],
           ),
         ),
-        if (categories.isNotEmpty)
+        if (categories.isNotEmpty && !sorting)
           SizedBox(
             height: 44,
             // 選中的反白底色會滑到新點的類別
@@ -180,6 +200,14 @@ class _CodeListPaneState extends State<CodeListPane> {
                         hidden: hidden,
                         selected: widget.highlightSelection && controller.openId == account.id,
                         onOpen: () => widget.onOpen(account.id),
+                        sort: sorting
+                            ? CodeRowSort(
+                                canUp: canSwapAccounts(filtered, index, -1),
+                                canDown: canSwapAccounts(filtered, index, 1),
+                                onUp: () => _move(controller, index, -1),
+                                onDown: () => _move(controller, index, 1),
+                              )
+                            : null,
                       );
                     },
                   ),
@@ -241,34 +269,20 @@ class _Header extends StatelessWidget {
                   ],
                 ),
               ),
-              if (controller.canAdd && !controller.locked)
-                IconButton(
-                  tooltip: '新增驗證碼',
-                  onPressed: () => showCodeForm(context, controller),
-                  icon: Icon(Icons.add_rounded, color: colors.accent, size: 26),
-                ),
-              PopupMenuButton<String>(
-                tooltip: '更多',
-                icon: Icon(Icons.more_horiz_rounded, color: colors.ink),
-                onSelected: (value) {
-                  if (value == 'hide') settings.setHideCodes(!settings.hideCodes);
-                  if (value == 'refresh') onRefresh();
-                },
-                itemBuilder: (context) => [
-                  PopupMenuItem(
-                    value: 'hide',
-                    child: Row(children: [
-                      Icon(settings.hideCodes ? Icons.visibility_rounded : Icons.visibility_off_rounded, size: 20),
-                      const SizedBox(width: 12),
-                      Text(settings.hideCodes ? '顯示驗證碼' : '隱藏驗證碼'),
-                    ]),
+              if (controller.sorting)
+                TextButton(
+                  onPressed: () => controller.setSorting(false),
+                  child: const Text('完成', style: TextStyle(fontSize: AppText.body, fontWeight: FontWeight.w700)),
+                )
+              else ...[
+                if (controller.canAdd && !controller.locked)
+                  IconButton(
+                    tooltip: '新增驗證碼',
+                    onPressed: () => showCodeForm(context, controller),
+                    icon: Icon(Icons.add_rounded, color: colors.accent, size: 26),
                   ),
-                  const PopupMenuItem(
-                    value: 'refresh',
-                    child: Row(children: [Icon(Icons.refresh_rounded, size: 20), SizedBox(width: 12), Text('重新整理')]),
-                  ),
-                ],
-              ),
+                _MoreMenu(group: group, controller: controller, settings: settings, onRefresh: onRefresh),
+              ],
             ],
           ),
           if (group.description.isNotEmpty)
@@ -286,6 +300,102 @@ class _Header extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+enum _ListAction { hide, sort, exportAll, groupSettings, refresh, clear }
+
+// 清單的「更多」選單（同網站 GroupCodes 的「…」）：沒有權限的項目不列出，暫時不能用的變灰
+class _MoreMenu extends StatelessWidget {
+  const _MoreMenu({required this.group, required this.controller, required this.settings, required this.onRefresh});
+
+  final GroupSummary group;
+  final CodesController controller;
+  final SettingsController settings;
+  final Future<void> Function() onRefresh;
+
+  Future<void> _clear(BuildContext context) async {
+    final ok = await confirmDialog(
+      context,
+      title: '清空所有驗證碼',
+      message: controller.solo
+          ? '確定要清空「${group.name}」的所有驗證碼嗎？刪除後無法恢復，所有金鑰都會遺失'
+          : '確定要清空「${group.name}」裡你能管理的驗證碼嗎？所有成員都會看不到，刪除後無法恢復',
+      confirmLabel: '全部清空',
+      danger: true,
+    );
+    if (!ok || !context.mounted) return;
+    final groups = context.read<GroupsController>();
+    final result = await controller.clear();
+    if (!context.mounted) return;
+    switch (result) {
+      case Ok(:final data):
+        showToast(context, '已清空 $data 筆驗證碼');
+        // 側欄的筆數跟著更新
+        unawaited(groups.reload());
+      case Err(:final message):
+        await showErrorDialog(context, '清空驗證碼失敗', message);
+    }
+  }
+
+  void _onSelected(BuildContext context, _ListAction action) {
+    switch (action) {
+      case _ListAction.hide:
+        settings.setHideCodes(!settings.hideCodes);
+      case _ListAction.sort:
+        controller.setSorting(true);
+      case _ListAction.exportAll:
+        unawaited(showExportAll(context, controller));
+      case _ListAction.groupSettings:
+        unawaited(openGroupManage(context, group.id));
+      case _ListAction.refresh:
+        unawaited(onRefresh());
+      case _ListAction.clear:
+        unawaited(_clear(context));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final ready = !controller.locked && controller.accounts != null;
+    final hasAccounts = ready && controller.accounts!.isNotEmpty;
+
+    PopupMenuItem<_ListAction> item(_ListAction value, IconData icon, String label, {bool enabled = true, bool danger = false}) {
+      final color = !enabled ? colors.inkMuted : (danger ? colors.alarm : colors.ink);
+      return PopupMenuItem(
+        value: value,
+        enabled: enabled,
+        child: Row(children: [
+          Icon(icon, size: 20, color: danger && enabled ? colors.alarm : null),
+          const SizedBox(width: 12),
+          Text(label, style: TextStyle(color: color)),
+        ]),
+      );
+    }
+
+    return PopupMenuButton<_ListAction>(
+      tooltip: '更多',
+      icon: Icon(Icons.more_horiz_rounded, color: colors.ink),
+      onSelected: (action) => _onSelected(context, action),
+      itemBuilder: (context) => [
+        item(
+          _ListAction.hide,
+          settings.hideCodes ? Icons.visibility_rounded : Icons.visibility_off_rounded,
+          settings.hideCodes ? '顯示驗證碼' : '隱藏驗證碼',
+        ),
+        // 排序要群組層級的「管理驗證碼」，兩筆以上才能用
+        if (ready && controller.canAdd) item(_ListAction.sort, Icons.swap_vert_rounded, '調整順序', enabled: controller.canSort),
+        // 匯出要拿得到金鑰（有「查看金鑰」）
+        if (hasAccounts) item(_ListAction.exportAll, Icons.ios_share_rounded, '全部匯出', enabled: controller.exportable.isNotEmpty),
+        item(_ListAction.groupSettings, Icons.settings_rounded, '群組設定…'),
+        item(_ListAction.refresh, Icons.refresh_rounded, '重新整理'),
+        if (ready && controller.canClear) ...[
+          const PopupMenuDivider(),
+          item(_ListAction.clear, Icons.delete_sweep_rounded, '清空全部', danger: true),
+        ],
+      ],
     );
   }
 }

@@ -44,6 +44,10 @@ class CodesController extends ChangeNotifier {
   String keyword = '';
   String? category;
   String? selectedId;
+  // 排序模式（同網站的「調整順序」）：顯示全部，不套用搜尋與類別篩選
+  bool sorting = false;
+  // 連續按上下移時，只有最後一次的結果算數
+  int _reorderSeq = 0;
 
   Timer? _serverTimer;
   bool _serverFailed = false;
@@ -62,6 +66,22 @@ class CodesController extends ChangeNotifier {
 
   bool canManage(GroupAccount account) => hasPermission(account.permissions, GroupPermission.manageCodes) && !offline;
 
+  // 排序、清空要群組層級的「管理驗證碼」；兩筆以上才有順序可以調
+  bool get canSort => canAdd && (accounts?.length ?? 0) >= 2;
+
+  bool get canClear => canAdd && (accounts?.isNotEmpty ?? false);
+
+  // 單筆權限覆寫要群組層級的「管理身分組」
+  bool get canOverwrite => hasPermission(group.permissions, GroupPermission.manageRoles) && !offline;
+
+  // 匯出、複製到其他群組要拿得到正確的金鑰（有「查看金鑰」）
+  bool canExport(GroupAccount account) => secretOf(account)?.valid ?? false;
+
+  bool canCopy(GroupAccount account) => canExport(account) && !offline;
+
+  /// 全部匯出：拿得到正確金鑰的那些（依畫面順序）
+  List<GroupAccount> get exportable => ordered.where(canExport).toList();
+
   // 只有自己一個人的群組（例如預設群組）用個人的說法
   bool get solo => group.memberCount <= 1;
 
@@ -76,6 +96,7 @@ class CodesController extends ChangeNotifier {
   }
 
   List<GroupAccount> get filtered {
+    if (sorting) return ordered;
     final q = keyword.trim().toLowerCase();
     final active = activeCategory;
     return ordered
@@ -221,6 +242,11 @@ class CodesController extends ChangeNotifier {
     _notify();
   }
 
+  void setSorting(bool value) {
+    sorting = value;
+    _notify();
+  }
+
   // ---------- 修改（回傳錯誤訊息，成功為 null） ----------
 
   Future<String?> add(TotpInput input) async {
@@ -259,6 +285,69 @@ class CodesController extends ChangeNotifier {
     return null;
   }
 
+  /// 排序模式的上下移：和相鄰的交換（offset −1 往上、1 往下），先換畫面，失敗再換回來
+  Future<String?> reorder(int index, int offset) async {
+    final previous = accounts;
+    final list = ordered;
+    if (previous == null || !canSwapAccounts(list, index, offset)) return null;
+    final next = swapAccounts(list, index, offset);
+    accounts = next;
+    _notify();
+    final seq = ++_reorderSeq;
+    final result = await repo.reorderGroupAccounts(group.id, next.map((a) => a.id).toList());
+    if (_disposed || seq != _reorderSeq) return null;
+    if (result case Err(:final message)) {
+      accounts = previous;
+      _notify();
+      return message;
+    }
+    return null;
+  }
+
+  /// 清空全部（只會刪掉我能管理的那些）；成功回傳刪掉的筆數
+  Future<Result<int>> clear() async {
+    final result = await repo.clearGroupAccounts(group.id);
+    if (result is Ok<int>) await _reloadList();
+    return result;
+  }
+
+  /// 複製一份到其他群組（之後兩邊各自獨立）；目標是加密群組時要先解鎖，金鑰會用加密密碼加密
+  Future<String?> copyTo(GroupAccount account, GroupSummary target) async {
+    final secret = secretOf(account)?.reveal();
+    if (secret == null) return '拿不到這筆驗證碼的金鑰，無法複製';
+    final input = TotpInput(
+      name: account.name,
+      secret: secret,
+      category: account.category,
+      digits: account.digits,
+      period: account.period,
+      algorithm: account.algorithm,
+    );
+    final result = await repo.addGroupAccount(target.id, input, encrypted: target.encrypted);
+    if (result case Err(:final message)) return message;
+    return null;
+  }
+
+  // 只重新讀清單，不重新讀金鑰（讀金鑰會多記一筆「查看金鑰」）；不見的那幾筆把金鑰歸零
+  Future<void> _reloadList() async {
+    final result = await repo.loadGroupAccountsRaw(group.id);
+    if (_disposed) return;
+    final data = result.dataOrNull;
+    if (data == null) {
+      await load();
+      return;
+    }
+    final list = data.map(GroupAccount.fromJson).toList();
+    final ids = list.map((a) => a.id).toSet();
+    for (final id in secrets.keys.where((id) => !ids.contains(id))) {
+      removeSecret(_scope, id);
+    }
+    secrets = {for (final entry in secrets.entries) if (ids.contains(entry.key)) entry.key: entry.value};
+    accounts = list;
+    _restartServerCodes();
+    _notify();
+  }
+
   void clearError() {
     error = null;
     _notify();
@@ -277,3 +366,25 @@ class CodesController extends ChangeNotifier {
     super.dispose();
   }
 }
+
+/// 排序模式：第 index 筆能不能和相鄰的交換（offset −1 往上、1 往下）。
+/// 釘選的和未釘選的不互換，釘選的固定排在最上面（同網站 GroupCodes 的 canSwap）
+bool canSwapAccounts(List<GroupAccount> ordered, int index, int offset) {
+  final target = index + offset;
+  if (index < 0 || index >= ordered.length || target < 0 || target >= ordered.length) return false;
+  return ordered[index].pinned == ordered[target].pinned;
+}
+
+/// 把第 index 筆和相鄰的交換，回傳新的順序（不檢查，先用 canSwapAccounts 確認）
+List<GroupAccount> swapAccounts(List<GroupAccount> ordered, int index, int offset) {
+  final next = [...ordered];
+  final target = index + offset;
+  final moving = next[index];
+  next[index] = next[target];
+  next[target] = moving;
+  return next;
+}
+
+/// 「複製到其他群組」能選的群組：有群組層級的「管理驗證碼」，不含來源群組（同網站 ShareToGroupModal）
+List<GroupSummary> copyTargetGroups(List<GroupSummary> groups, String excludeId) =>
+    groups.where((g) => g.id != excludeId && hasPermission(g.permissions, GroupPermission.manageCodes)).toList();

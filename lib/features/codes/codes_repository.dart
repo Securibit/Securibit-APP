@@ -5,6 +5,7 @@ import '../../core/result.dart';
 import '../../core/rpc.dart';
 import '../../src/rust/api/secrets.dart' as core;
 import '../../src/rust/api/vault.dart' as vault;
+import '../admin/admin_models.dart';
 import 'code_models.dart';
 import 'secret_handle.dart';
 import 'totp/categories.dart';
@@ -116,3 +117,61 @@ Future<Result<void>> setPinned(String accountId, bool pinned) =>
     rpcVoid('group_account_update', {'account_id': accountId, 'patch': {'pinned': pinned}});
 
 Future<Result<void>> deleteGroupAccount(String accountId) => rpcVoid('group_account_delete', {'account_id': accountId});
+
+// 調整順序：ids 是這個群組全部的驗證碼（由上到下，釘選的在前面），順序對所有成員都一樣
+Future<Result<void>> reorderGroupAccounts(String gid, List<String> ids) =>
+    rpcVoid('group_accounts_reorder', {'gid': gid, 'ids': ids});
+
+// 清空：只會刪掉我能管理的那些，回傳刪掉的筆數
+Future<Result<int>> clearGroupAccounts(String gid) => rpc('group_accounts_clear', (data) => asInt(data), {'gid': gid});
+
+// ---------- 單筆驗證碼的權限覆寫 ----------
+
+/// 覆寫的對象：身分組或成員（資料庫的 target_type）
+enum OverwriteTargetType {
+  role('role'),
+  member('member');
+
+  const OverwriteTargetType(this.value);
+
+  final String value;
+
+  static OverwriteTargetType fromValue(String? value) => value == 'member' ? member : role;
+}
+
+/// group_account_overwrites() 的一筆（同網站 src/types/Permission/Permission.ts 的 Overwrite）
+class Overwrite {
+  const Overwrite({required this.targetType, required this.targetId, required this.allow, required this.deny});
+
+  final OverwriteTargetType targetType;
+  final String targetId;
+  final int allow;
+  final int deny;
+
+  factory Overwrite.fromJson(Map<String, dynamic> json) => Overwrite(
+        targetType: OverwriteTargetType.fromValue(json['target_type'] as String?),
+        targetId: asString(json['target_id']),
+        allow: asInt(json['allow']),
+        deny: asInt(json['deny']),
+      );
+
+  Overwrite copyWith({int? allow, int? deny}) =>
+      Overwrite(targetType: targetType, targetId: targetId, allow: allow ?? this.allow, deny: deny ?? this.deny);
+}
+
+// 這一筆的全部覆寫（需要群組層級的「管理身分組」）
+Future<Result<List<Overwrite>>> loadOverwrites(String accountId) =>
+    rpc('group_account_overwrites', (data) => asMapList(data).map(Overwrite.fromJson).toList(), {'account_id': accountId});
+
+// allow、deny 都是 0 代表刪除這筆覆寫
+Future<Result<void>> setOverwrite(String accountId, OverwriteTargetType targetType, String targetId, {required int allow, required int deny}) =>
+    rpcVoid('group_set_overwrite', {
+      'account_id': accountId,
+      'target_type': targetType.value,
+      'target_id': targetId,
+      'allow': allow,
+      'deny': deny,
+    });
+
+// 權限設定要用到的身分組與成員
+Future<Result<AdminGroupDetail>> loadGroupDetail(String gid) => rpc('group_detail', AdminGroupDetail.fromJson, {'gid': gid});
