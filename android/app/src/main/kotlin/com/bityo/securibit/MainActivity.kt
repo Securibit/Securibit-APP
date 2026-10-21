@@ -1,4 +1,4 @@
-package com.example.securibit
+package com.bityo.securibit
 
 import io.flutter.embedding.android.FlutterFragmentActivity
 

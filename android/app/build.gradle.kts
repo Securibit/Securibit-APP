@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.securibit"
+    namespace = "com.bityo.securibit"
     compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
