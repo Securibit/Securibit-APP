@@ -2,16 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/platform.dart';
-import '../../../core/result.dart';
 import '../../../core/theme/tokens.dart';
 import '../../../core/widgets/feedback.dart';
 import '../code_models.dart';
 import '../codes_controller.dart';
 import '../secret_handle.dart';
-import '../totp/otpauth.dart';
+import '../totp/import_text.dart';
 import '../totp/secret.dart';
 import '../totp/totp_params.dart';
 import '../totp/validate.dart';
+import '../transfer/bulk_import_page.dart';
+import '../transfer/duplicates.dart';
+import '../transfer/import_sources.dart';
 import 'category_input.dart';
 import 'qr_scan_page.dart';
 
@@ -32,7 +34,9 @@ Future<void> showCodeForm(BuildContext context, CodesController controller, {Gro
 
 /*
  * 表單欄位同網站 TotpForm / GroupCodeEditModal：名稱、類別（可多個）、金鑰（Base32）、進階設定。
- * 新增時可以貼上 otpauth:// 連結或（手機）掃 QR Code 自動填好。
+ * 新增時可以貼上 otpauth:// 連結、上傳 QR Code 圖片或備份檔、（手機與 macOS）用相機掃 QR Code：
+ * 一筆就填好欄位，多筆（Google Authenticator 匯出、備份檔）開整批匯入（同網站 QrImport）。
+ * 新增前檢查金鑰是否和群組裡已有的重複，重複時先問要不要照樣新增（同網站 AddCodeClient）。
  * 編輯時沒有「查看金鑰」權限看不到原本的金鑰：金鑰欄位留空代表不修改。
  */
 class CodeForm extends StatefulWidget {
@@ -65,6 +69,12 @@ class _CodeFormState extends State<CodeForm> {
 
   bool _showSecret = false;
   bool _saving = false;
+  // 正在讀檔案或圖片
+  bool _reading = false;
+  // 整批匯入畫面開著（貼上時 onChanged 可能連續觸發）
+  bool _bulkOpen = false;
+  // 這次已經整批匯入的筆數；有匯入過，左上角改成「完成」
+  int _imported = 0;
   TotpErrors _errors = const TotpErrors();
   String? _linkError;
 
@@ -92,32 +102,45 @@ class _CodeFormState extends State<CodeForm> {
     return _isEdit && next.isNotEmpty && next != normalizeSecret(_originalSecret ?? '');
   }
 
-  // 套用 otpauth:// 連結；類別沒填時才用連結裡的
-  bool _applyLink(String text) {
-    final value = text.trim();
-    if (value.startsWith('otpauth-migration://')) {
-      setState(() => _linkError = '這是 Google Authenticator 的匯出 QR Code，一次有多筆，請到網站匯入');
+  /// 匯入貼上、掃描或檔案的內容：一筆就填好欄位（類別沒填時才用連結裡的），多筆開整批匯入。
+  /// inline 時錯誤顯示在連結欄位下面，否則跳出錯誤對話框
+  Future<bool> _importText(String text, {bool inline = true, String source = '連結'}) async {
+    final result = parseImportText(text);
+    if (result.items.isEmpty) {
+      final message = result.errors.join('\n');
+      if (inline) {
+        setState(() => _linkError = message);
+      } else {
+        await showErrorDialog(context, '無法匯入', message);
+      }
       return false;
     }
-    switch (parseOtpauthUri(value)) {
-      case Ok(:final data):
-        setState(() {
-          _name.text = data.name;
-          _secret.text = data.secret;
-          if (_category.isEmpty) _category = data.category;
-          _digits = data.digits;
-          _period = data.period;
-          _algorithm = data.algorithm;
-          _advancedOpen = !data.isDefaultAdvanced;
-          _errors = const TotpErrors();
-          _linkError = null;
-        });
-        showToast(context, '已從連結填好欄位');
-        return true;
-      case Err(:final message):
-        setState(() => _linkError = message);
-        return false;
+    if (result.isSingle) {
+      final data = result.items.single;
+      setState(() {
+        _name.text = data.name;
+        _secret.text = data.secret;
+        if (_category.isEmpty) _category = data.category;
+        _digits = data.digits;
+        _period = data.period;
+        _algorithm = data.algorithm;
+        _advancedOpen = !data.isDefaultAdvanced;
+        _errors = const TotpErrors();
+        _linkError = null;
+      });
+      showToast(context, '已從$source填好欄位，確認後按新增');
+      return true;
     }
+
+    if (_bulkOpen) return false;
+    _bulkOpen = true;
+    setState(() => _linkError = null);
+    _link.clear();
+    final count = await showBulkImport(context, widget.controller, result);
+    _bulkOpen = false;
+    if (!mounted || count == null) return false;
+    setState(() => _imported += count);
+    return true;
   }
 
   Future<void> _pasteLink() async {
@@ -128,15 +151,30 @@ class _CodeFormState extends State<CodeForm> {
       setState(() => _linkError = '剪貼簿裡沒有文字');
       return;
     }
-    _link.text = text;
-    _applyLink(text);
+    // 多行的內容（備份檔、多個連結）不放進欄位，直接匯入
+    if (!text.contains('\n')) _link.text = text;
+    await _importText(text);
   }
 
   Future<void> _scan() async {
     final value = await Navigator.of(context).push<String>(MaterialPageRoute(builder: (_) => const QrScanPage()));
     if (!mounted || value == null) return;
-    _link.text = value;
-    _applyLink(value);
+    await _importText(value, inline: false, source: ' QR Code ');
+  }
+
+  Future<void> _pickFile(ImportFileKind kind) async {
+    if (_reading) return;
+    setState(() => _reading = true);
+    final picked = await pickImportFile(kind);
+    if (!mounted) return;
+    setState(() => _reading = false);
+    if (picked == null) return;
+    final text = picked.text;
+    if (text == null) {
+      await showErrorDialog(context, picked.errorTitle ?? '無法匯入', picked.errorMessage ?? '');
+      return;
+    }
+    await _importText(text, inline: false, source: '檔案');
   }
 
   Future<void> _submit() async {
@@ -146,9 +184,23 @@ class _CodeFormState extends State<CodeForm> {
     setState(() => _errors = errors);
     if (!errors.isEmpty) return;
 
-    setState(() => _saving = true);
     final controller = widget.controller;
     final account = _account;
+    // 金鑰和既有的某筆相同時，先問要不要照樣新增（只比得到我看得到金鑰的那些）
+    if (account == null) {
+      final duplicate = findDuplicateIn(controller, input.secret);
+      if (duplicate != null) {
+        final confirmed = await confirmDialog(
+          context,
+          title: '已經有相同的金鑰',
+          message: '「${duplicate.name}」使用相同的金鑰，產生的驗證碼會一模一樣。確定還要再新增一筆嗎？',
+          confirmLabel: '仍要新增',
+        );
+        if (!mounted || !confirmed) return;
+      }
+    }
+
+    setState(() => _saving = true);
     final error = account == null
         ? await controller.add(input)
         // 金鑰沒有改就不送，避免沒有「查看金鑰」的人誤把金鑰清掉
@@ -212,8 +264,9 @@ class _CodeFormState extends State<CodeForm> {
                     enableSuggestions: false,
                     onChanged: (text) {
                       // 直接把 otpauth:// 連結貼進金鑰欄也可以
-                      if (!_isEdit && text.trim().startsWith('otpauth://')) {
-                        _applyLink(text);
+                      if (!_isEdit && text.trim().startsWith('otpauth')) {
+                        _secret.clear();
+                        _importText(text);
                         return;
                       }
                       setState(() => _errors = const TotpErrors());
@@ -262,7 +315,7 @@ class _CodeFormState extends State<CodeForm> {
           TextButton(
             onPressed: _saving ? null : () => Navigator.of(context).pop(),
             style: TextButton.styleFrom(foregroundColor: colors.ink),
-            child: const Text('取消'),
+            child: Text(_imported > 0 ? '完成' : '取消'),
           ),
           Expanded(
             child: Text(
@@ -293,38 +346,98 @@ class _CodeFormState extends State<CodeForm> {
       );
 
   Widget _importSection(BuildContext context) {
+    final colors = context.colors;
+    final buttons = <Widget>[
+      if (AppPlatform.isMobile) ...[
+        _importButton(Icons.photo_library_rounded, '從相簿選擇圖片', () => _pickFile(ImportFileKind.image)),
+        _importButton(Icons.description_rounded, '選擇備份檔', () => _pickFile(ImportFileKind.backup)),
+      ] else if (AppPlatform.canReadQrImage)
+        _importButton(Icons.upload_file_rounded, '上傳圖片或備份檔', () => _pickFile(ImportFileKind.any))
+      else
+        _importButton(Icons.upload_file_rounded, '上傳備份檔', () => _pickFile(ImportFileKind.backup)),
+      if (AppPlatform.canScanQr) _importButton(Icons.qr_code_scanner_rounded, '用相機掃描', _scan, file: false),
+    ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _sectionTitle(context, '匯入'),
+        if (_imported > 0)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Row(
+              children: [
+                Icon(Icons.check_circle_rounded, size: 20, color: colors.accent),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '已匯入 $_imported 筆驗證碼，可以繼續新增下一筆',
+                    style: const TextStyle(fontSize: AppText.secondary, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+          ),
         TextField(
           controller: _link,
           autocorrect: false,
           enableSuggestions: false,
+          // 可以一次貼上多行連結
+          minLines: 1,
+          maxLines: 4,
+          keyboardType: TextInputType.multiline,
           onChanged: (text) {
             if (text.trim().startsWith('otpauth')) {
-              _applyLink(text);
+              _importText(text);
             } else if (_linkError != null) {
               setState(() => _linkError = null);
             }
           },
           decoration: InputDecoration(
-            hintText: '貼上 otpauth:// 連結',
+            hintText: '貼上 otpauth 連結',
             errorText: _linkError,
             suffixIcon: IconButton(tooltip: '從剪貼簿貼上', onPressed: _pasteLink, icon: const Icon(Icons.content_paste_rounded)),
           ),
         ),
-        if (AppPlatform.canScanQr) ...[
-          const SizedBox(height: 10),
-          OutlinedButton.icon(
-            onPressed: _scan,
-            icon: const Icon(Icons.qr_code_scanner_rounded),
-            label: const Text('掃描 QR Code'),
-          ),
-        ],
+        const SizedBox(height: 10),
+        // 寬的時候兩個按鈕並排，窄的時候或按鈕多時一個一行
+        LayoutBuilder(
+          builder: (context, constraints) {
+            if (constraints.maxWidth >= 440 && buttons.length <= 2) {
+              return Row(
+                children: [
+                  for (var i = 0; i < buttons.length; i++) ...[
+                    if (i > 0) const SizedBox(width: 10),
+                    Expanded(child: buttons[i]),
+                  ],
+                ],
+              );
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (var i = 0; i < buttons.length; i++) ...[
+                  if (i > 0) const SizedBox(height: 10),
+                  buttons[i],
+                ],
+              ],
+            );
+          },
+        ),
+        const SizedBox(height: 8),
+        Text(
+          '貼上服務給的 otpauth 連結，或用綁定畫面的 QR Code；Google Authenticator 的匯出 QR Code 和備份檔可以一次匯入多筆',
+          style: TextStyle(fontSize: AppText.caption, color: colors.inkMuted),
+        ),
       ],
     );
   }
+
+  // file：選檔的按鈕，讀檔時顯示「讀取中…」
+  Widget _importButton(IconData icon, String label, VoidCallback onPressed, {bool file = true}) => OutlinedButton.icon(
+        onPressed: _reading || _saving ? null : onPressed,
+        icon: Icon(icon, size: 20),
+        label: Text(_reading && file ? '讀取中…' : label, maxLines: 1, overflow: TextOverflow.ellipsis),
+      );
 
   Widget _advanced(BuildContext context) {
     final colors = context.colors;
