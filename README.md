@@ -73,7 +73,13 @@ flutter build apk --release --dart-define-from-file=env.json
 flutter build linux --release --dart-define-from-file=env.json   # 要在 Linux 上建置
 ```
 
-Linux 需要先安裝 `libgtk-3-dev`、`libsecret-1-dev`、`libjsoncpp-dev`（安全儲存用）。
+Linux（Debian/Ubuntu）需要先安裝：
+
+```bash
+sudo apt install libgtk-3-dev libsecret-1-dev libjsoncpp-dev pkg-config clang cmake ninja-build
+```
+
+產出在 `build/linux/<x64|arm64>/release/bundle/`。登入狀態存在系統金鑰圈（Secret Service，例如 gnome-keyring 或 KWallet），系統沒有的話登入狀態會改存一般設定檔，離線快取和「記住密語」會失效且不會提示，請確認桌面環境有在跑 gnome-keyring 或 KWallet。
 
 ## 測試
 
