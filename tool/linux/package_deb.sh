@@ -13,6 +13,8 @@
 # 再加上執行時才載入的 libEGL、libGL；
 # 登入狀態存在 Secret Service，所以 Recommends gnome-keyring。
 # 輸出的檔案路徑印在 stdout，其他訊息印在 stderr。
+# 環境變數 DISTRO_TAG（build.sh 設定，例如 debian-12）不是空的時候，檔名加上發行版：
+#   securibit_<版本>_<DISTRO_TAG>_<arm64|amd64>.deb
 set -euo pipefail
 
 bundle="$1"
@@ -73,7 +75,7 @@ Description: Securibit two-factor authenticator
  可以常駐在系統匣，點一下就複製驗證碼。
 CONTROL
 
-deb="$out/securibit_${version}_${deb_arch}.deb"
+deb="$out/securibit_${version}_${DISTRO_TAG:+${DISTRO_TAG}_}${deb_arch}.deb"
 mkdir -p "$out"
 dpkg-deb --build --root-owner-group -Zxz "$root" "$deb" >&2
 echo "    Depends: $depends" >&2

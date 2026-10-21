@@ -1,0 +1,17 @@
+# 個人的 make 設定：複製成 local.mk（已列在 .gitignore，不會提交），Makefile 會自動載入。
+#   cp local.mk.example local.mk
+# 命令列上的值仍然優先，例如 make deb REMOTE= 會改回在本機建置。
+
+# 在另一台 Linux 上建置（make linux／deb／linux-all／deb-check 會自動 rsync 過去、在那裡建置，再把產出拉回 dist/）
+# REMOTE = user@192.168.1.20
+# REMOTE_DIR = ~/securibit-build
+# REMOTE_SSH_OPTS = -i ~/.ssh/id_ed25519
+
+# Docker 建置用的發行版：ubuntu-22.04（預設，相容性最廣）、ubuntu-24.04、debian-12、debian-13
+# DISTRO = debian-12
+
+# 目標架構：x64 或 arm64（REMOTE 時沒設定就用遠端主機的架構）
+# ARCH = x64
+
+# Linux 主機上強制直接建置（0）或用 Docker（1）；不設定就自動選
+# LINUX_DOCKER = 1
