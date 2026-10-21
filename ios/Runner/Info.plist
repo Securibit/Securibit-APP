@@ -34,6 +34,16 @@
 					<string>securibit</string>
 				</array>
 			</dict>
+			<dict>
+				<key>CFBundleTypeRole</key>
+				<string>Editor</string>
+				<key>CFBundleURLName</key>
+				<string>google-sign-in</string>
+				<key>CFBundleURLSchemes</key>
+				<array>
+					<string>$(GOOGLE_REVERSED_CLIENT_ID)</string>
+				</array>
+			</dict>
 		</array>
 		<key>NSCameraUsageDescription</key>
 		<string>用相機掃描兩步驟驗證的 QR Code</string>

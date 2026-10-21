@@ -1,0 +1,4 @@
+// Google 原生登入：iOS OAuth 用戶端 ID 反過來寫的 URL scheme（Info.plist 的 CFBundleURLTypes 會用到）。
+// 例如用戶端 ID 是 1234-abcd.apps.googleusercontent.com，這裡就填 com.googleusercontent.apps.1234-abcd。
+// 用戶端 ID 不是機密，可以提交；還沒建立 iOS 用戶端時保留預設值也能建置（App 會改用瀏覽器登入）。
+GOOGLE_REVERSED_CLIENT_ID = com.googleusercontent.apps.placeholder

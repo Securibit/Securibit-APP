@@ -7,6 +7,7 @@ import '../../core/result.dart';
 import '../../core/rpc.dart';
 import '../cache/offline_cache.dart';
 import 'auth_repository.dart' as repo;
+import 'native_google_sign_in.dart';
 import 'oauth_redirect.dart';
 import 'profile.dart';
 
@@ -35,6 +36,9 @@ class AuthController extends ChangeNotifier {
   String? _loadedUid;
 
   User? get user => supabase.auth.currentUser;
+
+  // 手機有設定 Google 用戶端 ID 時用原生帳號選單，否則開瀏覽器登入
+  bool get usesBrowser => !NativeGoogleSignIn.isAvailable;
 
   void start() {
     _subscription = supabase.auth.onAuthStateChange.listen(
@@ -108,13 +112,18 @@ class AuthController extends ChangeNotifier {
   /// Google 登入；回傳錯誤訊息（null 代表成功開始或使用者自己取消）
   Future<String?> signInWithGoogle() async {
     _redirect?.cancel();
-    final redirect = OAuthRedirect.forPlatform();
-    _redirect = redirect;
     signingIn = true;
     notifyListeners();
     try {
-      await redirect.signIn(supabase.auth);
-      // 深層連結版：瀏覽器已開啟，等 onAuthStateChange；使用者回到 App 沒登入時可以再按一次
+      if (usesBrowser) {
+        final redirect = OAuthRedirect.forPlatform();
+        _redirect = redirect;
+        await redirect.signIn(supabase.auth);
+        // 深層連結版：瀏覽器已開啟，等 onAuthStateChange；使用者回到 App 沒登入時可以再按一次
+      } else {
+        // 原生版：回來時 session 已建立（onAuthStateChange 會收到 signedIn）
+        await NativeGoogleSignIn.signIn(supabase.auth);
+      }
       return null;
     } on OAuthRedirectException catch (error) {
       signingIn = false;
@@ -145,6 +154,7 @@ class AuthController extends ChangeNotifier {
       if (!result.offline) return result.message;
     }
     if (uid != null) await cache.clear(uid);
+    await NativeGoogleSignIn.signOut();
     if (status != AuthStatus.signedOut) _handleSignedOut();
     return null;
   }

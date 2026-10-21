@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -45,12 +46,18 @@ class DeepLinkOAuthRedirect extends OAuthRedirect {
 
   @override
   Future<void> signIn(GoTrueClient auth) async {
-    final opened = await auth.signInWithOAuth(
-      OAuthProvider.google,
-      redirectTo: redirectUrl,
-      authScreenLaunchMode: LaunchMode.externalApplication,
-      queryParams: _queryParams,
-    );
+    final bool opened;
+    try {
+      opened = await auth.signInWithOAuth(
+        OAuthProvider.google,
+        redirectTo: redirectUrl,
+        authScreenLaunchMode: LaunchMode.externalApplication,
+        queryParams: _queryParams,
+      );
+    } on PlatformException {
+      // 例如 Android 沒有可用的瀏覽器（ACTIVITY_NOT_FOUND）
+      throw const OAuthRedirectException('無法開啟瀏覽器，請確認裝置有可用的瀏覽器');
+    }
     if (!opened) throw const OAuthRedirectException('無法開啟瀏覽器');
   }
 }

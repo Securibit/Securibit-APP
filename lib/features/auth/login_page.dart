@@ -19,6 +19,7 @@ class LoginPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final signingIn = context.select<AuthController, bool>((a) => a.signingIn);
+    final usesBrowser = context.read<AuthController>().usesBrowser;
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -40,9 +41,10 @@ class LoginPage extends StatelessWidget {
                   const SizedBox(height: 40),
                   FilledButton(
                     onPressed: signingIn ? null : () => _signIn(context),
-                    child: Text(signingIn ? '請在瀏覽器完成登入' : '使用 Google 登入'),
+                    child: Text(signingIn ? (usesBrowser ? '請在瀏覽器完成登入' : '登入中…') : '使用 Google 登入'),
                   ),
-                  if (signingIn) ...[
+                  // 原生帳號選單自己有取消鍵，只有瀏覽器登入需要
+                  if (signingIn && usesBrowser) ...[
                     const SizedBox(height: 8),
                     TextButton(
                       onPressed: context.read<AuthController>().cancelSignIn,
