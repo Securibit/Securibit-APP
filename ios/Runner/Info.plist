@@ -47,6 +47,8 @@
 		</array>
 		<key>NSCameraUsageDescription</key>
 		<string>用相機掃描兩步驟驗證的 QR Code</string>
+		<key>NSPhotoLibraryUsageDescription</key>
+		<string>從相簿選擇 QR Code 圖片匯入驗證碼</string>
 		<key>NSFaceIDUsageDescription</key>
 		<string>用 Face ID 解鎖 Securibit</string>
 		<key>LSRequiresIPhoneOS</key>

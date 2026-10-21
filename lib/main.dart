@@ -56,6 +56,10 @@ Future<void> main() async {
       groups.clear();
     },
   )..start();
+  // 設定、更改、停用加密密碼後重新讀個人資料（vault 設定存在 profile）
+  vault.onProfileChanged = () async {
+    await auth.refreshProfile();
+  };
 
   // macOS 選單列、Linux 系統匣（其他平台不做事）
   final navigatorKey = GlobalKey<NavigatorState>();
