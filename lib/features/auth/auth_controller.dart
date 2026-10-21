@@ -1,0 +1,158 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../../core/result.dart';
+import '../../core/rpc.dart';
+import '../cache/offline_cache.dart';
+import 'auth_repository.dart' as repo;
+import 'oauth_redirect.dart';
+import 'profile.dart';
+
+enum AuthStatus { loading, signedOut, signedIn }
+
+/*
+ * 登入狀態：全 App 只訂閱一次 Supabase 的 onAuthStateChange。
+ * 登入後先 ensure_profile 再讀 profile；連不上時改用離線快取的 profile，讓驗證碼還能顯示。
+ */
+class AuthController extends ChangeNotifier {
+  AuthController({required this.cache, required this.onSignedIn, required this.onSignedOut});
+
+  final OfflineCache cache;
+  // 拿到 profile 後通知其他狀態（加密、群組）
+  final void Function(Profile profile) onSignedIn;
+  final void Function(String? uid) onSignedOut;
+
+  AuthStatus status = AuthStatus.loading;
+  Profile? profile;
+  // 載入 profile 失敗的原因（顯示在畫面上，可以重試）
+  String? profileError;
+  bool signingIn = false;
+
+  StreamSubscription<AuthState>? _subscription;
+  OAuthRedirect? _redirect;
+  String? _loadedUid;
+
+  User? get user => supabase.auth.currentUser;
+
+  void start() {
+    _subscription = supabase.auth.onAuthStateChange.listen(
+      (state) {
+        final sessionUser = state.session?.user;
+        if (sessionUser == null) {
+          _handleSignedOut();
+          return;
+        }
+        // 剛完成登入（不是開 App 時還原的 session）才記一次登入紀錄
+        if (state.event == AuthChangeEvent.signedIn && signingIn) {
+          signingIn = false;
+          unawaited(repo.recordLogin());
+        }
+        status = AuthStatus.signedIn;
+        notifyListeners();
+        if (_loadedUid != sessionUser.id) {
+          _loadedUid = sessionUser.id;
+          unawaited(loadProfile());
+        }
+      },
+      onError: (Object error) {
+        // 深層連結帶回來的錯誤（例如使用者取消）
+        signingIn = false;
+        profileError = null;
+        if (status == AuthStatus.loading) status = AuthStatus.signedOut;
+        notifyListeners();
+      },
+    );
+  }
+
+  void _handleSignedOut() {
+    final uid = _loadedUid ?? profile?.uid;
+    _loadedUid = null;
+    profile = null;
+    profileError = null;
+    status = AuthStatus.signedOut;
+    notifyListeners();
+    onSignedOut(uid);
+  }
+
+  /// 讀取（或重新讀取）自己的 profile
+  Future<void> loadProfile() async {
+    final uid = user?.id;
+    if (uid == null) return;
+    profileError = null;
+    notifyListeners();
+
+    final ensured = await repo.ensureProfile();
+    final result = ensured is Err<void> && ensured.offline ? Err<Profile>(ensured.message, offline: true) : await repo.loadProfile(uid);
+    if (user?.id != uid) return;
+
+    switch (result) {
+      case Ok(:final data):
+        profile = data;
+        unawaited(cache.saveProfile(uid, data.toJson()));
+        onSignedIn(data);
+      case Err(:final message, :final offline):
+        final cached = offline ? await cache.loadProfile(uid) : null;
+        if (user?.id != uid) return;
+        if (cached != null) {
+          profile = Profile.fromJson(cached);
+          onSignedIn(profile!);
+        } else {
+          profileError = message;
+        }
+    }
+    notifyListeners();
+  }
+
+  /// Google 登入；回傳錯誤訊息（null 代表成功開始或使用者自己取消）
+  Future<String?> signInWithGoogle() async {
+    _redirect?.cancel();
+    final redirect = OAuthRedirect.forPlatform();
+    _redirect = redirect;
+    signingIn = true;
+    notifyListeners();
+    try {
+      await redirect.signIn(supabase.auth);
+      // 深層連結版：瀏覽器已開啟，等 onAuthStateChange；使用者回到 App 沒登入時可以再按一次
+      return null;
+    } on OAuthRedirectException catch (error) {
+      signingIn = false;
+      notifyListeners();
+      return error.cancelled ? null : error.message;
+    } catch (error) {
+      signingIn = false;
+      notifyListeners();
+      return errorResult<void>(error).message;
+    }
+  }
+
+  /// 使用者回到登入頁按取消時，停止等待
+  void cancelSignIn() {
+    _redirect?.cancel();
+    signingIn = false;
+    notifyListeners();
+  }
+
+  /// 登出：撤銷這台裝置的 session，清掉離線快取與記住的加密金鑰
+  Future<String?> signOut() async {
+    final uid = profile?.uid ?? user?.id;
+    try {
+      await supabase.auth.signOut();
+    } catch (error) {
+      // 連不上伺服器時仍清掉本機的 session（Supabase 會自己移除）
+      final result = errorResult<void>(error);
+      if (!result.offline) return result.message;
+    }
+    if (uid != null) await cache.clear(uid);
+    if (status != AuthStatus.signedOut) _handleSignedOut();
+    return null;
+  }
+
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    _redirect?.cancel();
+    super.dispose();
+  }
+}
