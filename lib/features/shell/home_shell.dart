@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -6,14 +8,19 @@ import '../../core/theme/tokens.dart';
 import '../../core/widgets/empty_state.dart';
 import '../admin/admin_entry.dart';
 import '../admin/admin_page.dart';
+import '../admin/permission_defs.dart';
+import '../admin/site_access.dart';
+import '../auth/auth_controller.dart';
 import '../codes/codes_controller.dart';
 import '../codes/codes_scope.dart';
 import '../codes/widgets/code_detail.dart';
 import '../codes/widgets/code_list_pane.dart';
+import '../groups/group_actions.dart';
 import '../groups/group_models.dart';
 import '../groups/group_sidebar.dart';
 import '../groups/group_tabs.dart';
 import '../groups/groups_controller.dart';
+import '../groups/manage/group_entry.dart';
 import '../settings/settings_view.dart';
 
 /*
@@ -21,7 +28,7 @@ import '../settings/settings_view.dart';
  * - 寬（≥ 1000）：左側欄（群組、帳戶）｜中間驗證碼清單｜右邊詳細資料
  * - 中（≥ 720）：側欄收進 Drawer｜清單｜詳細資料
  * - 窄（手機）：側欄收進 Drawer，主畫面是清單，點一筆開下一頁
- * 沒有左側欄時，有兩個以上的群組就在最上面放一排可以滑動切換的群組分頁
+ * 沒有左側欄時，有兩個以上的群組（或有待回覆的邀請，選單鍵才看得到數字）就在最上面放一排可以滑動切換的群組分頁
  */
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
@@ -41,6 +48,11 @@ class _HomeShellState extends State<HomeShell> {
     final colors = context.colors;
     final group = context.select<GroupsController, GroupSummary?>((g) => g.selected);
     final groupCount = context.select<GroupsController, int>((g) => g.groups?.length ?? 0);
+    final pendingInvitations = context.select<GroupsController, int>((g) => g.pendingInvitations);
+    // 手機的側欄收在 Drawer 裡（打開才建立），全站權限（能不能建立群組）在這裡先讀
+    final uid = context.select<AuthController, String?>((a) => a.profile?.uid);
+    final access = SiteAccessController.shared;
+    if (uid != access.uid) scheduleMicrotask(() => access.attach(uid));
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -51,7 +63,7 @@ class _HomeShellState extends State<HomeShell> {
         void openDrawer() => _scaffoldKey.currentState?.openDrawer();
         void closeDrawer() => _scaffoldKey.currentState?.closeDrawer();
         // 分頁列放在換群組時不會重建的地方，底色才滑得過去；選單鍵也移到分頁列
-        final tabs = !wide && group != null && groupCount > 1;
+        final tabs = !wide && group != null && (groupCount > 1 || pendingInvitations > 0);
         final listMenu = wide || tabs ? null : openDrawer;
 
         final sidebar = AdminSidebarEntry(
@@ -179,11 +191,42 @@ class _NoGroup extends StatelessWidget {
     } else {
       body = Padding(
         padding: const EdgeInsets.all(16),
-        child: EmptyState(
-          title: '找不到你的驗證碼',
-          message: '重新整理試試看；登入時會自動建立預設群組',
-          actionLabel: '重新整理',
-          onAction: groups.reload,
+        child: ListenableBuilder(
+          listenable: SiteAccessController.shared,
+          builder: (context, _) {
+            final canCreate = SiteAccessController.shared.can(SitePermission.createGroups);
+            return Column(
+              children: [
+                EmptyState(
+                  title: '找不到你的驗證碼',
+                  message: canCreate
+                      ? '重新整理試試看；登入時會自動建立預設群組，也可以新增群組或用邀請加入別人的群組'
+                      : '重新整理試試看；登入時會自動建立預設群組，也可以用邀請加入別人的群組',
+                  actionLabel: '重新整理',
+                  onAction: groups.reload,
+                ),
+                const SizedBox(height: 16),
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 12,
+                  runSpacing: 8,
+                  children: [
+                    if (canCreate)
+                      FilledButton.icon(
+                        onPressed: () => openCreateGroup(context),
+                        icon: const Icon(Icons.add_rounded),
+                        label: const Text('新增群組'),
+                      ),
+                    OutlinedButton.icon(
+                      onPressed: () => openJoinByInvite(context),
+                      icon: const Icon(Icons.link_rounded),
+                      label: const Text('用邀請加入'),
+                    ),
+                  ],
+                ),
+              ],
+            );
+          },
         ),
       );
     }
@@ -195,7 +238,7 @@ class _NoGroup extends StatelessWidget {
             alignment: Alignment.centerLeft,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(4, 12, 0, 0),
-              child: IconButton(tooltip: '群組', onPressed: onMenu, icon: const Icon(Icons.menu_rounded)),
+              child: MenuButtonWithBadge(onPressed: onMenu!),
             ),
           ),
         Expanded(child: Align(alignment: Alignment.topCenter, child: body)),

@@ -3,12 +3,14 @@ import 'package:provider/provider.dart';
 
 import '../../core/theme/tokens.dart';
 import '../../core/widgets/sliding_selection.dart';
+import 'group_actions.dart';
 import 'group_models.dart';
 import 'groups_controller.dart';
 
 /*
  * 手機（沒有左側欄時）驗證碼清單上方的群組分頁：可以左右捲動，
- * 選中的底色會滑到新的分頁，並自動捲到看得見的位置。左邊的選單鍵打開側欄（邀請、設定）。
+ * 選中的底色會滑到新的分頁，並自動捲到看得見的位置。左邊的選單鍵打開側欄（邀請、設定），有未處理的邀請時帶數字；
+ * 最後的「＋」新增群組或用邀請加入，長按分頁打開管理群組、邀請成員、調整順序。
  */
 class GroupTabBar extends StatelessWidget {
   const GroupTabBar({super.key, required this.onMenu});
@@ -29,26 +31,34 @@ class GroupTabBar extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.only(left: 4),
-            child: IconButton(tooltip: '群組', onPressed: onMenu, icon: Icon(Icons.menu_rounded, color: colors.ink)),
+            child: MenuButtonWithBadge(onPressed: onMenu),
           ),
           Expanded(
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.fromLTRB(2, 6, 16, 6),
-              child: SlidingSelection(
-                direction: Axis.horizontal,
-                selectedIndex: index < 0 ? null : index,
-                color: colors.surface1,
-                spacing: 2,
-                // 捲過去時讓旁邊的分頁露出一點，看得出來還能捲
-                revealPadding: const EdgeInsets.symmetric(horizontal: 40),
+              padding: const EdgeInsets.fromLTRB(2, 6, 8, 6),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  for (final group in list)
-                    _GroupTab(
-                      group: group,
-                      selected: group.id == selectedId,
-                      onTap: () => groups.select(group.id),
-                    ),
+                  SlidingSelection(
+                    direction: Axis.horizontal,
+                    selectedIndex: index < 0 ? null : index,
+                    color: colors.surface1,
+                    spacing: 2,
+                    // 捲過去時讓旁邊的分頁露出一點，看得出來還能捲
+                    revealPadding: const EdgeInsets.symmetric(horizontal: 40),
+                    children: [
+                      for (final group in list)
+                        _GroupTab(
+                          group: group,
+                          selected: group.id == selectedId,
+                          onTap: () => groups.select(group.id),
+                          onLongPress: () => showGroupActions(context, group),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(width: 2),
+                  const AddGroupButton(),
                 ],
               ),
             ),
@@ -60,11 +70,12 @@ class GroupTabBar extends StatelessWidget {
 }
 
 class _GroupTab extends StatelessWidget {
-  const _GroupTab({required this.group, required this.selected, required this.onTap});
+  const _GroupTab({required this.group, required this.selected, required this.onTap, required this.onLongPress});
 
   final GroupSummary group;
   final bool selected;
   final VoidCallback onTap;
+  final VoidCallback onLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -85,6 +96,7 @@ class _GroupTab extends StatelessWidget {
           focusColor: Colors.transparent,
           hoverColor: Colors.transparent,
           onTap: onTap,
+          onLongPress: onLongPress,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             child: TweenAnimationBuilder<Color?>(

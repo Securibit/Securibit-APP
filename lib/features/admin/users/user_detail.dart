@@ -141,7 +141,7 @@ class _UserDetailViewState extends State<UserDetailView> {
         const SizedBox(height: 24),
         GroupedList(
           header: '帳號',
-          footer: isSelf ? '這是你自己的帳號，請到網站的個人頁面修改資料' : null,
+          footer: isSelf ? '這是你自己的帳號，名稱與 @ID 請到「設定」修改' : null,
           children: [
             GroupedRow(label: '@ID', value: user.username != null ? '@${user.username}' : '未設定'),
             GroupedRow(

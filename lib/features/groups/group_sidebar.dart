@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/platform.dart';
 import '../../core/theme/tokens.dart';
 import '../../core/widgets/avatar.dart';
 import '../../core/widgets/feedback.dart';
@@ -8,12 +9,14 @@ import '../../core/widgets/logo.dart';
 import '../../core/widgets/sliding_selection.dart';
 import '../auth/auth_controller.dart';
 import '../auth/profile.dart';
+import 'group_actions.dart';
 import 'group_models.dart';
 import 'groups_controller.dart';
 
 /*
  * 側欄（桌面的左欄、手機的 Drawer）：群組清單（照 my_groups 的順序）、待回覆的邀請，最下面是帳戶。
- * 預設群組標「預設」，加密的群組有鎖頭。
+ * 預設群組標「預設」，加密的群組有鎖頭。群組標題旁的「＋」新增群組或用邀請加入；
+ * 群組列按右鍵、「…」或長按（手機）打開管理群組、邀請成員、調整順序。
  */
 class GroupSidebar extends StatelessWidget {
   const GroupSidebar({super.key, required this.onOpenSettings, this.onSelected});
@@ -55,7 +58,7 @@ class GroupSidebar extends StatelessWidget {
               child: ListView(
                 padding: const EdgeInsets.symmetric(horizontal: 10),
                 children: [
-                  _SectionLabel('群組'),
+                  _SectionLabel('群組', trailing: AddGroupButton(beforeOpen: onSelected)),
                   if (list == null && groups.error == null)
                     const Padding(
                       padding: EdgeInsets.all(16),
@@ -70,6 +73,14 @@ class GroupSidebar extends StatelessWidget {
                           Text(groups.error!, style: TextStyle(fontSize: AppText.secondary, color: colors.alarm)),
                           TextButton(onPressed: groups.reload, child: const Text('重試')),
                         ],
+                      ),
+                    ),
+                  if (list != null && list.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(10, 4, 10, 8),
+                      child: Text(
+                        '還沒有群組，按「＋」新增群組或用邀請加入',
+                        style: TextStyle(fontSize: AppText.secondary, color: colors.inkMuted),
                       ),
                     ),
                   if (list != null && list.isNotEmpty)
@@ -94,7 +105,7 @@ class GroupSidebar extends StatelessWidget {
                     ),
                   if (groups.invitations.isNotEmpty) ...[
                     const SizedBox(height: 16),
-                    _SectionLabel('邀請'),
+                    _SectionLabel('邀請', trailing: CountBadge(count: groups.invitations.length)),
                     for (final invitation in groups.invitations) _InvitationCard(invitation: invitation),
                   ],
                 ],
@@ -115,18 +126,26 @@ int? _indexOf(List<GroupSummary> list, String? id) {
 }
 
 class _SectionLabel extends StatelessWidget {
-  const _SectionLabel(this.text);
+  const _SectionLabel(this.text, {this.trailing});
 
   final String text;
+  final Widget? trailing;
 
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.fromLTRB(10, 4, 10, 6),
-        child: Text(text, style: TextStyle(fontSize: AppText.caption, fontWeight: FontWeight.w600, color: context.colors.inkMuted)),
-      );
+  Widget build(BuildContext context) {
+    final label = Text(text, style: TextStyle(fontSize: AppText.caption, fontWeight: FontWeight.w600, color: context.colors.inkMuted));
+    if (trailing == null) return Padding(padding: const EdgeInsets.fromLTRB(10, 4, 10, 6), child: label);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(10, 0, 0, 2),
+      child: SizedBox(
+        height: 36,
+        child: Row(children: [Expanded(child: label), trailing!, const SizedBox(width: 4)]),
+      ),
+    );
+  }
 }
 
-class _GroupRow extends StatelessWidget {
+class _GroupRow extends StatefulWidget {
   const _GroupRow({required this.group, required this.selected, required this.onTap});
 
   final GroupSummary group;
@@ -134,8 +153,24 @@ class _GroupRow extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
+  State<_GroupRow> createState() => _GroupRowState();
+}
+
+class _GroupRowState extends State<_GroupRow> {
+  bool _hovered = false;
+
+  // 桌面在按下的位置跳出選單，手機從下面滑出面板
+  void _showActions(Offset? globalPosition) {
+    showGroupActions(context, widget.group, position: AppPlatform.isMobile ? null : globalPosition);
+  }
+
+  @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final group = widget.group;
+    final selected = widget.selected;
+    // 「…」換掉驗證碼數：桌面滑過去時出現；手機（沒有滑鼠）在選中的那一列出現，也可以長按
+    final showMore = AppPlatform.isMobile ? selected : _hovered;
     final icon = group.encrypted
         ? Icons.lock_rounded
         : group.isDefault
@@ -151,9 +186,12 @@ class _GroupRow extends StatelessWidget {
         highlightColor: Colors.transparent,
         focusColor: Colors.transparent,
         hoverColor: selected ? Colors.transparent : colors.surface2.withValues(alpha: 0.45),
-        onTap: onTap,
+        onTap: widget.onTap,
+        onHover: (hovered) => setState(() => _hovered = hovered),
+        onSecondaryTapUp: (details) => _showActions(details.globalPosition),
+        onLongPress: () => _showActions(null),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          padding: EdgeInsets.fromLTRB(10, 10, showMore ? 4 : 10, 10),
           child: Row(
             children: [
               Icon(icon, size: 20, color: selected ? colors.accent : colors.inkMuted),
@@ -171,7 +209,28 @@ class _GroupRow extends StatelessWidget {
                 Text('預設', style: TextStyle(fontSize: AppText.caption, fontWeight: FontWeight.w600, color: colors.accent)),
               ],
               const SizedBox(width: 8),
-              Text('${group.accountCount}', style: TextStyle(fontSize: AppText.secondary, color: colors.inkMuted)),
+              if (!showMore) Text('${group.accountCount}', style: TextStyle(fontSize: AppText.secondary, color: colors.inkMuted)),
+              if (showMore)
+                Builder(
+                  builder: (context) => SizedBox(
+                    width: 28,
+                    height: 24,
+                    child: IconButton(
+                      tooltip: '更多',
+                      padding: EdgeInsets.zero,
+                      iconSize: 18,
+                      onPressed: () {
+                        final box = context.findRenderObject() as RenderBox;
+                        showGroupActions(
+                          context,
+                          group,
+                          position: AppPlatform.isMobile ? null : box.localToGlobal(box.size.bottomLeft(Offset.zero)),
+                        );
+                      },
+                      icon: Icon(Icons.more_horiz_rounded, color: colors.inkMuted),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
