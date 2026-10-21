@@ -109,6 +109,25 @@ class AuthController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 重新讀取自己的 profile（改了名稱、@ID、加密設定之後呼叫）；成功回傳 null，失敗回傳錯誤訊息並保留原本的資料
+  Future<String?> refreshProfile() async {
+    final uid = user?.id;
+    if (uid == null) return '尚未登入';
+    final result = await repo.loadProfile(uid);
+    if (user?.id != uid) return null;
+    switch (result) {
+      case Ok(:final data):
+        profile = data;
+        profileError = null;
+        unawaited(cache.saveProfile(uid, data.toJson()));
+        onSignedIn(data);
+        notifyListeners();
+        return null;
+      case Err(:final message):
+        return message;
+    }
+  }
+
   /// Google 登入；回傳錯誤訊息（null 代表成功開始或使用者自己取消）
   Future<String?> signInWithGoogle() async {
     _redirect?.cancel();
@@ -152,6 +171,23 @@ class AuthController extends ChangeNotifier {
       // 連不上伺服器時仍清掉本機的 session（Supabase 會自己移除）
       final result = errorResult<void>(error);
       if (!result.offline) return result.message;
+    }
+    if (uid != null) await cache.clear(uid);
+    await NativeGoogleSignIn.signOut();
+    if (status != AuthStatus.signedOut) _handleSignedOut();
+    return null;
+  }
+
+  /// 刪除自己的帳戶（網站的 /api/delete-account）；成功後登出並清掉這台裝置的快取。回傳錯誤訊息，成功為 null
+  Future<String?> deleteAccount() async {
+    final uid = profile?.uid ?? user?.id;
+    final result = await repo.deleteAccount();
+    if (result case Err(:final message)) return message;
+    // 帳戶已經不在：伺服器端的登出可能失敗，本機的 session 一樣會先移除
+    try {
+      await supabase.auth.signOut();
+    } catch (_) {
+      // 忽略
     }
     if (uid != null) await cache.clear(uid);
     await NativeGoogleSignIn.signOut();

@@ -125,11 +125,11 @@ String _usernameText(String? oldValue, String? newValue) {
   return '變更 @ID';
 }
 
-/// 一筆帳號操作紀錄的中文描述（後台看，對方稱「他」）；subjectId 是這些紀錄的主人
-String describeActivity(AccountActivity activity, String subjectId) {
+/// 一筆帳號操作紀錄的中文描述；subjectId 是這些紀錄的主人，self：本人看用「你」，後台看用「他」
+String describeActivity(AccountActivity activity, String subjectId, {bool self = false}) {
   final log = activity.log;
   final d = log.detail;
-  const you = '他';
+  final you = self ? '你' : '他';
   final actor = log.actor;
   final byOther = actor != null && actor.id != subjectId;
   final name = _actorName(actor);

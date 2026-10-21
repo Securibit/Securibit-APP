@@ -5,14 +5,14 @@ import 'package:provider/provider.dart';
 
 import '../../core/platform.dart';
 import '../../core/theme/tokens.dart';
-import '../../core/widgets/avatar.dart';
 import '../../core/widgets/feedback.dart';
 import '../../core/widgets/grouped_list.dart';
 import '../auth/auth_controller.dart';
 import '../menubar/desktop_tray.dart';
+import '../profile/account_section.dart';
 import '../update/update_controller.dart';
 import '../update/update_dialog.dart';
-import '../vault/vault_controller.dart';
+import '../vault/vault_settings_section.dart';
 import 'app_lock.dart';
 import 'lock/app_lock_controller.dart';
 import 'lock/lock_policy.dart';
@@ -49,7 +49,7 @@ Future<void> _showSettings(BuildContext context) {
   return Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const SettingsView()));
 }
 
-// 設定頁：帳戶資料（可複製）、主題、加密群組、App 鎖定、截圖、選單列（macOS）、關於與更新（iOS 沒有）、登出
+// 設定頁：帳戶資料（可編輯）、主題、加密、App 鎖定、截圖、選單列（macOS）、關於與更新（iOS 沒有）、登出與刪除帳戶
 class SettingsView extends StatelessWidget {
   const SettingsView({super.key});
 
@@ -58,7 +58,6 @@ class SettingsView extends StatelessWidget {
     final colors = context.colors;
     final auth = context.watch<AuthController>();
     final settings = context.watch<SettingsController>();
-    final vault = context.watch<VaultController>();
     final updatesSupported = context.select<UpdateController, bool>((u) => u.supported);
     final profile = auth.profile;
 
@@ -76,39 +75,9 @@ class SettingsView extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
         children: [
           if (profile != null) ...[
-            Row(
-              children: [
-                UserAvatar(name: profile.displayName, photoUrl: profile.photoUrl, size: 60),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(profile.displayName, style: const TextStyle(fontSize: AppText.title, fontWeight: FontWeight.w700)),
-                      if (profile.email.isNotEmpty)
-                        Text(profile.email, style: TextStyle(fontSize: AppText.secondary, color: colors.inkMuted)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+            AccountSection(profile: profile),
             const SizedBox(height: 24),
-            GroupedList(
-              header: '帳戶',
-              footer: '名稱與 @ID 請到網站的帳戶頁修改',
-              children: [
-                GroupedRow(label: '名稱', value: profile.name.isEmpty ? '未設定' : profile.name),
-                GroupedRow(
-                  label: '@ID',
-                  value: profile.username.isEmpty ? '未設定' : '@${profile.username}',
-                  trailing: profile.username.isEmpty ? null : _CopyButton(text: '@${profile.username}', message: '已複製 @ID'),
-                ),
-                GroupedRow(label: 'UID', value: profile.uid, trailing: _CopyButton(text: profile.uid, message: '已複製 UID')),
-                if (profile.email.isNotEmpty) GroupedRow(label: 'Email', value: profile.email),
-              ],
-            ),
           ],
-          const SizedBox(height: 24),
           GroupedList(
             header: '外觀',
             children: [
@@ -124,31 +93,8 @@ class SettingsView extends StatelessWidget {
                 ),
             ],
           ),
-          if (vault.status != VaultStatus.off) ...[
-            const SizedBox(height: 24),
-            GroupedList(
-              header: '加密',
-              children: [
-                GroupedRow(
-                  label: '加密群組',
-                  value: switch (vault.status) {
-                    VaultStatus.unlocked => '已解鎖',
-                    VaultStatus.loading => '確認中',
-                    _ => '已鎖定',
-                  },
-                  trailing: vault.status == VaultStatus.unlocked
-                      ? TextButton(
-                          onPressed: () async {
-                            await vault.lock();
-                            if (context.mounted) showToast(context, '已鎖定加密群組');
-                          },
-                          child: const Text('立即鎖定'),
-                        )
-                      : null,
-                ),
-              ],
-            ),
-          ],
+          const SizedBox(height: 24),
+          const VaultSettingsSection(),
           const SizedBox(height: 24),
           const _LockSection(),
           const SizedBox(height: 24),
@@ -176,6 +122,7 @@ class SettingsView extends StatelessWidget {
           ],
           const SizedBox(height: 24),
           GroupedList(
+            footer: profile == null ? null : '刪除帳戶會一併永久刪除所有驗證碼金鑰，刪除前請確認已在各服務關閉兩步驟驗證或改用其他驗證器',
             children: [
               GroupedRow(
                 label: '登出',
@@ -199,27 +146,13 @@ class SettingsView extends StatelessWidget {
                   navigator.popUntil((route) => route.isFirst);
                 },
               ),
+              if (profile != null) GroupedRow(label: '刪除帳戶', danger: true, onTap: () => confirmDeleteAccount(context)),
             ],
           ),
         ],
       ),
     );
   }
-}
-
-class _CopyButton extends StatelessWidget {
-  const _CopyButton({required this.text, required this.message});
-
-  final String text;
-  final String message;
-
-  @override
-  Widget build(BuildContext context) => IconButton(
-        tooltip: '複製',
-        visualDensity: VisualDensity.compact,
-        onPressed: () => copyText(context, text, message: message),
-        icon: Icon(Icons.copy_rounded, size: 18, color: context.colors.inkMuted),
-      );
 }
 
 /*

@@ -11,6 +11,13 @@ class Profile {
     required this.photoUrl,
     required this.vault,
     required this.defaultGroupId,
+    this.bgPhotoUrl = '',
+    this.phoneNumber = '',
+    this.emailVerified = false,
+    this.creationTime = '',
+    this.lastLoginAt = '',
+    this.lastLoginIp = '',
+    this.lastLoginDevice = '',
   });
 
   final String uid;
@@ -22,6 +29,16 @@ class Profile {
   // 金鑰加密設定，null 代表未啟用
   final VaultInfo? vault;
   final String? defaultGroupId;
+  // 背景圖網址（沒有時為空字串）
+  final String bgPhotoUrl;
+  final String phoneNumber;
+  final bool emailVerified;
+  // 帳號建立時間（從 Firebase 搬來的帳號保留原本的時間）
+  final String creationTime;
+  // 最後一次登入的時間 / IP / 裝置（record-login 寫入）
+  final String lastLoginAt;
+  final String lastLoginIp;
+  final String lastLoginDevice;
 
   // 顯示名稱：沒有名字時用 email
   String get displayName => name.isNotEmpty ? name : (email.isNotEmpty ? email : '使用者');
@@ -34,6 +51,13 @@ class Profile {
         photoUrl: asString(row['photo_url']),
         vault: VaultInfo.fromJson(row['vault']),
         defaultGroupId: asNullableString(row['default_group_id']),
+        bgPhotoUrl: asString(row['bg_photo_url']),
+        phoneNumber: asString(row['phone_number']),
+        emailVerified: asBool(row['email_verified']),
+        creationTime: asString(row['creation_time']),
+        lastLoginAt: asString(row['last_login_at']),
+        lastLoginIp: asString(row['last_login_ip']),
+        lastLoginDevice: asString(row['last_login_device']),
       );
 
   // 離線快取用，欄位名稱同資料庫
@@ -47,5 +71,12 @@ class Profile {
             ? null
             : {'v': vault!.v, 'salt': vault!.salt, 'iterations': vault!.iterations, 'check': vault!.check},
         'default_group_id': defaultGroupId,
+        'bg_photo_url': bgPhotoUrl,
+        'phone_number': phoneNumber,
+        'email_verified': emailVerified,
+        'creation_time': creationTime,
+        'last_login_at': lastLoginAt,
+        'last_login_ip': lastLoginIp,
+        'last_login_device': lastLoginDevice,
       };
 }

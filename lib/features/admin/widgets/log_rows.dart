@@ -53,10 +53,12 @@ class LoginRecordRow extends StatelessWidget {
 
 /// 帳號操作紀錄的一列：中文描述 + 時間
 class ActivityRow extends StatelessWidget {
-  const ActivityRow({super.key, required this.activity, required this.subjectId});
+  const ActivityRow({super.key, required this.activity, required this.subjectId, this.self = false});
 
   final AccountActivity activity;
   final String subjectId;
+  // 本人看自己的紀錄（「你」）
+  final bool self;
 
   @override
   Widget build(BuildContext context) {
@@ -65,7 +67,7 @@ class ActivityRow extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(describeActivity(activity, subjectId), style: const TextStyle(fontSize: AppText.body, fontWeight: FontWeight.w500)),
+          Text(describeActivity(activity, subjectId, self: self), style: const TextStyle(fontSize: AppText.body, fontWeight: FontWeight.w500)),
           const SizedBox(height: 2),
           Text(
             formatDateTime(activity.log.createdAt),
