@@ -79,42 +79,23 @@ class _HomeShellState extends State<HomeShell> {
               builder: (context) {
                 final controller = context.read<CodesController>();
                 if (wide || medium) {
-                  // 右欄預設收起來，清單佔滿；點了一筆才從右邊打開，按關閉或刪掉那筆就收回去
-                  final available = wide ? width - 260.5 : width;
+                  // 右欄預設收起來，清單佔滿；點了一筆才從右邊往左滑進來，按關閉或刪掉那筆就往右滑回去
                   final listWidth = wide ? ((width - 260) * 0.45).clamp(380.0, 460.0) : 380.0;
                   return Selector<CodesController, String?>(
                     selector: (_, c) => c.locked ? null : c.openId,
                     builder: (context, id, _) {
-                      final open = id != null;
-                      final row = Row(
-                        children: [
-                          AnimatedContainer(
-                            duration: MediaQuery.of(context).disableAnimations ? Duration.zero : const Duration(milliseconds: 260),
-                            curve: Curves.easeOutCubic,
-                            width: open ? listWidth : available,
-                            child: CodeListPane(onOpen: controller.select, onMenu: listMenu),
-                          ),
-                          if (open) ...[
-                            vertical,
-                            Expanded(
-                              // 打開動畫時右欄先用最後的寬度排版再裁切，內容不會被擠壓
-                              child: ClipRect(
-                                child: OverflowBox(
-                                  alignment: Alignment.centerLeft,
-                                  minWidth: available - listWidth - 0.5,
-                                  maxWidth: available - listWidth - 0.5,
-                                  child: CodeDetailView(
-                                    accountId: id,
-                                    onClose: () => controller.select(null),
-                                    onClosed: () => controller.select(null),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
+                      final split = _SplitPane(
+                        openId: id,
+                        listWidth: listWidth,
+                        divider: vertical,
+                        list: CodeListPane(onOpen: controller.select, onMenu: listMenu),
+                        detailBuilder: (shownId) => CodeDetailView(
+                          accountId: shownId,
+                          onClose: () => controller.select(null),
+                          onClosed: () => controller.select(null),
+                        ),
                       );
-                      return open ? _EscapeToClose(onEscape: () => controller.select(null), child: row) : row;
+                      return id != null ? _EscapeToClose(onEscape: () => controller.select(null), child: split) : split;
                     },
                   );
                 }
@@ -255,4 +236,97 @@ class _EscapeToCloseState extends State<_EscapeToClose> {
 
   @override
   Widget build(BuildContext context) => widget.child;
+}
+
+/// 寬視窗的清單｜右欄：右欄用固定寬度排版，從右邊滑進來時清單同步縮窄；收起時反過來
+class _SplitPane extends StatefulWidget {
+  const _SplitPane({
+    required this.openId,
+    required this.listWidth,
+    required this.divider,
+    required this.list,
+    required this.detailBuilder,
+  });
+
+  final String? openId;
+  final double listWidth;
+  final Widget divider;
+  final Widget list;
+  final Widget Function(String id) detailBuilder;
+
+  @override
+  State<_SplitPane> createState() => _SplitPaneState();
+}
+
+class _SplitPaneState extends State<_SplitPane> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 280),
+    value: widget.openId != null ? 1 : 0,
+  )..addStatusListener((status) {
+      // 收完才把右欄拿掉，滑出去的途中還看得到原本那一筆
+      if (status == AnimationStatus.dismissed && mounted) setState(() => _shownId = null);
+    });
+  late final Animation<double> _progress = CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic);
+
+  // 右欄正在顯示的那一筆；收起動畫期間 openId 已經是 null，這裡還留著
+  late String? _shownId = widget.openId;
+
+  @override
+  void didUpdateWidget(covariant _SplitPane oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.openId == oldWidget.openId) return;
+    final instant = MediaQuery.of(context).disableAnimations;
+    if (widget.openId != null) {
+      _shownId = widget.openId;
+      instant ? _controller.value = 1 : _controller.forward();
+    } else {
+      instant ? _controller.value = 0 : _controller.reverse();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final available = constraints.maxWidth;
+        final detailWidth = available - widget.listWidth;
+        return ClipRect(
+          child: AnimatedBuilder(
+            animation: _progress,
+            child: widget.list,
+            builder: (context, list) {
+              final t = _progress.value;
+              final listWidth = available - detailWidth * t;
+              final shownId = _shownId;
+              return Stack(
+                children: [
+                  Positioned(left: 0, top: 0, bottom: 0, width: listWidth, child: list!),
+                  if (t > 0 && shownId != null)
+                    Positioned(
+                      left: listWidth,
+                      top: 0,
+                      bottom: 0,
+                      width: detailWidth,
+                      child: Row(
+                        children: [
+                          widget.divider,
+                          Expanded(child: widget.detailBuilder(shownId)),
+                        ],
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
 }
