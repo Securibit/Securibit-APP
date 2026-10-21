@@ -22,6 +22,23 @@
 		<string>????</string>
 		<key>CFBundleVersion</key>
 		<string>$(FLUTTER_BUILD_NUMBER)</string>
+		<key>CFBundleURLTypes</key>
+		<array>
+			<dict>
+				<key>CFBundleTypeRole</key>
+				<string>Editor</string>
+				<key>CFBundleURLName</key>
+				<string>securibit-login-callback</string>
+				<key>CFBundleURLSchemes</key>
+				<array>
+					<string>securibit</string>
+				</array>
+			</dict>
+		</array>
+		<key>NSCameraUsageDescription</key>
+		<string>用相機掃描兩步驟驗證的 QR Code</string>
+		<key>NSFaceIDUsageDescription</key>
+		<string>用 Face ID 解鎖 Securibit</string>
 		<key>LSRequiresIPhoneOS</key>
 		<true/>
 		<key>UILaunchStoryboardName</key>
