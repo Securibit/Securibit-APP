@@ -40,20 +40,27 @@ static void my_application_activate(GApplication* application) {
   if (use_header_bar) {
     GtkHeaderBar* header_bar = GTK_HEADER_BAR(gtk_header_bar_new());
     gtk_widget_show(GTK_WIDGET(header_bar));
-    gtk_header_bar_set_title(header_bar, "securibit");
+    gtk_header_bar_set_title(header_bar, "Securibit");
     gtk_header_bar_set_show_close_button(header_bar, TRUE);
     gtk_window_set_titlebar(window, GTK_WIDGET(header_bar));
-  } else {
-    gtk_window_set_title(window, "securibit");
   }
+  // Also set the window title with a header bar, so the task switcher and
+  // dock show "Securibit" instead of the binary name.
+  gtk_window_set_title(window, "Securibit");
 
-  gtk_window_set_default_size(window, 1280, 720);
+  // The default size fits three columns (sidebar | list | details). At the
+  // minimum width the layout collapses to a single column.
+  gtk_window_set_default_size(window, 1180, 760);
   gtk_widget_show(GTK_WIDGET(window));
 
   g_autoptr(FlDartProject) project = fl_dart_project_new();
   fl_dart_project_set_dart_entrypoint_arguments(project, self->dart_entrypoint_arguments);
 
   FlView* view = fl_view_new(project);
+  // Minimum content size. It is set on the view, not the window, so it
+  // excludes the title bar and holds for both the header bar and the
+  // traditional title bar.
+  gtk_widget_set_size_request(GTK_WIDGET(view), 400, 560);
   gtk_widget_show(GTK_WIDGET(view));
   gtk_container_add(GTK_CONTAINER(window), GTK_WIDGET(view));
 
