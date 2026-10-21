@@ -141,7 +141,7 @@ void main() {
     test('名稱、驗證碼、剩餘秒數用全形空白隔開，和欄位的內容一致', () {
       final model = _build(
         groups: [_group('g1', 'A')],
-        data: {'g1': MenuGroupData(accounts: [_account('a', 'GitHub')], secrets: {'a': _secret})},
+        data: {'g1': MenuGroupData(accounts: [_account('a', 'GitHub')], secrets: _secrets({'a': _secret}))},
       );
       final item = model.items.single;
       expect(item.label, 'GitHub\u3000${formatOtp(expected)}\u300025 秒');
@@ -150,7 +150,7 @@ void main() {
     });
 
     test('快到期時秒數前加「剩」，沒有秒數時只有名稱與狀態', () {
-      final data = {'g1': MenuGroupData(accounts: [_account('a', 'GitHub')], secrets: {'a': _secret})};
+      final data = {'g1': MenuGroupData(accounts: [_account('a', 'GitHub')], secrets: _secrets({'a': _secret}))};
       final late = _build(groups: [_group('g1', 'A')], data: data, now: _now + 20000);
       expect(late.items.single.label, endsWith('\u3000剩 5 秒'));
 
@@ -159,7 +159,7 @@ void main() {
 
       final bad = _build(
         groups: [_group('g1', 'A')],
-        data: {'g1': MenuGroupData(accounts: [_account('a', 'Bad')], secrets: {'a': '!!!'})},
+        data: {'g1': MenuGroupData(accounts: [_account('a', 'Bad')], secrets: _secrets({'a': '!!!'}))},
       );
       expect(bad.items.single.label, 'Bad\u3000金鑰錯誤');
     });
@@ -168,7 +168,7 @@ void main() {
       final model = _build(
         hideCodes: true,
         groups: [_group('g1', 'A')],
-        data: {'g1': MenuGroupData(accounts: [_account('a', 'GitHub')], secrets: {'a': _secret})},
+        data: {'g1': MenuGroupData(accounts: [_account('a', 'GitHub')], secrets: _secrets({'a': _secret}))},
       );
       expect(model.items.single.label, contains('••• •••'));
       expect(model.toMap().toString(), isNot(contains(expected)));
