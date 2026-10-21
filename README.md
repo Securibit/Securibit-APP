@@ -132,7 +132,9 @@ flutter run -d linux --dart-define-from-file=env.json
 
 ### Linux
 
-Linux 版要在 Linux 上建置。`ARCH` 預設和主機相同；在 Linux 主機上直接建置，其他主機（例如 Apple Silicon 的 Mac）用 Docker：
+Linux 版要在 Linux 上建置。不想在 Mac 上跑 Docker 的話，用 GitHub Actions（`.github/workflows/linux.yml`）：在 GitHub 的 Ubuntu 22.04 主機上直接建置 x64 與 arm64，跑完安裝檢查，產出放在該次執行的 Artifacts。到 Actions → Linux → Run workflow 手動執行，或 push `v*` 標籤時自動建置並附到 Release。第一次要先在 repo 的 Settings → Secrets and variables → Actions 設定 `SUPABASE_URL`、`SUPABASE_ANON_KEY`、`GOOGLE_WEB_CLIENT_ID`。
+
+在自己的電腦上建置時，`ARCH` 預設和主機相同；在 Linux 主機上直接建置，其他主機（例如 Apple Silicon 的 Mac）用 Docker：
 
 ```bash
 make linux-all ARCH=arm64     # Apple Silicon 上原生執行，第一次約 2 分鐘，之後約 20 秒

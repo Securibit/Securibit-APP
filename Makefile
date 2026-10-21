@@ -9,7 +9,8 @@
 #   securibit_<版本>_<arm64|amd64>.deb        Debian / Ubuntu 套件
 #   Securibit-<版本>-<aarch64|x86_64>.AppImage
 #
-# Linux 版要在 Linux 上建置：主機是 Linux 時直接建置，其他主機（例如 macOS）用 Docker（docker/linux.Dockerfile）。
+# Linux 版要在 Linux 上建置：主機是 Linux 時直接建置，其他主機（例如 macOS）用 Docker（docker/linux.Dockerfile），
+# 或不用 Docker、改用 GitHub Actions 建置（.github/workflows/linux.yml）。
 # Docker 映像檔會重複使用，pub 快取、cargo registry 與建置目錄放在 volume（securibit-<arch>-*），第二次建置很快。
 
 SHELL := /bin/bash
