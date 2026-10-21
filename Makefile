@@ -7,7 +7,6 @@
 #   securibit-<版本>.aab                      Android App Bundle（上架 Google Play）
 #   Securibit-<版本>-linux-<arm64|x64>.tar.gz Linux release bundle，解開後執行 securibit/securibit
 #   securibit_<版本>_<arm64|amd64>.deb        Debian / Ubuntu 套件
-#   Securibit-<版本>-<aarch64|x86_64>.AppImage
 #
 # Linux 版要在 Linux 上建置：主機是 Linux 時直接建置，其他主機（例如 macOS）用 Docker（docker/linux.Dockerfile），
 # 或不用 Docker、改用 GitHub Actions 建置（.github/workflows/linux.yml）。
@@ -40,7 +39,6 @@ ifeq ($(filter arm64 x64,$(ARCH)),)
 endif
 DOCKER_PLATFORM := $(if $(filter x64,$(ARCH)),linux/amd64,linux/arm64)
 DEB_ARCH := $(if $(filter x64,$(ARCH)),amd64,arm64)
-APPIMAGE_ARCH := $(if $(filter x64,$(ARCH)),x86_64,aarch64)
 
 # Linux 主機上預設直接建置；LINUX_DOCKER=1 強制用 Docker。主機架構不同時一定用 Docker
 ifeq ($(HOST_OS),Linux)
@@ -68,7 +66,7 @@ DOCKER_RUN := $(DOCKER) run --rm --platform $(DOCKER_PLATFORM) $(DOCKER_VOLUMES)
 
 .PHONY: help deps analyze test clean env-check rust-lib rust-test codegen codegen-tool \
   macos ios apk aab \
-  linux linux-docker deb appimage linux-all docker-image docker-smoke-image linux-smoke deb-check appimage-check \
+  linux linux-docker deb linux-all docker-image docker-smoke-image linux-smoke deb-check \
   dist docker-clean
 
 help: ## 列出所有目標
@@ -150,17 +148,13 @@ ifeq ($(LINUX_DOCKER),1)
 linux: linux-docker ## Linux release bundle（Linux 主機直接建置，其他主機用 Docker）→ .tar.gz
 deb: env-check docker-image ## Linux .deb（ARCH=arm64|x64）
 	$(DOCKER_RUN) $(IMAGE) tool/linux/build.sh deb
-appimage: env-check docker-image ## Linux AppImage（ARCH=arm64|x64）
-	$(DOCKER_RUN) $(IMAGE) tool/linux/build.sh appimage
-linux-all: env-check docker-image ## Linux 的 .tar.gz、.deb、AppImage 一次建好
+linux-all: env-check docker-image ## Linux 的 .tar.gz 和 .deb 一次建好
 	$(DOCKER_RUN) $(IMAGE) tool/linux/build.sh all
 else
 linux: env-check
 	tool/linux/build.sh bundle
 deb: env-check
 	tool/linux/build.sh deb
-appimage: env-check
-	tool/linux/build.sh appimage
 linux-all: env-check
 	tool/linux/build.sh all
 endif
@@ -191,14 +185,6 @@ deb-check: ## 在乾淨的 Ubuntu 22.04／24.04、Debian 12／13 容器裡安裝
 	  echo "==> $$base"; \
 	  $(DOCKER) run --rm --platform $(DOCKER_PLATFORM) -v "$(CURDIR)":/src:ro $$base \
 	    bash /src/tool/linux/deb_check.sh /src/$(DIST)/securibit_$(VERSION)_$(DEB_ARCH).deb || exit 1; \
-	done
-
-appimage-check: ## 在只裝了 GTK 的乾淨 Ubuntu 22.04、Debian 13 容器裡執行 AppImage，確認帶的函式庫夠用
-	@test -f $(DIST)/Securibit-$(VERSION)-$(APPIMAGE_ARCH).AppImage || { echo "先執行 make appimage ARCH=$(ARCH)" >&2; exit 1; }
-	@for base in ubuntu:22.04 debian:13; do \
-	  echo "==> $$base"; \
-	  $(DOCKER) run --rm --platform $(DOCKER_PLATFORM) -v "$(CURDIR)":/src:ro $$base \
-	    bash /src/tool/linux/appimage_check.sh /src/$(DIST)/Securibit-$(VERSION)-$(APPIMAGE_ARCH).AppImage || exit 1; \
 	done
 
 docker-clean: ## 刪掉 Linux 建置用的 Docker volume（下次會重新下載套件、完整重建）

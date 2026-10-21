@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
 #
-# 建置 Linux 版並打包（Makefile 的 linux、linux-docker、deb、appimage 會呼叫這支）。
+# 建置 Linux 版並打包（Makefile 的 linux、linux-docker、deb、linux-all 會呼叫這支）。
 # 在 Linux 主機上直接跑，或在 docker/linux.Dockerfile 的容器裡跑；建出來的架構就是目前機器的架構。
 #
 #   tool/linux/build.sh bundle     建置 release bundle，打包成 dist/Securibit-<版本>-linux-<arch>.tar.gz
 #   tool/linux/build.sh deb        bundle ＋ dist/securibit_<版本>_<arm64|amd64>.deb
-#   tool/linux/build.sh appimage   bundle ＋ dist/Securibit-<版本>-<aarch64|x86_64>.AppImage
-#   tool/linux/build.sh all        以上全部
+#   tool/linux/build.sh all        bundle ＋ .deb
 #
 # 環境變數：
 #   OUT_DIR             產出放這裡（預設 <專案>/dist）
@@ -16,7 +15,7 @@
 set -euo pipefail
 
 what="${1:-bundle}"
-case "$what" in bundle|deb|appimage|all) ;; *) echo "用法：$0 <bundle|deb|appimage|all>" >&2; exit 2 ;; esac
+case "$what" in bundle|deb|all) ;; *) echo "用法：$0 <bundle|deb|all>" >&2; exit 2 ;; esac
 
 src="$(cd "$(dirname "$0")/../.." && pwd)"
 out="${OUT_DIR:-$src/dist}"
@@ -27,8 +26,8 @@ if [[ ! -f "$src/env.json" ]]; then
 fi
 
 case "$(uname -m)" in
-  aarch64|arm64) arch=arm64; deb_arch=arm64; appimage_arch=aarch64 ;;
-  x86_64|amd64) arch=x64; deb_arch=amd64; appimage_arch=x86_64 ;;
+  aarch64|arm64) arch=arm64; deb_arch=arm64 ;;
+  x86_64|amd64) arch=x64; deb_arch=amd64 ;;
   *) echo "不支援的架構：$(uname -m)" >&2; exit 1 ;;
 esac
 
@@ -70,9 +69,6 @@ outputs+=("$tarball")
 
 if [[ "$what" == deb || "$what" == all ]]; then
   outputs+=("$("$app/tool/linux/package_deb.sh" "$bundle" "$full_version" "$deb_arch" "$out")")
-fi
-if [[ "$what" == appimage || "$what" == all ]]; then
-  outputs+=("$("$app/tool/linux/package_appimage.sh" "$bundle" "$version" "$appimage_arch" "$out")")
 fi
 
 if [[ -n "${HOST_UID:-}" ]]; then

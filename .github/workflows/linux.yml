@@ -1,4 +1,4 @@
-# Linux 版在 GitHub 的 Linux 主機上直接建置（不用 Docker）：x64 與 arm64 各一台，產出 .tar.gz、.deb、AppImage。
+# Linux 版在 GitHub 的 Linux 主機上直接建置（不用 Docker）：x64 與 arm64 各一台，產出 .tar.gz、.deb。
 # 手動執行（Actions → Linux → Run workflow），或 push v* 標籤時建置並附到 Release。
 # 需要在 repo 的 Settings → Secrets and variables → Actions 設定 SUPABASE_URL、SUPABASE_ANON_KEY、GOOGLE_WEB_CLIENT_ID。
 name: Linux
@@ -18,12 +18,9 @@ jobs:
       matrix:
         include:
           # 22.04（glibc 2.35）建出來的在 22.04 以後的發行版都能跑，和 docker/linux.Dockerfile 相同
-          - { arch: x64, runner: ubuntu-22.04, appimage: x86_64 }
-          - { arch: arm64, runner: ubuntu-22.04-arm, appimage: aarch64 }
+          - { arch: x64, runner: ubuntu-22.04 }
+          - { arch: arm64, runner: ubuntu-22.04-arm }
     runs-on: ${{ matrix.runner }}
-    env:
-      APPIMAGETOOL_VERSION: '1.9.1'
-      APPIMAGE_RUNTIME_VERSION: '20251108'
     steps:
       - uses: actions/checkout@v4
 
@@ -33,18 +30,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             clang cmake ninja-build pkg-config make rsync file \
             libgtk-3-dev libsecret-1-dev libjsoncpp-dev libayatana-appindicator3-dev \
-            dpkg-dev patchelf imagemagick desktop-file-utils
-
-      - name: 安裝 appimagetool
-        run: |
-          cd /opt
-          sudo curl -fsSL -o appimagetool.AppImage "https://github.com/AppImage/appimagetool/releases/download/${APPIMAGETOOL_VERSION}/appimagetool-${{ matrix.appimage }}.AppImage"
-          sudo chmod +x appimagetool.AppImage
-          sudo ./appimagetool.AppImage --appimage-extract >/dev/null
-          sudo mv squashfs-root appimagetool && sudo rm appimagetool.AppImage
-          sudo ln -s /opt/appimagetool/AppRun /usr/local/bin/appimagetool
-          sudo curl -fsSL -o /opt/appimage-runtime "https://github.com/AppImage/type2-runtime/releases/download/${APPIMAGE_RUNTIME_VERSION}/runtime-${{ matrix.appimage }}"
-          echo "APPIMAGE_RUNTIME=/opt/appimage-runtime" >> "$GITHUB_ENV"
+            dpkg-dev imagemagick desktop-file-utils
 
       - uses: subosito/flutter-action@v2
         with:
@@ -67,12 +53,12 @@ jobs:
           jq -n --arg url "$SUPABASE_URL" --arg key "$SUPABASE_ANON_KEY" --arg google "$GOOGLE_WEB_CLIENT_ID" \
             '{SUPABASE_URL: $url, SUPABASE_ANON_KEY: $key, SECURIBIT_WEB_URL: "https://2fa.bityo.tw", GOOGLE_WEB_CLIENT_ID: $google, GOOGLE_IOS_CLIENT_ID: ""}' > env.json
 
-      - name: 建置 .tar.gz、.deb、AppImage
+      - name: 建置 .tar.gz、.deb
         run: make linux-all
 
-      # 在乾淨的 Ubuntu／Debian 容器裡安裝 .deb、執行 AppImage（在 GitHub 的主機上跑，不是你的電腦）
+      # 在乾淨的 Ubuntu／Debian 容器裡安裝 .deb（在 GitHub 的主機上跑，不是你的電腦）
       - name: 安裝檢查
-        run: make deb-check appimage-check
+        run: make deb-check
 
       - uses: actions/upload-artifact@v4
         with:

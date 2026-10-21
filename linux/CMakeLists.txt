@@ -73,8 +73,7 @@ set_target_properties(${BINARY_NAME}
 # them to the application.
 include(flutter/generated_plugins.cmake)
 
-# 外掛的 .so 放在 bundle 的 lib/，讓它們從同一個資料夾找相依的函式庫（AppImage 帶進來的 libsecret 等），
-# 也不會留下建置目錄的絕對路徑當 RUNPATH
+# 外掛的 .so 放在 bundle 的 lib/，讓它們從同一個資料夾找相依的函式庫，也不會留下建置目錄的絕對路徑當 RUNPATH
 foreach(plugin ${FLUTTER_PLUGIN_LIST})
   set_target_properties(${plugin}_plugin PROPERTIES
     BUILD_WITH_INSTALL_RPATH ON INSTALL_RPATH "$ORIGIN")

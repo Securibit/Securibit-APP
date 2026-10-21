@@ -22,14 +22,6 @@ void main() {
         '/home/ann/.config/autostart/com.bityo.securibit.desktop',
       );
     });
-
-    test('用 AppImage 執行時指向 AppImage 檔，不是暫時掛載的程式', () {
-      final autostart = LinuxAutostart.current(
-        environment: {'HOME': '/home/ann', 'APPIMAGE': '/home/ann/Apps/Securibit-0.3.0-x86_64.AppImage'},
-        resolvedExecutable: '/tmp/.mount_SecuriAbc/usr/lib/securibit/securibit',
-      );
-      expect(autostart.executable, '/home/ann/Apps/Securibit-0.3.0-x86_64.AppImage');
-    });
   });
 
   group('內容', () {

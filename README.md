@@ -124,8 +124,7 @@ flutter run -d linux --dart-define-from-file=env.json
 | `make linux` | `Securibit-<版本>-linux-<arm64\|x64>.tar.gz` | Linux release bundle，解開後執行 `securibit/securibit`。Linux 主機直接建置，其他主機改用 Docker |
 | `make linux-docker ARCH=arm64\|x64` | 同上 | 在 Docker 裡建置 |
 | `make deb ARCH=…` | `securibit_<版本>_<arm64\|amd64>.deb` | Debian / Ubuntu 套件 |
-| `make appimage ARCH=…` | `Securibit-<版本>-<aarch64\|x86_64>.AppImage` | 各發行版都能直接執行的 AppImage |
-| `make linux-all ARCH=…` | 以上三種 | 一次建好 Linux 的 .tar.gz、.deb、AppImage |
+| `make linux-all ARCH=…` | 以上兩種 | 一次建好 Linux 的 .tar.gz 和 .deb |
 | `make dist` | | 建置這台主機能建的所有平台（macOS 主機：macOS、iOS、有 Android SDK 時加 Android、Docker 有在跑時加 Linux） |
 
 一般 Android 手機裝 `arm64-v8a` 那個 APK 就好。QR 掃描用的是 Google Play 服務裡的 ML Kit 模型（沒有包進 APK），沒有 Google Play 服務的手機（例如部分華為）無法掃 QR，但可以貼上 otpauth 連結。
@@ -141,30 +140,28 @@ make linux-all ARCH=arm64     # Apple Silicon 上原生執行，第一次約 2 �
 make linux-all ARCH=x64       # Apple Silicon 上透過模擬執行（--platform linux/amd64），比較慢
 ```
 
-- 建置環境在 `docker/linux.Dockerfile`：Ubuntu 22.04（glibc 2.35，建出來的程式在 22.04 以後的發行版都能跑）、和主機相同版本的 Flutter（讀 `flutter --version`）、clang、cmake、ninja、GTK 3、libsecret、ayatana appindicator，以及 rustup 與 cargo（Rust 核心要用）、appimagetool
+- 建置環境在 `docker/linux.Dockerfile`：Ubuntu 22.04（glibc 2.35，建出來的程式在 22.04 以後的發行版都能跑）、和主機相同版本的 Flutter（讀 `flutter --version`）、clang、cmake、ninja、GTK 3、libsecret、ayatana appindicator，以及 rustup 與 cargo（Rust 核心要用）
 - 映像檔會重複使用；pub 快取、cargo registry 與建置目錄放在 Docker volume（`securibit-<arch>-*`），第二次建置只重編有改的部分。`make docker-clean ARCH=…` 刪掉這些 volume
 - 原生 Linux 主機（Debian / Ubuntu）要先安裝：
 
   ```bash
   sudo apt install clang cmake ninja-build pkg-config libgtk-3-dev libsecret-1-dev libjsoncpp-dev \
-    libayatana-appindicator3-dev dpkg-dev patchelf
+    libayatana-appindicator3-dev dpkg-dev
   # Rust 核心：https://rustup.rs 安裝 rustup，會一起裝好 cargo
   ```
 
-  打包 AppImage 另外需要 [appimagetool](https://github.com/AppImage/appimagetool)；也可以 `LINUX_DOCKER=1` 一樣用 Docker 建置
+  也可以 `LINUX_DOCKER=1` 一樣用 Docker 建置
 
 打包內容：
 
 - `.deb`：程式裝在 `/opt/securibit`，`/usr/bin/securibit` 指向它，另外有 `.desktop` 與 48、128、256、512 的 hicolor 圖示（`linux/packaging/`）。
   `Depends` 由 `dpkg-shlibdeps` 依實際連結的函式庫算出來（GTK 3、libsecret、ayatana appindicator 等），再加上執行時才載入的 libEGL、libGL；`Recommends: gnome-keyring`
-- AppImage：不帶 glibc、GTK、OpenGL 這些系統一定有的函式庫，只帶不一定有裝的系統匣（ayatana appindicator、dbusmenu）與 libsecret（含 libgcrypt）
 
 檢查打包結果（都在 Docker 裡）：
 
 ```bash
 make linux-smoke ARCH=arm64     # 在 Xvfb 裡實際開 App：視窗大小與標題、系統匣選單、關視窗藏到系統匣、再開一次叫回視窗、結束；截圖在 build/linux-smoke/
 make deb-check ARCH=arm64       # 在乾淨的 Ubuntu 22.04／24.04、Debian 12／13 裡 apt install .deb 並啟動
-make appimage-check ARCH=arm64  # 在只裝了 GTK 的 Ubuntu 22.04、Debian 13 裡執行 AppImage
 ```
 
 登入狀態存在系統金鑰圈（Secret Service，例如 gnome-keyring 或 KWallet），系統沒有的話登入狀態會改存一般設定檔，離線快取和「記住密語」會失效且不會提示，請確認桌面環境有在跑 gnome-keyring 或 KWallet。
@@ -237,7 +234,7 @@ Linux 版用同一份選單內容常駐在系統匣（Ayatana AppIndicator，原
 - 面板打開選單時會通知 App（dbusmenu 的 AboutToShow），App 這時更新驗證碼；不是每個面板都會通知，所以主視窗藏起來時每秒更新一次選單內容
 - 打開系統匣時關掉視窗只是藏起來，選「結束 Securibit」才會結束；再開一次 App 會叫回藏起來的視窗（同時只會有一個 Securibit）。桌面沒有系統匣時關掉視窗就直接結束，免得叫不回來
 - 視窗藏起來算離開 App、叫回來算回來，App 鎖定照常生效
-- 設定頁的「在系統匣顯示」與「登入時自動開啟」：後者會在 `~/.config/autostart/com.bityo.securibit.desktop` 寫入（或刪除）啟動項目，指向目前執行的程式（用 AppImage 時指向 AppImage 檔）
+- 設定頁的「在系統匣顯示」與「登入時自動開啟」：後者會在 `~/.config/autostart/com.bityo.securibit.desktop` 寫入（或刪除）啟動項目，指向目前執行的程式
 - GNOME 要先安裝 [AppIndicator 擴充功能](https://extensions.gnome.org/extension/615/appindicator-support/)（Ubuntu 已內建）才看得到圖示；KDE、XFCE、Cinnamon 可以直接使用
 
 ## 開發者

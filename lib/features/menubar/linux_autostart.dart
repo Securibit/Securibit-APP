@@ -3,7 +3,7 @@ import 'dart:io';
 /*
  * Linux 的「登入時自動開啟」：在 ~/.config/autostart（或 $XDG_CONFIG_HOME/autostart）放一個 .desktop 檔，
  * 桌面環境登入時會執行裡面的 Exec（XDG Autostart 規範，GNOME、KDE、XFCE、Cinnamon 都支援）。
- * Exec 指向目前執行中的程式；用 AppImage 執行時程式在暫時掛載的目錄，改指向 AppImage 檔本身。
+ * Exec 指向目前執行中的程式。
  * 純 Dart、路徑可以注入，方便測試。
  */
 class LinuxAutostart {
@@ -15,9 +15,7 @@ class LinuxAutostart {
     final xdg = env['XDG_CONFIG_HOME'];
     // 規範：XDG_CONFIG_HOME 不是絕對路徑時當作沒設定
     final configHome = xdg != null && xdg.startsWith('/') ? xdg : '${env['HOME'] ?? ''}/.config';
-    final appImage = env['APPIMAGE'];
-    final executable = appImage != null && appImage.isNotEmpty ? appImage : (resolvedExecutable ?? Platform.resolvedExecutable);
-    return LinuxAutostart(configHome: configHome, executable: executable);
+    return LinuxAutostart(configHome: configHome, executable: resolvedExecutable ?? Platform.resolvedExecutable);
   }
 
   // 和 App 的 application id 相同，桌面環境才對得上 App 的圖示與名稱
@@ -49,7 +47,7 @@ class LinuxAutostart {
     await temp.rename(file.path);
   }
 
-  /// 讀取目前狀態；已打開但檔案裡的程式不在了（例如 AppImage 換了位置）就改指向目前的程式
+  /// 讀取目前狀態；已打開但檔案裡的程式不在了（例如 .tar.gz 解開的資料夾換了位置）就改指向目前的程式
   Future<bool> refresh() async {
     if (!await isEnabled()) return false;
     try {
