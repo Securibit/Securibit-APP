@@ -7,7 +7,7 @@ import 'core/theme/tokens.dart';
 import 'core/widgets/empty_state.dart';
 import 'core/widgets/logo.dart';
 import 'features/auth/auth_controller.dart';
-import 'features/auth/login_page.dart';
+import 'features/onboarding/signed_out_view.dart';
 import 'features/settings/app_lock.dart';
 import 'features/settings/settings_controller.dart';
 import 'features/shell/home_shell.dart';
@@ -39,7 +39,7 @@ class SecuribitApp extends StatelessWidget {
   }
 }
 
-/// 依登入狀態決定畫面：還原 session 中 → 標誌；沒登入 → 登入頁；登入後 → 驗證碼
+/// 依登入狀態決定畫面：還原 session 中 → 標誌；沒登入 → 介紹頁（只有手機）與登入頁；登入後 → 驗證碼
 class RootView extends StatelessWidget {
   const RootView({super.key});
 
@@ -48,7 +48,7 @@ class RootView extends StatelessWidget {
     final auth = context.watch<AuthController>();
     final Widget child = switch (auth.status) {
       AuthStatus.loading => const _Splash(),
-      AuthStatus.signedOut => const LoginPage(),
+      AuthStatus.signedOut => const SignedOutView(),
       AuthStatus.signedIn when auth.profile != null => const HomeShell(),
       AuthStatus.signedIn when auth.profileError != null => _ProfileError(message: auth.profileError!),
       AuthStatus.signedIn => const _Splash(),
