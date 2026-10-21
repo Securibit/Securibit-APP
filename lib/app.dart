@@ -15,15 +15,18 @@ import 'features/shell/home_shell.dart';
 const _locale = Locale('zh', 'TW');
 
 class SecuribitApp extends StatelessWidget {
-  const SecuribitApp({super.key, required this.home});
+  const SecuribitApp({super.key, required this.home, this.navigatorKey});
 
   final Widget home;
+  // macOS 選單列的「設定…」從 App 外面打開設定要用
+  final GlobalKey<NavigatorState>? navigatorKey;
 
   @override
   Widget build(BuildContext context) {
     final themeMode = context.select<SettingsController, ThemeMode>((s) => s.themeMode);
     return MaterialApp(
       title: 'Securibit',
+      navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
       theme: buildTheme(Brightness.light),
       darkTheme: buildTheme(Brightness.dark),

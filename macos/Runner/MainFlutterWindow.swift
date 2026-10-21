@@ -1,7 +1,7 @@
 import Cocoa
 import FlutterMacOS
 
-class MainFlutterWindow: NSWindow {
+class MainFlutterWindow: NSWindow, NSWindowDelegate {
   override func awakeFromNib() {
     let flutterViewController = FlutterViewController()
     self.contentViewController = flutterViewController
@@ -28,8 +28,20 @@ class MainFlutterWindow: NSWindow {
       result(nil)
     }
 
+    // 選單列常駐：關掉視窗只是藏起來（見 MenuBarController）
+    self.isReleasedWhenClosed = false
+    self.delegate = self
+    MenuBarController.shared.attach(window: self, messenger: flutterViewController.engine.binaryMessenger)
+
     RegisterGeneratedPlugins(registry: flutterViewController)
 
     super.awakeFromNib()
+  }
+
+  // 紅色按鈕與 ⌘W：打開選單列時只藏起視窗，App 繼續留在選單列
+  func windowShouldClose(_ sender: NSWindow) -> Bool {
+    guard MenuBarController.shared.isEnabled else { return true }
+    MenuBarController.shared.hideMainWindow()
+    return false
   }
 }

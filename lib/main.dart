@@ -8,6 +8,8 @@ import 'features/auth/auth_controller.dart';
 import 'features/auth/secure_session_storage.dart';
 import 'features/cache/offline_cache.dart';
 import 'features/groups/groups_controller.dart';
+import 'features/menubar/menu_bar_codes.dart';
+import 'features/menubar/menu_bar_service.dart';
 import 'features/settings/settings_controller.dart';
 import 'features/vault/vault_controller.dart';
 
@@ -45,6 +47,17 @@ Future<void> main() async {
     },
   )..start();
 
+  // macOS 選單列（其他平台不做事）
+  final navigatorKey = GlobalKey<NavigatorState>();
+  MenuBarService(
+    settings: settings,
+    auth: auth,
+    groups: groups,
+    vault: vault,
+    codes: MenuBarCodes(cache: cache),
+    navigatorKey: navigatorKey,
+  ).start();
+
   runApp(
     MultiProvider(
       providers: [
@@ -54,7 +67,7 @@ Future<void> main() async {
         ChangeNotifierProvider.value(value: vault),
         ChangeNotifierProvider.value(value: groups),
       ],
-      child: const SecuribitApp(home: RootView()),
+      child: SecuribitApp(home: const RootView(), navigatorKey: navigatorKey),
     ),
   );
 }
