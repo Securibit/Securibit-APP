@@ -6,7 +6,7 @@ import 'screen_privacy.dart';
 
 /*
  * App 的偏好設定，存在這台裝置：
- * 主題（預設跟隨系統）、隱藏驗證碼（同網站，所有群組共用）、允許截圖（預設不允許）、App 鎖定。
+ * 主題（預設跟隨系統）、隱藏驗證碼（同網站，所有群組共用）、允許截圖（手機預設不允許，macOS 預設允許）、App 鎖定。
  * App 鎖定的設定存在安全儲存（見 AppLockController），這裡轉發它的變更通知。
  */
 class SettingsController extends ChangeNotifier {
@@ -24,7 +24,7 @@ class SettingsController extends ChangeNotifier {
 
   ThemeMode themeMode = ThemeMode.system;
   bool hideCodes = false;
-  bool allowScreenshots = false;
+  bool allowScreenshots = ScreenPrivacy.allowByDefault;
 
   SharedPreferences? _prefs;
 
@@ -38,7 +38,7 @@ class SettingsController extends ChangeNotifier {
         _ => ThemeMode.system,
       };
       hideCodes = prefs.getBool(_hideKey) ?? false;
-      allowScreenshots = prefs.getBool(_screenshotKey) ?? false;
+      allowScreenshots = prefs.getBool(_screenshotKey) ?? ScreenPrivacy.allowByDefault;
       if (prefs.containsKey(_legacyBiometricKey)) await prefs.remove(_legacyBiometricKey);
     } catch (_) {
       // 讀不到就用預設值

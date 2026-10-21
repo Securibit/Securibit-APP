@@ -14,8 +14,8 @@ class MainFlutterWindow: NSWindow {
     self.center()
     self.setFrameAutosaveName("SecuribitMainWindow")
 
-    // 預設不允許截圖：視窗不出現在截圖、錄影與螢幕分享中；設定頁的「允許截圖」會再調整
-    self.sharingType = .none
+    // 預設允許截圖：.none 會讓視窗在 Parsec、AnyDesk 等遠端桌面上也看不到；設定頁關掉「允許截圖」才改成 .none
+    self.sharingType = .readOnly
     let privacy = FlutterMethodChannel(name: "securibit/privacy", binaryMessenger: flutterViewController.engine.binaryMessenger)
     privacy.setMethodCallHandler { [weak self] call, result in
       guard call.method == "configure" else {

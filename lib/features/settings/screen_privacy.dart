@@ -17,11 +17,15 @@ class ScreenPrivacy {
   /// 這個平台能不能（至少部分）阻擋截圖
   static bool get canBlockCapture => Platform.isAndroid || Platform.isIOS || Platform.isMacOS;
 
+  /// 預設是否允許截圖：手機預設不允許；macOS 預設允許，
+  /// 因為擋住後視窗在 Parsec、AnyDesk 等遠端桌面上也會看不到
+  static bool get allowByDefault => !(Platform.isAndroid || Platform.isIOS);
+
   /// 設定頁「允許截圖」下方的說明，照實寫出這個平台做得到什麼
   static String get description {
     if (Platform.isAndroid) return '關閉時無法截圖或錄影，多工畫面也不會顯示驗證碼';
     if (Platform.isIOS) return 'iPhone 和 iPad 無法阻擋截圖；關閉時，錄影或鏡像輸出會遮住畫面，多工畫面也不會顯示驗證碼';
-    if (Platform.isMacOS) return '關閉時視窗不會出現在系統截圖、錄影與螢幕分享中，但部分第三方錄影軟體可能仍拍得到';
+    if (Platform.isMacOS) return '關閉時視窗不會出現在系統截圖、錄影與螢幕分享中，但部分第三方錄影軟體可能仍拍得到；用 Parsec、AnyDesk 等遠端桌面連線時，也會看不到這個視窗';
     return 'Linux 無法阻擋截圖或錄影，請留意畫面上的驗證碼';
   }
 
