@@ -5,6 +5,7 @@ import '../../core/theme/tokens.dart';
 import '../../core/widgets/avatar.dart';
 import '../../core/widgets/feedback.dart';
 import '../../core/widgets/logo.dart';
+import '../../core/widgets/sliding_selection.dart';
 import '../auth/auth_controller.dart';
 import '../auth/profile.dart';
 import 'group_models.dart';
@@ -71,14 +72,25 @@ class GroupSidebar extends StatelessWidget {
                         ],
                       ),
                     ),
-                  for (final group in list ?? const <GroupSummary>[])
-                    _GroupRow(
-                      group: group,
-                      selected: group.id == selectedId,
-                      onTap: () {
-                        groups.select(group.id);
-                        onSelected?.call();
-                      },
+                  if (list != null && list.isNotEmpty)
+                    // 選中的底色會從舊的群組滑到新的群組
+                    SlidingSelection(
+                      selectedIndex: _indexOf(list, selectedId),
+                      color: colors.surface2,
+                      borderRadius: BorderRadius.circular(AppRadius.small),
+                      spacing: 2,
+                      revealPadding: const EdgeInsets.symmetric(vertical: 8),
+                      children: [
+                        for (final group in list)
+                          _GroupRow(
+                            group: group,
+                            selected: group.id == selectedId,
+                            onTap: () {
+                              groups.select(group.id);
+                              onSelected?.call();
+                            },
+                          ),
+                      ],
                     ),
                   if (groups.invitations.isNotEmpty) ...[
                     const SizedBox(height: 16),
@@ -95,6 +107,11 @@ class GroupSidebar extends StatelessWidget {
       ),
     );
   }
+}
+
+int? _indexOf(List<GroupSummary> list, String? id) {
+  final index = list.indexWhere((g) => g.id == id);
+  return index < 0 ? null : index;
 }
 
 class _SectionLabel extends StatelessWidget {
@@ -124,36 +141,34 @@ class _GroupRow extends StatelessWidget {
         : group.isDefault
             ? Icons.person_rounded
             : Icons.people_alt_rounded;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 2),
-      child: Material(
-        color: selected ? colors.surface2 : Colors.transparent,
+    // 選中的底色由外層的 SlidingSelection 畫，這裡保持透明
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(AppRadius.small),
+      child: InkWell(
         borderRadius: BorderRadius.circular(AppRadius.small),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(AppRadius.small),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-            child: Row(
-              children: [
-                Icon(icon, size: 20, color: selected ? colors.accent : colors.inkMuted),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    group.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: AppText.body, fontWeight: selected ? FontWeight.w600 : FontWeight.w500),
-                  ),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          child: Row(
+            children: [
+              Icon(icon, size: 20, color: selected ? colors.accent : colors.inkMuted),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  group.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: AppText.body, fontWeight: selected ? FontWeight.w600 : FontWeight.w500),
                 ),
-                if (group.isDefault) ...[
-                  const SizedBox(width: 6),
-                  Text('預設', style: TextStyle(fontSize: AppText.caption, fontWeight: FontWeight.w600, color: colors.accent)),
-                ],
-                const SizedBox(width: 8),
-                Text('${group.accountCount}', style: TextStyle(fontSize: AppText.secondary, color: colors.inkMuted)),
+              ),
+              if (group.isDefault) ...[
+                const SizedBox(width: 6),
+                Text('預設', style: TextStyle(fontSize: AppText.caption, fontWeight: FontWeight.w600, color: colors.accent)),
               ],
-            ),
+              const SizedBox(width: 8),
+              Text('${group.accountCount}', style: TextStyle(fontSize: AppText.secondary, color: colors.inkMuted)),
+            ],
           ),
         ),
       ),

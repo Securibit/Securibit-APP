@@ -11,6 +11,7 @@ import '../codes/widgets/code_detail.dart';
 import '../codes/widgets/code_list_pane.dart';
 import '../groups/group_models.dart';
 import '../groups/group_sidebar.dart';
+import '../groups/group_tabs.dart';
 import '../groups/groups_controller.dart';
 import '../settings/settings_view.dart';
 
@@ -19,6 +20,7 @@ import '../settings/settings_view.dart';
  * - 寬（≥ 1000）：左側欄（群組、帳戶）｜中間驗證碼清單｜右邊詳細資料
  * - 中（≥ 720）：側欄收進 Drawer｜清單｜詳細資料
  * - 窄（手機）：側欄收進 Drawer，主畫面是清單，點一筆開下一頁
+ * 沒有左側欄時，有兩個以上的群組就在最上面放一排可以滑動切換的群組分頁
  */
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
@@ -37,6 +39,7 @@ class _HomeShellState extends State<HomeShell> {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final group = context.select<GroupsController, GroupSummary?>((g) => g.selected);
+    final groupCount = context.select<GroupsController, int>((g) => g.groups?.length ?? 0);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -46,6 +49,9 @@ class _HomeShellState extends State<HomeShell> {
 
         void openDrawer() => _scaffoldKey.currentState?.openDrawer();
         void closeDrawer() => _scaffoldKey.currentState?.closeDrawer();
+        // 分頁列放在換群組時不會重建的地方，底色才滑得過去；選單鍵也移到分頁列
+        final tabs = !wide && group != null && groupCount > 1;
+        final listMenu = wide || tabs ? null : openDrawer;
 
         final sidebar = AdminSidebarEntry(
           onOpen: () {
@@ -76,7 +82,7 @@ class _HomeShellState extends State<HomeShell> {
                     children: [
                       SizedBox(
                         width: wide ? ((width - 260) * 0.45).clamp(380.0, 460.0) : 380,
-                        child: CodeListPane(onOpen: controller.select, onMenu: wide ? null : openDrawer),
+                        child: CodeListPane(onOpen: controller.select, onMenu: listMenu),
                       ),
                       vertical,
                       Expanded(
@@ -89,7 +95,7 @@ class _HomeShellState extends State<HomeShell> {
                   );
                 }
                 return CodeListPane(
-                  onMenu: openDrawer,
+                  onMenu: listMenu,
                   highlightSelection: false,
                   onOpen: (id) {
                     controller.select(id);
@@ -117,7 +123,16 @@ class _HomeShellState extends State<HomeShell> {
                     Expanded(child: SafeArea(left: false, child: content)),
                   ],
                 )
-              : SafeArea(child: content),
+              : SafeArea(
+                  // 一直用 Column：分頁列出現或消失時，下面的清單不會整個重建
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (tabs) GroupTabBar(onMenu: openDrawer),
+                      Expanded(child: content),
+                    ],
+                  ),
+                ),
         );
       },
     );
