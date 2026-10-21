@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/theme/tokens.dart';
@@ -85,7 +86,7 @@ class _HomeShellState extends State<HomeShell> {
                     selector: (_, c) => c.locked ? null : c.openId,
                     builder: (context, id, _) {
                       final open = id != null;
-                      return Row(
+                      final row = Row(
                         children: [
                           AnimatedContainer(
                             duration: MediaQuery.of(context).disableAnimations ? Duration.zero : const Duration(milliseconds: 260),
@@ -113,6 +114,7 @@ class _HomeShellState extends State<HomeShell> {
                           ],
                         ],
                       );
+                      return open ? _EscapeToClose(onEscape: () => controller.select(null), child: row) : row;
                     },
                   );
                 }
@@ -218,4 +220,39 @@ class _NoGroup extends StatelessWidget {
       ],
     );
   }
+}
+
+/// 右欄打開時按 Esc 收起來；上面還疊著對話框或其他頁面時不處理，讓 Esc 先關那個
+class _EscapeToClose extends StatefulWidget {
+  const _EscapeToClose({required this.onEscape, required this.child});
+
+  final VoidCallback onEscape;
+  final Widget child;
+
+  @override
+  State<_EscapeToClose> createState() => _EscapeToCloseState();
+}
+
+class _EscapeToCloseState extends State<_EscapeToClose> {
+  @override
+  void initState() {
+    super.initState();
+    HardwareKeyboard.instance.addHandler(_onKey);
+  }
+
+  @override
+  void dispose() {
+    HardwareKeyboard.instance.removeHandler(_onKey);
+    super.dispose();
+  }
+
+  bool _onKey(KeyEvent event) {
+    if (event is! KeyDownEvent || event.logicalKey != LogicalKeyboardKey.escape) return false;
+    if (!mounted || !(ModalRoute.of(context)?.isCurrent ?? true)) return false;
+    widget.onEscape();
+    return true;
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
