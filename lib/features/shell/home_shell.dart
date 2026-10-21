@@ -95,7 +95,8 @@ class _HomeShellState extends State<HomeShell> {
                           onClosed: () => controller.select(null),
                         ),
                       );
-                      return id != null ? _EscapeToClose(onEscape: () => controller.select(null), child: split) : split;
+                      // 一直包著同一層，打開或收起時 _SplitPane 才不會被重建（重建就沒有動畫）
+                      return _EscapeToClose(enabled: id != null, onEscape: () => controller.select(null), child: split);
                     },
                   );
                 }
@@ -205,8 +206,9 @@ class _NoGroup extends StatelessWidget {
 
 /// 右欄打開時按 Esc 收起來；上面還疊著對話框或其他頁面時不處理，讓 Esc 先關那個
 class _EscapeToClose extends StatefulWidget {
-  const _EscapeToClose({required this.onEscape, required this.child});
+  const _EscapeToClose({required this.enabled, required this.onEscape, required this.child});
 
+  final bool enabled;
   final VoidCallback onEscape;
   final Widget child;
 
@@ -228,7 +230,7 @@ class _EscapeToCloseState extends State<_EscapeToClose> {
   }
 
   bool _onKey(KeyEvent event) {
-    if (event is! KeyDownEvent || event.logicalKey != LogicalKeyboardKey.escape) return false;
+    if (!widget.enabled || event is! KeyDownEvent || event.logicalKey != LogicalKeyboardKey.escape) return false;
     if (!mounted || !(ModalRoute.of(context)?.isCurrent ?? true)) return false;
     widget.onEscape();
     return true;
