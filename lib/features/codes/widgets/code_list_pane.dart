@@ -179,7 +179,7 @@ class _CodeListPaneState extends State<CodeListPane> {
                         secret: controller.secretOf(account),
                         server: controller.server,
                         hidden: hidden,
-                        selected: widget.highlightSelection && controller.effectiveSelectedId == account.id,
+                        selected: widget.highlightSelection && controller.openId == account.id,
                         onOpen: () => widget.onOpen(account.id),
                       );
                     },

@@ -14,11 +14,13 @@ import 'otp_readout.dart';
 
 /// 右欄（或窄螢幕的下一頁）：選中那一筆的驗證碼、參數、金鑰與操作
 class CodeDetailView extends StatelessWidget {
-  const CodeDetailView({super.key, required this.accountId, this.onClosed});
+  const CodeDetailView({super.key, required this.accountId, this.onClosed, this.onClose});
 
   final String? accountId;
   // 刪除後（窄螢幕要回上一頁）
   final VoidCallback? onClosed;
+  // 寬視窗右上角的關閉鈕，按了收起右欄；窄螢幕有返回鍵，不用傳
+  final VoidCallback? onClose;
 
   @override
   Widget build(BuildContext context) {
@@ -36,16 +38,17 @@ class CodeDetailView extends StatelessWidget {
         ),
       );
     }
-    return _Detail(account: account, controller: controller, onClosed: onClosed);
+    return _Detail(account: account, controller: controller, onClosed: onClosed, onClose: onClose);
   }
 }
 
 class _Detail extends StatelessWidget {
-  const _Detail({required this.account, required this.controller, this.onClosed});
+  const _Detail({required this.account, required this.controller, this.onClosed, this.onClose});
 
   final GroupAccount account;
   final CodesController controller;
   final VoidCallback? onClosed;
+  final VoidCallback? onClose;
 
   Future<void> _togglePin(BuildContext context) async {
     final error = await controller.togglePin(account);
@@ -101,6 +104,13 @@ class _Detail extends StatelessWidget {
                 style: const TextStyle(fontSize: AppText.title, fontWeight: FontWeight.w700),
               ),
             ),
+            if (onClose != null)
+              IconButton(
+                onPressed: onClose,
+                tooltip: '關閉',
+                icon: Icon(Icons.close_rounded, color: colors.inkMuted),
+                style: IconButton.styleFrom(backgroundColor: colors.surface1),
+              ),
           ],
         ),
         if (categories.isNotEmpty) ...[

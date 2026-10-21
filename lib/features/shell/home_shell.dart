@@ -78,20 +78,42 @@ class _HomeShellState extends State<HomeShell> {
               builder: (context) {
                 final controller = context.read<CodesController>();
                 if (wide || medium) {
-                  return Row(
-                    children: [
-                      SizedBox(
-                        width: wide ? ((width - 260) * 0.45).clamp(380.0, 460.0) : 380,
-                        child: CodeListPane(onOpen: controller.select, onMenu: listMenu),
-                      ),
-                      vertical,
-                      Expanded(
-                        child: Selector<CodesController, String?>(
-                          selector: (_, c) => c.locked ? null : c.effectiveSelectedId,
-                          builder: (context, id, _) => CodeDetailView(accountId: id),
-                        ),
-                      ),
-                    ],
+                  // 右欄預設收起來，清單佔滿；點了一筆才從右邊打開，按關閉或刪掉那筆就收回去
+                  final available = wide ? width - 260.5 : width;
+                  final listWidth = wide ? ((width - 260) * 0.45).clamp(380.0, 460.0) : 380.0;
+                  return Selector<CodesController, String?>(
+                    selector: (_, c) => c.locked ? null : c.openId,
+                    builder: (context, id, _) {
+                      final open = id != null;
+                      return Row(
+                        children: [
+                          AnimatedContainer(
+                            duration: MediaQuery.of(context).disableAnimations ? Duration.zero : const Duration(milliseconds: 260),
+                            curve: Curves.easeOutCubic,
+                            width: open ? listWidth : available,
+                            child: CodeListPane(onOpen: controller.select, onMenu: listMenu),
+                          ),
+                          if (open) ...[
+                            vertical,
+                            Expanded(
+                              // 打開動畫時右欄先用最後的寬度排版再裁切，內容不會被擠壓
+                              child: ClipRect(
+                                child: OverflowBox(
+                                  alignment: Alignment.centerLeft,
+                                  minWidth: available - listWidth - 0.5,
+                                  maxWidth: available - listWidth - 0.5,
+                                  child: CodeDetailView(
+                                    accountId: id,
+                                    onClose: () => controller.select(null),
+                                    onClosed: () => controller.select(null),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      );
+                    },
                   );
                 }
                 return CodeListPane(

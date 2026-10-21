@@ -81,12 +81,8 @@ class CodesController extends ChangeNotifier {
 
   GroupAccount? get selected => accounts?.where((a) => a.id == selectedId).firstOrNull;
 
-  // 寬視窗：還沒選或選的那筆不見了，就顯示清單的第一筆（同 Proton Pass 桌面版）
-  String? get effectiveSelectedId {
-    if (selected != null) return selectedId;
-    final list = filtered;
-    return list.isEmpty ? null : list.first.id;
-  }
+  // 寬視窗右欄顯示的那一筆：沒選、或選的那筆不見了（被刪掉、換群組）就是 null，右欄收起來
+  String? get openId => selected?.id;
 
   String? secretOf(GroupAccount account) => secrets[account.id];
 
