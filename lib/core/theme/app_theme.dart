@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 
+import '../platform.dart';
 import 'tokens.dart';
 
-// Material 元件套上網站的色票；字體用系統字（Apple 上就是 SF / 蘋方）
+// Material 元件套上網站的色票；字體用系統字（Apple 上就是 SF / 蘋方，Linux 另外指定中文字型的備援，見 AppPlatform）
 ThemeData buildTheme(Brightness brightness) {
   final c = brightness == Brightness.dark ? AppColors.dark : AppColors.light;
+  // 按鈕、輸入框等元件的文字樣式不會繼承 textTheme，要各自帶上字型備援
+  final fallback = AppPlatform.fontFamilyFallback;
   final scheme = ColorScheme(
     brightness: brightness,
     primary: c.accent,
@@ -31,6 +34,7 @@ ThemeData buildTheme(Brightness brightness) {
     brightness: brightness,
     scaffoldBackgroundColor: c.surface,
     splashFactory: NoSplash.splashFactory,
+    fontFamilyFallback: fallback,
     extensions: [c],
   );
 
@@ -77,9 +81,9 @@ ThemeData buildTheme(Brightness brightness) {
       focusedBorder: inputBorder.copyWith(borderSide: BorderSide(color: c.accent.withValues(alpha: 0.6), width: 1.5)),
       errorBorder: inputBorder.copyWith(borderSide: BorderSide(color: c.alarm, width: 1)),
       focusedErrorBorder: inputBorder.copyWith(borderSide: BorderSide(color: c.alarm, width: 1.5)),
-      hintStyle: TextStyle(color: c.inkMuted, fontSize: AppText.body),
-      helperStyle: TextStyle(color: c.inkMuted, fontSize: AppText.caption),
-      errorStyle: TextStyle(color: c.alarm, fontSize: AppText.caption),
+      hintStyle: TextStyle(color: c.inkMuted, fontSize: AppText.body, fontFamilyFallback: fallback),
+      helperStyle: TextStyle(color: c.inkMuted, fontSize: AppText.caption, fontFamilyFallback: fallback),
+      errorStyle: TextStyle(color: c.alarm, fontSize: AppText.caption, fontFamilyFallback: fallback),
       helperMaxLines: 3,
       errorMaxLines: 3,
     ),
@@ -92,7 +96,7 @@ ThemeData buildTheme(Brightness brightness) {
         minimumSize: const Size(64, 48),
         padding: const EdgeInsets.symmetric(horizontal: 22),
         shape: const StadiumBorder(),
-        textStyle: const TextStyle(fontSize: AppText.body, fontWeight: FontWeight.w600),
+        textStyle: TextStyle(fontSize: AppText.body, fontWeight: FontWeight.w600, fontFamilyFallback: fallback),
       ),
     ),
     textButtonTheme: TextButtonThemeData(
@@ -100,7 +104,7 @@ ThemeData buildTheme(Brightness brightness) {
         foregroundColor: c.accent,
         minimumSize: const Size(44, 40),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.small)),
-        textStyle: const TextStyle(fontSize: AppText.body, fontWeight: FontWeight.w600),
+        textStyle: TextStyle(fontSize: AppText.body, fontWeight: FontWeight.w600, fontFamilyFallback: fallback),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
@@ -109,7 +113,7 @@ ThemeData buildTheme(Brightness brightness) {
         minimumSize: const Size(64, 48),
         side: BorderSide(color: c.line),
         shape: const StadiumBorder(),
-        textStyle: const TextStyle(fontSize: AppText.body, fontWeight: FontWeight.w600),
+        textStyle: TextStyle(fontSize: AppText.body, fontWeight: FontWeight.w600, fontFamilyFallback: fallback),
       ),
     ),
     dialogTheme: DialogThemeData(
@@ -122,7 +126,7 @@ ThemeData buildTheme(Brightness brightness) {
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
       backgroundColor: c.ink,
-      contentTextStyle: TextStyle(color: c.surface, fontSize: AppText.secondary, fontWeight: FontWeight.w600),
+      contentTextStyle: TextStyle(color: c.surface, fontSize: AppText.secondary, fontWeight: FontWeight.w600, fontFamilyFallback: fallback),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.small)),
       elevation: 0,
     ),
@@ -134,7 +138,7 @@ ThemeData buildTheme(Brightness brightness) {
         borderRadius: BorderRadius.circular(AppRadius.small),
         side: BorderSide(color: c.line.withValues(alpha: 0.6), width: 0.5),
       ),
-      textStyle: TextStyle(color: c.ink, fontSize: AppText.body),
+      textStyle: TextStyle(color: c.ink, fontSize: AppText.body, fontFamilyFallback: fallback),
     ),
     switchTheme: SwitchThemeData(
       trackColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? c.accent : c.surface2),
