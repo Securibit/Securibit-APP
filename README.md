@@ -117,7 +117,7 @@ flutter run -d linux --dart-define-from-file=env.json
 | 目標 | 產出（`dist/`） | 說明 |
 | --- | --- | --- |
 | `make deps`、`make analyze`、`make test`、`make clean` | | `flutter pub get`、`flutter analyze`、`flutter test`、清掉建置結果與 `dist/` |
-| `make macos` | `Securibit-<版本>-macos.zip` | macOS release（未簽章公證） |
+| `make macos` | `Securibit-<版本>-macos.dmg`、`.zip` | macOS release（未簽章公證）。`.dmg` 是安裝檔：打開後把 securibit.app 拖到「應用程式」（用系統內建的 `hdiutil` 製作） |
 | `make ios` | `Securibit-<版本>-ios-unsigned.ipa` | iOS release，不簽章（`--no-codesign`），要再用 Xcode 等工具簽過才能安裝 |
 | `make apk` | `securibit-<版本>-arm64-v8a.apk` 等 | 每種處理器一個 APK，混淆並去掉除錯符號（符號在 `build/symbols`，當機回報要用） |
 | `make aab` | `securibit-<版本>.aab` | 上架 Google Play 用的 App Bundle，Play 會依手機只下載需要的部分 |

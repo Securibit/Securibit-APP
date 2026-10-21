@@ -1,7 +1,8 @@
 # Securibit APP 的建置入口。`make` 或 `make help` 列出所有目標。
 #
 # 所有產出都放在 dist/，檔名帶 pubspec.yaml 的版本：
-#   Securibit-<版本>-macos.zip               macOS App（未簽章公證，見 README）
+#   Securibit-<版本>-macos.dmg               macOS 安裝檔：拖曳 securibit.app 到「應用程式」（未簽章公證，見 README）
+#   Securibit-<版本>-macos.zip               macOS App（同上，壓縮檔）
 #   Securibit-<版本>-ios-unsigned.ipa        iOS（沒有簽章，要用 Xcode 或其他工具簽過才能安裝）
 #   securibit-<版本>-<abi>.apk                Android，每種處理器一個（arm64-v8a、armeabi-v7a、x86_64）
 #   securibit-<版本>.aab                      Android App Bundle（上架 Google Play）
@@ -195,11 +196,18 @@ env-check:
 
 # ─── 各平台 ────────────────────────────────────────────
 
-macos: env-check ## macOS release，壓成 Securibit-<版本>-macos.zip
+macos: env-check ## macOS release：Securibit-<版本>-macos.dmg（拖曳安裝）與 .zip
 	$(FLUTTER) build macos --release $(DEFINES)
 	rm -f $(DIST)/Securibit-$(VERSION)-macos.zip
 	ditto -c -k --sequesterRsrc --keepParent build/macos/Build/Products/Release/securibit.app $(DIST)/Securibit-$(VERSION)-macos.zip
 	@echo "→ $(DIST)/Securibit-$(VERSION)-macos.zip"
+	@# 安裝檔：securibit.app 加上指向 /Applications 的「應用程式」捷徑，用系統內建的 hdiutil 做成壓縮的映像檔
+	rm -rf build/macos/dmg && mkdir -p build/macos/dmg
+	ditto build/macos/Build/Products/Release/securibit.app build/macos/dmg/securibit.app
+	ln -s /Applications build/macos/dmg/應用程式
+	hdiutil create -volname "Securibit $(VERSION)" -srcfolder build/macos/dmg -fs HFS+ -format UDZO -ov $(DIST)/Securibit-$(VERSION)-macos.dmg
+	rm -rf build/macos/dmg
+	@echo "→ $(DIST)/Securibit-$(VERSION)-macos.dmg"
 
 ios: env-check ## iOS release（不簽章），打包成 Securibit-<版本>-ios-unsigned.ipa
 	$(FLUTTER) build ios --release --no-codesign $(DEFINES)
