@@ -136,16 +136,15 @@ class _CodeListPaneState extends State<CodeListPane> {
         if (categories.isNotEmpty)
           SizedBox(
             height: 44,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
+            // 選中的反白底色會滑到新點的類別
+            child: PillBar(
               padding: const EdgeInsets.fromLTRB(16, 2, 16, 8),
-              children: [
-                Pill(label: '全部', active: active == null, onTap: () => controller.setCategory(null)),
-                for (final name in categories) ...[
-                  const SizedBox(width: 6),
-                  Pill(label: name, active: active == name, onTap: () => controller.setCategory(active == name ? null : name)),
-                ],
-              ],
+              labels: ['全部', ...categories],
+              selectedIndex: active == null ? 0 : categories.indexOf(active) + 1,
+              onSelect: (i) {
+                final name = i == 0 ? null : categories[i - 1];
+                controller.setCategory(name == active ? null : name);
+              },
             ),
           ),
         Expanded(

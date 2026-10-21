@@ -15,6 +15,7 @@ class SlidingSelection extends StatefulWidget {
     required this.selectedIndex,
     required this.children,
     required this.color,
+    this.itemColor,
     this.borderRadius,
     this.direction = Axis.vertical,
     this.spacing = 0,
@@ -25,6 +26,8 @@ class SlidingSelection extends StatefulWidget {
   final int? selectedIndex;
   final List<Widget> children;
   final Color color;
+  // 每個項目自己的底色（例如沒選中的類別藥丸是淺灰），畫在滑動的底色下面；沒給就不畫
+  final Color? itemColor;
   // 沒給就是藥丸形（圓角是高度的一半）
   final BorderRadius? borderRadius;
   final Axis direction;
@@ -86,6 +89,7 @@ class _SlidingSelectionState extends State<SlidingSelection> with SingleTickerPr
       selectedIndex: widget.selectedIndex,
       progress: _progress,
       color: widget.color,
+      itemColor: widget.itemColor,
       borderRadius: widget.borderRadius,
       direction: widget.direction,
       spacing: widget.spacing,
@@ -101,6 +105,7 @@ class _SlidingSelectionLayout extends MultiChildRenderObjectWidget {
     required this.selectedIndex,
     required this.progress,
     required this.color,
+    required this.itemColor,
     required this.borderRadius,
     required this.direction,
     required this.spacing,
@@ -111,6 +116,7 @@ class _SlidingSelectionLayout extends MultiChildRenderObjectWidget {
   final int? selectedIndex;
   final Animation<double> progress;
   final Color color;
+  final Color? itemColor;
   final BorderRadius? borderRadius;
   final Axis direction;
   final double spacing;
@@ -121,6 +127,7 @@ class _SlidingSelectionLayout extends MultiChildRenderObjectWidget {
         selectedIndex: selectedIndex,
         progress: progress,
         color: color,
+        itemColor: itemColor,
         borderRadius: borderRadius,
         direction: direction,
         spacing: spacing,
@@ -133,6 +140,7 @@ class _SlidingSelectionLayout extends MultiChildRenderObjectWidget {
       ..selectedIndex = selectedIndex
       ..progress = progress
       ..color = color
+      ..itemColor = itemColor
       ..borderRadius = borderRadius
       ..direction = direction
       ..spacing = spacing
@@ -148,6 +156,7 @@ class _RenderSlidingSelection extends RenderBox
     required int? selectedIndex,
     required Animation<double> progress,
     required Color color,
+    required Color? itemColor,
     required BorderRadius? borderRadius,
     required Axis direction,
     required double spacing,
@@ -155,6 +164,7 @@ class _RenderSlidingSelection extends RenderBox
   })  : _selectedIndex = selectedIndex,
         _progress = progress,
         _color = color,
+        _itemColor = itemColor,
         _borderRadius = borderRadius,
         _direction = direction,
         _spacing = spacing,
@@ -185,6 +195,13 @@ class _RenderSlidingSelection extends RenderBox
   set color(Color value) {
     if (value == _color) return;
     _color = value;
+    markNeedsPaint();
+  }
+
+  Color? _itemColor;
+  set itemColor(Color? value) {
+    if (value == _itemColor) return;
+    _itemColor = value;
     markNeedsPaint();
   }
 
@@ -350,6 +367,18 @@ class _RenderSlidingSelection extends RenderBox
 
   @override
   void paint(PaintingContext context, Offset offset) {
+    final itemColor = _itemColor;
+    if (itemColor != null) {
+      final paint = Paint()..color = itemColor;
+      var item = firstChild;
+      while (item != null) {
+        final data = item.parentData! as _SlotParentData;
+        final rect = data.offset & item.size;
+        final radius = _borderRadius ?? BorderRadius.circular(rect.shortestSide / 2);
+        context.canvas.drawRRect(radius.toRRect(rect.shift(offset)), paint);
+        item = data.nextSibling;
+      }
+    }
     final child = _childAt(_selectedIndex);
     if (child != null && child.hasSize) {
       final target = (child.parentData! as _SlotParentData).offset & child.size;
