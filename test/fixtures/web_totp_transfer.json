@@ -1,0 +1,759 @@
+{
+ "parse": {
+  "full": {
+   "input": "otpauth-migration://offline?data=Ci0KCkhlbGxvId6tvu8SEWFsaWNlQGV4YW1wbGUuY29tGgZHaXRIdWIgASgBMAIKIQoK%2B%2B%2B%2B%2B%2B%2B%2BAQIDBBILRXhhbXBsZTpib2IaACACKAIwAgoYCgUBAgMEBRIEaG90cBoBWCABKAEwATgFChUKBQECAwQFEgNtZDUaAVggBCgBMAIKKAoKCQgHBgUEAwIBABIM5Lit5paH5biz6JmfGgbpioDooYwgACgAMAAKPgoU%2F%2F79%2FPv6%2Bfj39vX08%2FLx8O%2Fu7ewSCVNhbWU6U2FtZRoEU2FtZSADKAEwAjisAkkBAgMEBQYHCFUJCQkJChEKABIFZW1wdHkaACABKAEwAgoNCgMHBwcSAiAgGgAwAhABGAMgASi5YA%3D%3D",
+   "output": {
+    "success": true,
+    "data": [
+     {
+      "name": "GitHub - alice@example.com",
+      "secret": "JBSWY3DPEHPK3PXP",
+      "category": "",
+      "digits": 6,
+      "period": 30,
+      "algorithm": "SHA-1"
+     },
+     {
+      "name": "Example - bob",
+      "secret": "7PX3567PXYAQEAYE",
+      "category": "",
+      "digits": 8,
+      "period": 30,
+      "algorithm": "SHA-256"
+     },
+     {
+      "name": "銀行 - 中文帳號",
+      "secret": "BEEAOBQFAQBQEAIA",
+      "category": "",
+      "digits": 6,
+      "period": 30,
+      "algorithm": "SHA-1"
+     },
+     {
+      "name": "Same",
+      "secret": "777P37H37L47R57W6X2PH4XR6DX653PM",
+      "category": "",
+      "digits": 6,
+      "period": 30,
+      "algorithm": "SHA-512"
+     },
+     {
+      "name": "未命名",
+      "secret": "A4DQO",
+      "category": "",
+      "digits": 6,
+      "period": 30,
+      "algorithm": "SHA-1"
+     }
+    ],
+    "skipped": 3,
+    "batch": {
+     "index": 2,
+     "size": 3
+    }
+   }
+  },
+  "fullRaw": {
+   "input": "otpauth-migration://offline?data=Ci0KCkhlbGxvId6tvu8SEWFsaWNlQGV4YW1wbGUuY29tGgZHaXRIdWIgASgBMAIKIQoK++++++++AQIDBBILRXhhbXBsZTpib2IaACACKAIwAgoYCgUBAgMEBRIEaG90cBoBWCABKAEwATgFChUKBQECAwQFEgNtZDUaAVggBCgBMAIKKAoKCQgHBgUEAwIBABIM5Lit5paH5biz6JmfGgbpioDooYwgACgAMAAKPgoU//79/Pv6+fj39vX08/Lx8O/u7ewSCVNhbWU6U2FtZRoEU2FtZSADKAEwAjisAkkBAgMEBQYHCFUJCQkJChEKABIFZW1wdHkaACABKAEwAgoNCgMHBwcSAiAgGgAwAhABGAMgASi5YA==",
+   "output": {
+    "success": true,
+    "data": [
+     {
+      "name": "GitHub - alice@example.com",
+      "secret": "JBSWY3DPEHPK3PXP",
+      "category": "",
+      "digits": 6,
+      "period": 30,
+      "algorithm": "SHA-1"
+     },
+     {
+      "name": "Example - bob",
+      "secret": "7PX3567PXYAQEAYE",
+      "category": "",
+      "digits": 8,
+      "period": 30,
+      "algorithm": "SHA-256"
+     },
+     {
+      "name": "銀行 - 中文帳號",
+      "secret": "BEEAOBQFAQBQEAIA",
+      "category": "",
+      "digits": 6,
+      "period": 30,
+      "algorithm": "SHA-1"
+     },
+     {
+      "name": "Same",
+      "secret": "777P37H37L47R57W6X2PH4XR6DX653PM",
+      "category": "",
+      "digits": 6,
+      "period": 30,
+      "algorithm": "SHA-512"
+     },
+     {
+      "name": "未命名",
+      "secret": "A4DQO",
+      "category": "",
+      "digits": 6,
+      "period": 30,
+      "algorithm": "SHA-1"
+     }
+    ],
+    "skipped": 3,
+    "batch": {
+     "index": 2,
+     "size": 3
+    }
+   }
+  },
+  "onlyHotp": {
+   "input": "otpauth-migration://offline?data=CgoKAwECAxIBaDABEAE%3D",
+   "output": {
+    "success": false,
+    "message": "裡面只有 HOTP（計數型）驗證碼，目前不支援"
+   }
+  },
+  "empty": {
+   "input": "otpauth-migration://offline?data=EAE%3D",
+   "output": {
+    "success": false,
+    "message": "這個匯出 QR Code 裡沒有驗證碼"
+   }
+  },
+  "single": {
+   "input": "otpauth-migration://offline?data=Ch4KCgECAwQFBgcICQoSBFNvbG8aBEFjbWUgASgBMAIQARgBIAAoAQ%3D%3D",
+   "output": {
+    "success": true,
+    "data": [
+     {
+      "name": "Acme - Solo",
+      "secret": "AEBAGBAFAYDQQCIK",
+      "category": "",
+      "digits": 6,
+      "period": 30,
+      "algorithm": "SHA-1"
+     }
+    ],
+    "skipped": 0
+   }
+  },
+  "truncated": {
+   "input": "otpauth-migration://offline?data=Ci0KCkhlbGxvId6tvu8SEWFsaWNlQGV4YW1wbGUu",
+   "output": {
+    "success": false,
+    "message": "無法解析匯出資料，QR Code 可能不完整"
+   }
+  },
+  "wire3": {
+   "input": "otpauth-migration://offline?data=CwE%3D",
+   "output": {
+    "success": false,
+    "message": "無法解析匯出資料，QR Code 可能不完整"
+   }
+  },
+  "badBase64": {
+   "input": "otpauth-migration://offline?data=%%%",
+   "output": {
+    "success": false,
+    "message": "無法解析匯出資料，QR Code 可能不完整"
+   }
+  },
+  "noData": {
+   "input": "otpauth-migration://offline",
+   "output": {
+    "success": false,
+    "message": "不是有效的 Google Authenticator 匯出連結"
+   }
+  },
+  "otherScheme": {
+   "input": "https://example.com/?data=abc",
+   "output": {
+    "success": false,
+    "message": "不是有效的 Google Authenticator 匯出連結"
+   }
+  },
+  "notUrl": {
+   "input": "hello world",
+   "output": {
+    "success": false,
+    "message": "不是有效的 Google Authenticator 匯出連結"
+   }
+  },
+  "upper": {
+   "input": "  OTPAUTH-MIGRATION://offline?data=Ch4KCgECAwQFBgcICQoSBFNvbG8aBEFjbWUgASgBMAIQARgBIAAoAQ%3D%3D  ",
+   "output": {
+    "success": true,
+    "data": [
+     {
+      "name": "Acme - Solo",
+      "secret": "AEBAGBAFAYDQQCIK",
+      "category": "",
+      "digits": 6,
+      "period": 30,
+      "algorithm": "SHA-1"
+     }
+    ],
+    "skipped": 0
+   }
+  }
+ },
+ "exportItems": [
+  {
+   "id": "0",
+   "name": "Item 0",
+   "secret": "JBSWY3DPEHPK3PXP",
+   "category": "",
+   "digits": 8,
+   "period": 30,
+   "algorithm": "SHA-1"
+  },
+  {
+   "id": "1",
+   "name": "Item 1",
+   "secret": "GEZDGNBVGY3TQOJQ",
+   "category": "工作",
+   "digits": 6,
+   "period": 30,
+   "algorithm": "SHA-256"
+  },
+  {
+   "id": "2",
+   "name": "Item 2",
+   "secret": "MZXW6YTBOI",
+   "category": "",
+   "digits": 6,
+   "period": 30,
+   "algorithm": "SHA-512"
+  },
+  {
+   "id": "3",
+   "name": "GitHub - 張三@example.com",
+   "secret": "KRSXG5BAMJ4XIZLT",
+   "category": "工作",
+   "digits": 8,
+   "period": 30,
+   "algorithm": "SHA-1"
+  },
+  {
+   "id": "4",
+   "name": "Item 4",
+   "secret": "JBSWY3DPEHPK3PXP",
+   "category": "",
+   "digits": 6,
+   "period": 30,
+   "algorithm": "SHA-256"
+  },
+  {
+   "id": "5",
+   "name": "Item 5",
+   "secret": "jbsw y3dp-ehpk 3pxp==",
+   "category": "工作",
+   "digits": 6,
+   "period": 30,
+   "algorithm": "SHA-512"
+  },
+  {
+   "id": "6",
+   "name": "Item 6",
+   "secret": "MZXW6YTBOI",
+   "category": "",
+   "digits": 8,
+   "period": 30,
+   "algorithm": "SHA-1"
+  },
+  {
+   "id": "7",
+   "name": "Item 7",
+   "secret": "KRSXG5BAMJ4XIZLT",
+   "category": "工作",
+   "digits": 6,
+   "period": 30,
+   "algorithm": "SHA-256"
+  },
+  {
+   "id": "8",
+   "name": "Item 8",
+   "secret": "JBSWY3DPEHPK3PXP",
+   "category": "",
+   "digits": 6,
+   "period": 30,
+   "algorithm": "SHA-512"
+  },
+  {
+   "id": "9",
+   "name": "Item 9",
+   "secret": "GEZDGNBVGY3TQOJQ",
+   "category": "工作",
+   "digits": 8,
+   "period": 30,
+   "algorithm": "SHA-1"
+  },
+  {
+   "id": "10",
+   "name": "Item 10",
+   "secret": "MZXW6YTBOI",
+   "category": "",
+   "digits": 6,
+   "period": 30,
+   "algorithm": "SHA-256"
+  },
+  {
+   "id": "11",
+   "name": "Item 11",
+   "secret": "KRSXG5BAMJ4XIZLT",
+   "category": "工作",
+   "digits": 6,
+   "period": 30,
+   "algorithm": "SHA-512"
+  },
+  {
+   "id": "12",
+   "name": "Item 12",
+   "secret": "JBSWY3DPEHPK3PXP",
+   "category": "",
+   "digits": 8,
+   "period": 30,
+   "algorithm": "SHA-1"
+  },
+  {
+   "id": "13",
+   "name": "Item 13",
+   "secret": "GEZDGNBVGY3TQOJQ",
+   "category": "工作",
+   "digits": 6,
+   "period": 30,
+   "algorithm": "SHA-256"
+  },
+  {
+   "id": "14",
+   "name": "Item 14",
+   "secret": "MZXW6YTBOI",
+   "category": "",
+   "digits": 6,
+   "period": 30,
+   "algorithm": "SHA-512"
+  },
+  {
+   "id": "15",
+   "name": "Item 15",
+   "secret": "KRSXG5BAMJ4XIZLT",
+   "category": "工作",
+   "digits": 8,
+   "period": 30,
+   "algorithm": "SHA-1"
+  },
+  {
+   "id": "16",
+   "name": "Item 16",
+   "secret": "JBSWY3DPEHPK3PXP",
+   "category": "",
+   "digits": 6,
+   "period": 30,
+   "algorithm": "SHA-256"
+  },
+  {
+   "id": "17",
+   "name": "Item 17",
+   "secret": "GEZDGNBVGY3TQOJQ",
+   "category": "工作",
+   "digits": 6,
+   "period": 30,
+   "algorithm": "SHA-512"
+  },
+  {
+   "id": "18",
+   "name": "Item 18",
+   "secret": "MZXW6YTBOI",
+   "category": "",
+   "digits": 8,
+   "period": 30,
+   "algorithm": "SHA-1"
+  },
+  {
+   "id": "19",
+   "name": "Item 19",
+   "secret": "KRSXG5BAMJ4XIZLT",
+   "category": "工作",
+   "digits": 6,
+   "period": 30,
+   "algorithm": "SHA-256"
+  },
+  {
+   "id": "20",
+   "name": "Item 20",
+   "secret": "JBSWY3DPEHPK3PXP",
+   "category": "",
+   "digits": 6,
+   "period": 30,
+   "algorithm": "SHA-512"
+  },
+  {
+   "id": "21",
+   "name": "Item 21",
+   "secret": "GEZDGNBVGY3TQOJQ",
+   "category": "工作",
+   "digits": 8,
+   "period": 30,
+   "algorithm": "SHA-1"
+  },
+  {
+   "id": "22",
+   "name": "Item 22",
+   "secret": "MZXW6YTBOI",
+   "category": "",
+   "digits": 6,
+   "period": 30,
+   "algorithm": "SHA-256"
+  }
+ ],
+ "built": [
+  "otpauth-migration://offline?data=ChoKCkhlbGxvId6tvu8SBkl0ZW0gMCABKAIwAgoaCgoxMjM0NTY3ODkwEgZJdGVtIDEgAigBMAIKFgoGZm9vYmFyEgZJdGVtIDIgAygBMAIKLwoKVGVzdCBieXRlcxIbR2l0SHViIC0g5by15LiJQGV4YW1wbGUuY29tIAEoAjACChoKCkhlbGxvId6tvu8SBkl0ZW0gNCACKAEwAgoaCgpIZWxsbyHerb7vEgZJdGVtIDUgAygBMAIKFgoGZm9vYmFyEgZJdGVtIDYgASgCMAIKGgoKVGVzdCBieXRlcxIGSXRlbSA3IAIoATACChoKCkhlbGxvId6tvu8SBkl0ZW0gOCADKAEwAgoaCgoxMjM0NTY3ODkwEgZJdGVtIDkgASgCMAIQARgDIAAo%2F%2F%2F%2F%2FwM%3D",
+  "otpauth-migration://offline?data=ChcKBmZvb2JhchIHSXRlbSAxMCACKAEwAgobCgpUZXN0IGJ5dGVzEgdJdGVtIDExIAMoATACChsKCkhlbGxvId6tvu8SB0l0ZW0gMTIgASgCMAIKGwoKMTIzNDU2Nzg5MBIHSXRlbSAxMyACKAEwAgoXCgZmb29iYXISB0l0ZW0gMTQgAygBMAIKGwoKVGVzdCBieXRlcxIHSXRlbSAxNSABKAIwAgobCgpIZWxsbyHerb7vEgdJdGVtIDE2IAIoATACChsKCjEyMzQ1Njc4OTASB0l0ZW0gMTcgAygBMAIKFwoGZm9vYmFyEgdJdGVtIDE4IAEoAjACChsKClRlc3QgYnl0ZXMSB0l0ZW0gMTkgAigBMAIQARgDIAEo%2F%2F%2F%2F%2FwM%3D",
+  "otpauth-migration://offline?data=ChsKCkhlbGxvId6tvu8SB0l0ZW0gMjAgAygBMAIKGwoKMTIzNDU2Nzg5MBIHSXRlbSAyMSABKAIwAgoXCgZmb29iYXISB0l0ZW0gMjIgAigBMAIQARgDIAIo%2F%2F%2F%2F%2FwM%3D"
+ ],
+ "roundtrip": [
+  {
+   "success": true,
+   "data": [
+    {
+     "name": "Item 0",
+     "secret": "JBSWY3DPEHPK3PXP",
+     "category": "",
+     "digits": 8,
+     "period": 30,
+     "algorithm": "SHA-1"
+    },
+    {
+     "name": "Item 1",
+     "secret": "GEZDGNBVGY3TQOJQ",
+     "category": "",
+     "digits": 6,
+     "period": 30,
+     "algorithm": "SHA-256"
+    },
+    {
+     "name": "Item 2",
+     "secret": "MZXW6YTBOI",
+     "category": "",
+     "digits": 6,
+     "period": 30,
+     "algorithm": "SHA-512"
+    },
+    {
+     "name": "GitHub - 張三@example.com",
+     "secret": "KRSXG5BAMJ4XIZLT",
+     "category": "",
+     "digits": 8,
+     "period": 30,
+     "algorithm": "SHA-1"
+    },
+    {
+     "name": "Item 4",
+     "secret": "JBSWY3DPEHPK3PXP",
+     "category": "",
+     "digits": 6,
+     "period": 30,
+     "algorithm": "SHA-256"
+    },
+    {
+     "name": "Item 5",
+     "secret": "JBSWY3DPEHPK3PXP",
+     "category": "",
+     "digits": 6,
+     "period": 30,
+     "algorithm": "SHA-512"
+    },
+    {
+     "name": "Item 6",
+     "secret": "MZXW6YTBOI",
+     "category": "",
+     "digits": 8,
+     "period": 30,
+     "algorithm": "SHA-1"
+    },
+    {
+     "name": "Item 7",
+     "secret": "KRSXG5BAMJ4XIZLT",
+     "category": "",
+     "digits": 6,
+     "period": 30,
+     "algorithm": "SHA-256"
+    },
+    {
+     "name": "Item 8",
+     "secret": "JBSWY3DPEHPK3PXP",
+     "category": "",
+     "digits": 6,
+     "period": 30,
+     "algorithm": "SHA-512"
+    },
+    {
+     "name": "Item 9",
+     "secret": "GEZDGNBVGY3TQOJQ",
+     "category": "",
+     "digits": 8,
+     "period": 30,
+     "algorithm": "SHA-1"
+    }
+   ],
+   "skipped": 0,
+   "batch": {
+    "index": 1,
+    "size": 3
+   }
+  },
+  {
+   "success": true,
+   "data": [
+    {
+     "name": "Item 10",
+     "secret": "MZXW6YTBOI",
+     "category": "",
+     "digits": 6,
+     "period": 30,
+     "algorithm": "SHA-256"
+    },
+    {
+     "name": "Item 11",
+     "secret": "KRSXG5BAMJ4XIZLT",
+     "category": "",
+     "digits": 6,
+     "period": 30,
+     "algorithm": "SHA-512"
+    },
+    {
+     "name": "Item 12",
+     "secret": "JBSWY3DPEHPK3PXP",
+     "category": "",
+     "digits": 8,
+     "period": 30,
+     "algorithm": "SHA-1"
+    },
+    {
+     "name": "Item 13",
+     "secret": "GEZDGNBVGY3TQOJQ",
+     "category": "",
+     "digits": 6,
+     "period": 30,
+     "algorithm": "SHA-256"
+    },
+    {
+     "name": "Item 14",
+     "secret": "MZXW6YTBOI",
+     "category": "",
+     "digits": 6,
+     "period": 30,
+     "algorithm": "SHA-512"
+    },
+    {
+     "name": "Item 15",
+     "secret": "KRSXG5BAMJ4XIZLT",
+     "category": "",
+     "digits": 8,
+     "period": 30,
+     "algorithm": "SHA-1"
+    },
+    {
+     "name": "Item 16",
+     "secret": "JBSWY3DPEHPK3PXP",
+     "category": "",
+     "digits": 6,
+     "period": 30,
+     "algorithm": "SHA-256"
+    },
+    {
+     "name": "Item 17",
+     "secret": "GEZDGNBVGY3TQOJQ",
+     "category": "",
+     "digits": 6,
+     "period": 30,
+     "algorithm": "SHA-512"
+    },
+    {
+     "name": "Item 18",
+     "secret": "MZXW6YTBOI",
+     "category": "",
+     "digits": 8,
+     "period": 30,
+     "algorithm": "SHA-1"
+    },
+    {
+     "name": "Item 19",
+     "secret": "KRSXG5BAMJ4XIZLT",
+     "category": "",
+     "digits": 6,
+     "period": 30,
+     "algorithm": "SHA-256"
+    }
+   ],
+   "skipped": 0,
+   "batch": {
+    "index": 2,
+    "size": 3
+   }
+  },
+  {
+   "success": true,
+   "data": [
+    {
+     "name": "Item 20",
+     "secret": "JBSWY3DPEHPK3PXP",
+     "category": "",
+     "digits": 6,
+     "period": 30,
+     "algorithm": "SHA-512"
+    },
+    {
+     "name": "Item 21",
+     "secret": "GEZDGNBVGY3TQOJQ",
+     "category": "",
+     "digits": 8,
+     "period": 30,
+     "algorithm": "SHA-1"
+    },
+    {
+     "name": "Item 22",
+     "secret": "MZXW6YTBOI",
+     "category": "",
+     "digits": 6,
+     "period": 30,
+     "algorithm": "SHA-256"
+    }
+   ],
+   "skipped": 0,
+   "batch": {
+    "index": 3,
+    "size": 3
+   }
+  }
+ ],
+ "google": [
+  true,
+  false,
+  true
+ ],
+ "importText": {
+  "mixed": {
+   "input": "# Securibit TOTP 備份\r\n\r\notpauth://totp/GitHub:me%40example.com?secret=jbswy3dpehpk3pxp&issuer=GitHub\r\n   otpauth://totp/Acme?secret=JBSWY3DPEHPK3PXP&digits=8&period=60&algorithm=SHA512&category=%E5%B7%A5%E4%BD%9C   \r\notpauth://hotp/Old?secret=JBSWY3DP\r\nthis is a very long line that is definitely not a link at all\r\nshort\r\notpauth-migration://offline?data=Ci0KCkhlbGxvId6tvu8SEWFsaWNlQGV4YW1wbGUuY29tGgZHaXRIdWIgASgBMAIKIQoK%2B%2B%2B%2B%2B%2B%2B%2BAQIDBBILRXhhbXBsZTpib2IaACACKAIwAgoYCgUBAgMEBRIEaG90cBoBWCABKAEwATgFChUKBQECAwQFEgNtZDUaAVggBCgBMAIKKAoKCQgHBgUEAwIBABIM5Lit5paH5biz6JmfGgbpioDooYwgACgAMAAKPgoU%2F%2F79%2FPv6%2Bfj39vX08%2FLx8O%2Fu7ewSCVNhbWU6U2FtZRoEU2FtZSADKAEwAjisAkkBAgMEBQYHCFUJCQkJChEKABIFZW1wdHkaACABKAEwAgoNCgMHBwcSAiAgGgAwAhABGAMgASi5YA%3D%3D",
+   "output": {
+    "items": [
+     {
+      "name": "GitHub - me@example.com",
+      "secret": "JBSWY3DPEHPK3PXP",
+      "category": "",
+      "digits": 6,
+      "period": 30,
+      "algorithm": "SHA-1"
+     },
+     {
+      "name": "Acme",
+      "secret": "JBSWY3DPEHPK3PXP",
+      "category": "工作",
+      "digits": 8,
+      "period": 60,
+      "algorithm": "SHA-512"
+     },
+     {
+      "name": "GitHub - alice@example.com",
+      "secret": "JBSWY3DPEHPK3PXP",
+      "category": "",
+      "digits": 6,
+      "period": 30,
+      "algorithm": "SHA-1"
+     },
+     {
+      "name": "Example - bob",
+      "secret": "7PX3567PXYAQEAYE",
+      "category": "",
+      "digits": 8,
+      "period": 30,
+      "algorithm": "SHA-256"
+     },
+     {
+      "name": "銀行 - 中文帳號",
+      "secret": "BEEAOBQFAQBQEAIA",
+      "category": "",
+      "digits": 6,
+      "period": 30,
+      "algorithm": "SHA-1"
+     },
+     {
+      "name": "Same",
+      "secret": "777P37H37L47R57W6X2PH4XR6DX653PM",
+      "category": "",
+      "digits": 6,
+      "period": 30,
+      "algorithm": "SHA-512"
+     },
+     {
+      "name": "未命名",
+      "secret": "A4DQO",
+      "category": "",
+      "digits": 6,
+      "period": 30,
+      "algorithm": "SHA-1"
+     }
+    ],
+    "errors": [
+     "otpauth://hotp/Old?secret=JBSWY3DP：目前只支援 TOTP（時間型）驗證碼，不支援 HOTP（計數型）",
+     "this is a very long line that is definit…：不是有效的 otpauth:// 連結",
+     "short：不是有效的 otpauth:// 連結",
+     "略過 3 筆 HOTP（計數型）驗證碼"
+    ],
+    "batch": {
+     "index": 2,
+     "size": 3
+    }
+   }
+  },
+  "singleBad": {
+   "input": "otpauth://totp/a?secret=abc1",
+   "output": {
+    "items": [],
+    "errors": [
+     "連結裡的金鑰不是 Base32 格式"
+    ]
+   }
+  },
+  "empty": {
+   "input": "\n  \n# only comment\n",
+   "output": {
+    "items": [],
+    "errors": [
+     "沒有可匯入的內容"
+    ]
+   }
+  },
+  "single": {
+   "input": "otpauth://totp/Solo?secret=JBSWY3DP",
+   "output": {
+    "items": [
+     {
+      "name": "Solo",
+      "secret": "JBSWY3DP",
+      "category": "",
+      "digits": 6,
+      "period": 30,
+      "algorithm": "SHA-1"
+     }
+    ],
+    "errors": []
+   }
+  },
+  "onlyHotpMigration": {
+   "input": "otpauth-migration://offline?data=CgoKAwECAxIBaDABEAE%3D",
+   "output": {
+    "items": [],
+    "errors": [
+     "裡面只有 HOTP（計數型）驗證碼，目前不支援"
+    ]
+   }
+  }
+ },
+ "backup": [
+  "otpauth://totp/Item%200?secret=JBSWY3DPEHPK3PXP&algorithm=SHA1&digits=8&period=30",
+  "otpauth://totp/Item%201?secret=GEZDGNBVGY3TQOJQ&algorithm=SHA256&digits=6&period=30&category=%E5%B7%A5%E4%BD%9C",
+  "otpauth://totp/Item%202?secret=MZXW6YTBOI&algorithm=SHA512&digits=6&period=30",
+  "otpauth://totp/GitHub%20-%20%E5%BC%B5%E4%B8%89%40example.com?secret=KRSXG5BAMJ4XIZLT&algorithm=SHA1&digits=8&period=30&category=%E5%B7%A5%E4%BD%9C"
+ ]
+}
