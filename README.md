@@ -98,9 +98,14 @@ flutter run -d linux --dart-define-from-file=env.json
 ```bash
 flutter build macos --release --dart-define-from-file=env.json
 flutter build ios --release --dart-define-from-file=env.json
-flutter build apk --release --dart-define-from-file=env.json
+# Android：每種處理器各出一個 APK，並去掉除錯符號（符號存在 build/symbols，當機回報要用）
+flutter build apk --release --split-per-abi --obfuscate --split-debug-info=build/symbols --dart-define-from-file=env.json
+# 上架 Google Play 用 App Bundle，Play 會依手機只下載需要的部分
+flutter build appbundle --release --obfuscate --split-debug-info=build/symbols --dart-define-from-file=env.json
 flutter build linux --release --dart-define-from-file=env.json   # 要在 Linux 上建置
 ```
+
+一般 Android 手機裝 `app-arm64-v8a-release.apk` 就好。QR 掃描用的是 Google Play 服務裡的 ML Kit 模型（沒有包進 APK），沒有 Google Play 服務的手機（例如部分華為）無法掃 QR，但可以貼上 otpauth 連結。
 
 Linux（Debian/Ubuntu）需要先安裝：
 
