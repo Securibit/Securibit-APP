@@ -26,6 +26,9 @@ dependencies:
   mobile_scanner: ^7.0.0
   local_auth: ^2.3.0
   google_sign_in: ^7.2.0
+  securibit_api:
+    path: rust_builder
+  flutter_rust_bridge: 2.13.0
 
 dev_dependencies:
   flutter_test:
