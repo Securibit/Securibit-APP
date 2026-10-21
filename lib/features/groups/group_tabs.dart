@@ -80,6 +80,10 @@ class _GroupTab extends StatelessWidget {
         shape: const StadiumBorder(),
         child: InkWell(
           customBorder: const StadiumBorder(),
+          // 按下去不要閃一塊底色，看到的才是選取底色滑過去
+          highlightColor: Colors.transparent,
+          focusColor: Colors.transparent,
+          hoverColor: Colors.transparent,
           onTap: onTap,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),

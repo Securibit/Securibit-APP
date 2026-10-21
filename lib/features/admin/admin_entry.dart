@@ -27,32 +27,42 @@ class AdminSidebarEntry extends StatelessWidget {
     return ListenableBuilder(
       listenable: access,
       builder: (context, _) {
-        if (!access.canViewAdmin || access.uid != uid) return child;
+        // 一直用同一層結構包著側欄，權限讀完或改變時側欄才不會被整個重建（選取底色的動畫狀態會不見）
+        final show = access.canViewAdmin && access.uid == uid;
         final colors = context.colors;
         return ColoredBox(
           color: colors.surface1,
           child: Column(
             children: [
-              Expanded(child: MediaQuery.removePadding(context: context, removeBottom: true, child: child)),
-              Divider(height: 0.5, color: colors.line.withValues(alpha: 0.6)),
-              SafeArea(
-                top: false,
-                right: false,
-                child: InkWell(
-                  onTap: onOpen,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 12, 16, 12),
-                    child: Row(
-                      children: [
-                        Icon(Icons.admin_panel_settings_rounded, size: 22, color: colors.accent),
-                        const SizedBox(width: 12),
-                        const Expanded(child: Text('後台', style: TextStyle(fontSize: AppText.body, fontWeight: FontWeight.w600))),
-                        Icon(Icons.chevron_right_rounded, color: colors.inkMuted),
-                      ],
+              Expanded(
+                child: MediaQuery.removePadding(context: context, removeBottom: show, child: child),
+              ),
+              if (show) ...[
+                Divider(height: 0.5, color: colors.line.withValues(alpha: 0.6)),
+                SafeArea(
+                  top: false,
+                  right: false,
+                  child: InkWell(
+                    onTap: onOpen,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 12, 16, 12),
+                      child: Row(
+                        children: [
+                          Icon(Icons.admin_panel_settings_rounded, size: 22, color: colors.accent),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Text(
+                              '後台',
+                              style: TextStyle(fontSize: AppText.body, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                          Icon(Icons.chevron_right_rounded, color: colors.inkMuted),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
+              ],
             ],
           ),
         );

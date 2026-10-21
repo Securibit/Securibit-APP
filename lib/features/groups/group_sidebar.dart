@@ -147,6 +147,10 @@ class _GroupRow extends StatelessWidget {
       borderRadius: BorderRadius.circular(AppRadius.small),
       child: InkWell(
         borderRadius: BorderRadius.circular(AppRadius.small),
+        // 按下去不要閃一塊底色、選中的那一列也不要 hover 底色，看到的才是選取底色滑過去
+        highlightColor: Colors.transparent,
+        focusColor: Colors.transparent,
+        hoverColor: selected ? Colors.transparent : colors.surface2.withValues(alpha: 0.45),
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
