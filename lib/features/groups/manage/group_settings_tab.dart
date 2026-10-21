@@ -250,11 +250,14 @@ class _GroupSettingsTabState extends State<GroupSettingsTab> {
     final detail = _detail;
     final vault = context.watch<VaultController>().status;
     final hasOthers = detail.members.length > 1;
-    // 加密的群組只能有擁有者一人：還有其他成員時不能開
-    final canToggle = vault != VaultStatus.off && vault != VaultStatus.loading && (_group.encrypted || !hasOthers);
+    // 要先解鎖才能切換；加密的群組只能有擁有者一人：還有其他成員時不能開
+    final canToggle = vault == VaultStatus.unlocked && (_group.encrypted || !hasOthers);
+    final needsUnlock = vault == VaultStatus.locked && (_group.encrypted || !hasOthers);
     final String encryptionHint;
     if (vault == VaultStatus.off) {
       encryptionHint = '加密要先到「設定」設定一組只有你知道的加密密碼';
+    } else if (needsUnlock) {
+      encryptionHint = '先輸入加密密碼解鎖才能切換';
     } else if (_group.encrypted) {
       encryptionHint = '金鑰會先在這台裝置用加密密碼加密才存到伺服器，只有你看得到；加密的群組不能邀請其他人。關閉後金鑰會改回明文存放';
     } else if (hasOthers) {
@@ -263,7 +266,7 @@ class _GroupSettingsTabState extends State<GroupSettingsTab> {
       encryptionHint = '開啟後金鑰會先在這台裝置用加密密碼加密才存到伺服器，只有你看得到；加密的群組不能邀請其他人';
     }
 
-    return GroupedList(
+    final list = GroupedList(
       header: '預設與加密',
       footer: '預設群組排在群組清單的第一個，新增驗證碼時預設放在這裡。$encryptionHint',
       children: [
@@ -291,6 +294,77 @@ class _GroupSettingsTabState extends State<GroupSettingsTab> {
                   : Switch(value: _group.encrypted, onChanged: canToggle ? _toggleEncryption : null),
         ),
       ],
+    );
+    if (!needsUnlock) return list;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [list, const SizedBox(height: 12), const _VaultUnlockCard()],
+    );
+  }
+}
+
+/// 加密密碼鎖住時的解鎖框（同網站設定頁的 VaultUnlock compact）
+class _VaultUnlockCard extends StatefulWidget {
+  const _VaultUnlockCard();
+
+  @override
+  State<_VaultUnlockCard> createState() => _VaultUnlockCardState();
+}
+
+class _VaultUnlockCardState extends State<_VaultUnlockCard> {
+  final _passphrase = TextEditingController();
+  bool _pending = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _passphrase.dispose();
+    super.dispose();
+  }
+
+  Future<void> _unlock() async {
+    final passphrase = _passphrase.text;
+    if (passphrase.isEmpty || _pending) return;
+    setState(() {
+      _pending = true;
+      _error = null;
+    });
+    final error = await context.read<VaultController>().unlock(passphrase, remember: false);
+    if (!mounted) return;
+    setState(() {
+      _pending = false;
+      _error = error;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return SoftCard(
+      padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _passphrase,
+              obscureText: true,
+              enabled: !_pending,
+              autofillHints: const [AutofillHints.password],
+              onChanged: (_) => setState(() => _error = null),
+              onSubmitted: (_) => _unlock(),
+              decoration: InputDecoration(hintText: '加密密碼', isDense: true, errorText: _error, fillColor: colors.surface),
+            ),
+          ),
+          const SizedBox(width: 8),
+          TextButton(
+            onPressed: _pending || _passphrase.text.isEmpty ? null : _unlock,
+            child: _pending
+                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Text('解鎖'),
+          ),
+        ],
+      ),
     );
   }
 }
