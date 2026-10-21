@@ -4,7 +4,25 @@ import '../../core/rpc.dart';
 import '../codes/totp/categories.dart';
 import '../codes/totp/secret.dart';
 import '../codes/totp/totp_params.dart';
+import '../groups/groups_repository.dart';
 import 'admin_models.dart';
+
+// 群組的 RPC 前台後台共用，放在 groups_repository；後台照舊用 repo.xxx 呼叫
+export '../groups/groups_repository.dart'
+    show
+        auditPageSize,
+        createGroup,
+        createGroupRole,
+        deleteGroup,
+        deleteGroupRole,
+        kickMember,
+        loadGroupAuditLog,
+        loadGroupDetail,
+        reorderGroupRoles,
+        setMemberRoles,
+        transferGroup,
+        updateGroup,
+        updateGroupRole;
 
 /*
  * 後台的 RPC 與 API（和網站 src/lib/admin/admin.ts、src/lib/users/activity.ts、src/lib/groups/groups.ts 呼叫的完全相同）。
@@ -114,20 +132,6 @@ Future<Result<List<AdminGroup>>> loadAdminGroups(String search) => rpc(
       {'search': search.trim().isEmpty ? null : search.trim()},
     );
 
-/// 建立群組（全站「建立群組」）；回傳新群組 id
-Future<Result<String>> createGroup(String name, String description) =>
-    rpc('group_create', (data) => asString(data), {'name': name.trim(), 'description': description.trim()});
-
-Future<Result<AdminGroupDetail>> loadGroupDetail(String gid) => rpc('group_detail', AdminGroupDetail.fromJson, {'gid': gid});
-
-Future<Result<void>> updateGroup(String gid, String name, String description) =>
-    rpcVoid('group_update', {'gid': gid, 'name': name.trim(), 'description': description.trim()});
-
-Future<Result<void>> deleteGroup(String gid) => rpcVoid('group_delete', {'gid': gid});
-
-Future<Result<void>> transferGroup(String gid, String newOwner) =>
-    rpcVoid('group_transfer', {'gid': gid, 'new_owner': newOwner});
-
 /// 全站「管理所有群組」直接把使用者加進群組（不用邀請，只在後台）；target：電子郵件、@ID 或使用者 ID
 Future<Result<AddedMember>> addGroupMember(String gid, String target) async {
   final result = await rpc('group_add_member', AddedMember.fromJson, {'gid': gid, 'target': target.trim()});
@@ -137,39 +141,10 @@ Future<Result<AddedMember>> addGroupMember(String gid, String target) async {
   return result;
 }
 
-Future<Result<void>> kickMember(String gid, String userId) => rpcVoid('group_kick', {'gid': gid, 'user_id': userId});
-
-Future<Result<void>> setMemberRoles(String gid, String userId, List<String> roleIds) =>
-    rpcVoid('group_set_member_roles', {'gid': gid, 'user_id': userId, 'role_ids': roleIds});
-
-Future<Result<String>> createGroupRole(String gid, RoleInput input) => rpc(
-      'group_role_create',
-      (data) => asString(data),
-      {'gid': gid, 'name': input.name.trim(), 'color': input.color, 'permissions': input.permissions},
-    );
-
-Future<Result<void>> updateGroupRole(String roleId, RoleInput input) => rpcVoid(
-      'group_role_update',
-      {'role_id': roleId, 'name': input.name.trim(), 'color': input.color, 'permissions': input.permissions},
-    );
-
-Future<Result<void>> deleteGroupRole(String roleId) => rpcVoid('group_role_delete', {'role_id': roleId});
-
-Future<Result<void>> reorderGroupRoles(String gid, List<String> roleIds) =>
-    rpcVoid('group_roles_reorder', {'gid': gid, 'role_ids': roleIds});
-
 // ---------- 操作紀錄 ----------
-
-const auditPageSize = 50;
 
 Future<Result<List<AuditLog>>> loadAdminAuditLog(int? beforeId, [int pageSize = auditPageSize]) => rpc(
       'admin_audit_log',
       (data) => asMapList(data).map(AuditLog.fromJson).toList(),
       {'before_id': beforeId, 'page_size': pageSize},
-    );
-
-Future<Result<List<AuditLog>>> loadGroupAuditLog(String gid, int? beforeId, [int pageSize = auditPageSize]) => rpc(
-      'group_audit_log',
-      (data) => asMapList(data).map(AuditLog.fromJson).toList(),
-      {'gid': gid, 'before_id': beforeId, 'page_size': pageSize},
     );

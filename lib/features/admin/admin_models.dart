@@ -445,7 +445,55 @@ class GroupMember {
       );
 }
 
-/// group_detail()（邀請不在後台顯示，所以不解析）
+/// 有效的邀請連結（group_detail().invites）
+class GroupInvite {
+  const GroupInvite({
+    required this.code,
+    required this.createdBy,
+    required this.createdAt,
+    required this.expiresAt,
+    required this.maxUses,
+    required this.uses,
+  });
+
+  final String code;
+  // null：建立的人已刪除帳號
+  final PersonBrief? createdBy;
+  final String? createdAt;
+  // null：永不過期（舊的連結）
+  final String? expiresAt;
+  // null：不限次數
+  final int? maxUses;
+  final int uses;
+
+  factory GroupInvite.fromJson(Map<String, dynamic> json) => GroupInvite(
+        code: asString(json['code']),
+        createdBy: PersonBrief.fromJson(json['created_by']),
+        createdAt: asNullableString(json['created_at']),
+        expiresAt: asNullableString(json['expires_at']),
+        maxUses: json['max_uses'] == null ? null : asInt(json['max_uses']),
+        uses: asInt(json['uses']),
+      );
+}
+
+/// 等待回覆的電子郵件 / @ID 邀請（group_detail().email_invites）
+class GroupEmailInvite {
+  const GroupEmailInvite({required this.id, required this.email, required this.invitedBy, required this.createdAt});
+
+  final String id;
+  final String email;
+  final PersonBrief? invitedBy;
+  final String? createdAt;
+
+  factory GroupEmailInvite.fromJson(Map<String, dynamic> json) => GroupEmailInvite(
+        id: asString(json['id']),
+        email: asString(json['email']),
+        invitedBy: PersonBrief.fromJson(json['invited_by']),
+        createdAt: asNullableString(json['created_at']),
+      );
+}
+
+/// group_detail()：前台的群組管理與後台共用
 class AdminGroupDetail {
   const AdminGroupDetail({
     required this.group,
@@ -456,6 +504,8 @@ class AdminGroupDetail {
     required this.topPosition,
     required this.roles,
     required this.members,
+    this.invites = const [],
+    this.emailInvites = const [],
   });
 
   final GroupInfo group;
@@ -470,6 +520,9 @@ class AdminGroupDetail {
   // 由高到低，@everyone 在最後
   final List<Role> roles;
   final List<GroupMember> members;
+  // 有「邀請成員」或「管理群組」才有，否則是空的
+  final List<GroupInvite> invites;
+  final List<GroupEmailInvite> emailInvites;
 
   factory AdminGroupDetail.fromJson(Object? json) {
     final map = asMap(json);
@@ -482,6 +535,8 @@ class AdminGroupDetail {
       topPosition: asInt(map['top_position']),
       roles: asMapList(map['roles']).map(Role.fromJson).toList(),
       members: asMapList(map['members']).map(GroupMember.fromJson).toList(),
+      invites: asMapList(map['invites']).map(GroupInvite.fromJson).toList(),
+      emailInvites: asMapList(map['email_invites']).map(GroupEmailInvite.fromJson).toList(),
     );
   }
 }

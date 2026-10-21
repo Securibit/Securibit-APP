@@ -112,3 +112,56 @@ class Invitation {
     );
   }
 }
+
+// 邀請連結指到的群組（group_brief()）
+class GroupBrief {
+  const GroupBrief({required this.id, required this.name, required this.description, required this.memberCount});
+
+  final String id;
+  final String name;
+  final String description;
+  final int memberCount;
+
+  static GroupBrief? fromJson(Object? json) {
+    if (json is! Map) return null;
+    final map = asMap(json);
+    return GroupBrief(
+      id: asString(map['id']),
+      name: asString(map['name'], '群組'),
+      description: asString(map['description']),
+      memberCount: asInt(map['member_count']),
+    );
+  }
+}
+
+// group_invite_info()：連結能不能用、指到哪個群組、誰建立的、我是不是已經在裡面
+class InviteInfo {
+  const InviteInfo({
+    required this.valid,
+    required this.reason,
+    required this.group,
+    required this.inviter,
+    required this.alreadyMember,
+  });
+
+  final bool valid;
+  // not_found / revoked / expired / used_up
+  final String? reason;
+  final GroupBrief? group;
+  final UserBrief? inviter;
+  final bool alreadyMember;
+
+  factory InviteInfo.fromJson(Object? json) {
+    final map = asMap(json);
+    return InviteInfo(
+      valid: asBool(map['valid']),
+      reason: asNullableString(map['reason']),
+      group: GroupBrief.fromJson(map['group']),
+      inviter: UserBrief.fromJson(map['inviter']),
+      alreadyMember: asBool(map['already_member']),
+    );
+  }
+
+  // 已經是成員時就算連結失效也可以直接前往群組
+  bool get usable => group != null && (valid || alreadyMember);
+}
