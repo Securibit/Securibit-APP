@@ -7,6 +7,7 @@ import '../../core/widgets/avatar.dart';
 import '../../core/widgets/feedback.dart';
 import '../../core/widgets/grouped_list.dart';
 import '../auth/auth_controller.dart';
+import '../menubar/mac_menu_bar.dart';
 import '../vault/vault_controller.dart';
 import 'app_lock.dart';
 import 'lock/app_lock_controller.dart';
@@ -17,8 +18,21 @@ import 'lock/lock_wait.dart';
 import 'screen_privacy.dart';
 import 'settings_controller.dart';
 
+// 設定已經開著（macOS 選單列的「設定…」不會再開一個）
+bool _settingsOpen = false;
+
 /// 設定：寬視窗用對話框，窄螢幕用整頁
-Future<void> openSettings(BuildContext context) {
+Future<void> openSettings(BuildContext context) async {
+  if (_settingsOpen) return;
+  _settingsOpen = true;
+  try {
+    await _showSettings(context);
+  } finally {
+    _settingsOpen = false;
+  }
+}
+
+Future<void> _showSettings(BuildContext context) {
   if (MediaQuery.sizeOf(context).width >= 720) {
     return showDialog<void>(
       context: context,
@@ -31,7 +45,7 @@ Future<void> openSettings(BuildContext context) {
   return Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const SettingsView()));
 }
 
-// 設定頁：帳戶資料（可複製）、主題、加密群組、App 鎖定、截圖、登出
+// 設定頁：帳戶資料（可複製）、主題、加密群組、App 鎖定、截圖、選單列（macOS）、登出
 class SettingsView extends StatelessWidget {
   const SettingsView({super.key});
 
@@ -147,6 +161,10 @@ class SettingsView extends StatelessWidget {
               ),
             ],
           ),
+          if (MacMenuBar.supported) ...[
+            const SizedBox(height: 24),
+            const _MenuBarSection(),
+          ],
           const SizedBox(height: 24),
           GroupedList(
             children: [
@@ -274,6 +292,52 @@ class _LockSection extends StatelessWidget {
             ],
           ),
         ],
+      ],
+    );
+  }
+}
+
+/*
+ * macOS 選單列：常駐在選單列（關視窗只是藏起來）與登入時自動開啟。
+ * 登入時自動開啟用 SMAppService，macOS 13 以前沒有，開關停用並說明。
+ */
+class _MenuBarSection extends StatelessWidget {
+  const _MenuBarSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final settings = context.watch<SettingsController>();
+    final launch = settings.launchAtLogin;
+    final notes = [
+      settings.showInMenuBar ? '關閉視窗後 Securibit 會留在選單列，點圖示就能複製驗證碼；按 ⌘Q 才會結束' : '關閉視窗就會結束 Securibit',
+      if (launch == LaunchAtLoginState.unsupported) '登入時自動開啟需要 macOS 13 以上',
+      if (launch == LaunchAtLoginState.requiresApproval) '要到「系統設定 › 一般 › 登入項目」允許 Securibit 才會自動開啟',
+    ];
+    return GroupedList(
+      header: '選單列',
+      footer: notes.join('\n'),
+      children: [
+        GroupedRow(
+          label: '在選單列顯示',
+          trailing: Switch.adaptive(value: settings.showInMenuBar, onChanged: settings.setShowInMenuBar),
+        ),
+        GroupedRow(
+          label: '登入時自動開啟',
+          trailing: Switch.adaptive(
+            value: launch.on,
+            onChanged: launch == LaunchAtLoginState.unsupported
+                ? null
+                : (value) async {
+                    final error = await settings.setLaunchAtLogin(value);
+                    if (!context.mounted) return;
+                    if (error != null) {
+                      await showErrorDialog(context, '無法變更登入項目', error);
+                    } else if (settings.launchAtLogin == LaunchAtLoginState.requiresApproval) {
+                      await LaunchAtLogin.openSystemSettings();
+                    }
+                  },
+          ),
+        ),
       ],
     );
   }
