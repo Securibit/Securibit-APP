@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 
 import '../../core/theme/tokens.dart';
 import '../../core/widgets/empty_state.dart';
+import '../admin/admin_entry.dart';
+import '../admin/admin_page.dart';
 import '../codes/codes_controller.dart';
 import '../codes/codes_scope.dart';
 import '../codes/widgets/code_detail.dart';
@@ -45,12 +47,18 @@ class _HomeShellState extends State<HomeShell> {
         void openDrawer() => _scaffoldKey.currentState?.openDrawer();
         void closeDrawer() => _scaffoldKey.currentState?.closeDrawer();
 
-        final sidebar = GroupSidebar(
-          onOpenSettings: () {
+        final sidebar = AdminSidebarEntry(
+          onOpen: () {
             if (!wide) closeDrawer();
-            openSettings(context);
+            openAdmin(context);
           },
-          onSelected: wide ? null : closeDrawer,
+          child: GroupSidebar(
+            onOpenSettings: () {
+              if (!wide) closeDrawer();
+              openSettings(context);
+            },
+            onSelected: wide ? null : closeDrawer,
+          ),
         );
 
         Widget content;
