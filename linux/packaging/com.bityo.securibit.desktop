@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Securibit
+GenericName=兩步驟驗證器
+Comment=兩步驟驗證器，和 Securibit 網站同步驗證碼
+Exec=securibit
+Icon=com.bityo.securibit
+Terminal=false
+Categories=Utility;Security;
+Keywords=2FA;TOTP;OTP;Authenticator;驗證碼;兩步驟驗證;
+StartupNotify=true
+StartupWMClass=com.bityo.securibit
