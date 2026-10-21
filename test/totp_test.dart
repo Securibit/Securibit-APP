@@ -1,10 +1,11 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:securibit/features/codes/totp/base32.dart';
 import 'package:securibit/features/codes/totp/otp.dart';
 import 'package:securibit/features/codes/totp/totp_params.dart';
+import 'package:securibit/src/rust/api/totp.dart' as core;
 
+// TOTP 的計算在 Rust 安全核心，這裡從 Dart 端呼叫確認結果
 void main() {
   // RFC 6238 附錄 B 的測試向量（8 位數、30 秒）；三種演算法的金鑰長度不同
   group('RFC 6238', () {
@@ -25,7 +26,7 @@ void main() {
     vectors.forEach((time, expected) {
       expected.forEach((algorithm, code) {
         test('${algorithm.label} @ $time', () {
-          final secret = base32Encode(ascii.encode(keys[algorithm]!));
+          final secret = core.base32Encode(bytes: ascii.encode(keys[algorithm]!));
           expect(
             generateOtp(secret: secret, digits: 8, period: 30, algorithm: algorithm, timestampMs: time * 1000),
             code,

@@ -18,7 +18,7 @@ import 'menu_bar_model.dart';
  * macOS 選單列的 Dart 端：Dart 是唯一的資料來源，原生端只負責畫 NSMenu。
  * - 選單關著：資料有變時只送結構（群組、名稱，驗證碼是佔位文字），打開時馬上就有東西可畫
  * - 選單打開（menuWillOpen）與開著的每一秒（tick，計時器在原生端）：回傳含驗證碼的完整內容
- * - 點了某一筆（copy）：在這裡算當下的碼並複製，原生端不會拿到金鑰
+ * - 點了某一筆（copy）：在這裡（由 Rust）算當下的碼並複製，原生端與 Dart 都不會拿到金鑰
  * - 主視窗藏起來或重新顯示時通知 App 鎖定（見 WindowVisibility）
  */
 class MenuBarService {
@@ -80,7 +80,7 @@ class MenuBarService {
     final uid = auth.profile?.uid;
     final list = groups.groups;
     if (uid == null || list == null) return;
-    codes.refresh(uid: uid, groups: list, vaultKey: vault.key, network: network);
+    codes.refresh(uid: uid, groups: list, vaultKeyId: vault.keyId, network: network);
   }
 
   MenuBarModel _model({required bool withCodes}) => buildMenuBarModel(
@@ -88,7 +88,7 @@ class MenuBarService {
         profileReady: auth.profile != null,
         appLocked: settings.appLock.lockedAt(DateTime.now()),
         hideCodes: settings.hideCodes,
-        vaultUnlocked: vault.status == VaultStatus.unlocked && vault.key != null,
+        vaultUnlocked: vault.status == VaultStatus.unlocked && vault.keyId != null,
         groups: groups.groups,
         groupsError: groups.error,
         data: codes.data,

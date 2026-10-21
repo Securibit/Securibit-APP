@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/tokens.dart';
 import '../code_models.dart';
 import '../totp/categories.dart';
+import '../secret_handle.dart';
 import 'otp_readout.dart';
 
 // 清單裡的一筆：名稱與類別在左，驗證碼與倒數在右。點整列開詳細資料，點驗證碼複製
@@ -18,7 +19,7 @@ class CodeRow extends StatelessWidget {
   });
 
   final GroupAccount account;
-  final String? secret;
+  final SecretHandle? secret;
   final ServerCodes? server;
   final bool hidden;
   final bool selected;

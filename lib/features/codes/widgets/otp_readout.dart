@@ -5,6 +5,7 @@ import '../../../core/ticker.dart';
 import '../../../core/widgets/feedback.dart';
 import '../code_models.dart';
 import '../otp_snapshot.dart';
+import '../secret_handle.dart';
 import '../totp/otp.dart';
 import 'countdown_ring.dart';
 
@@ -24,7 +25,8 @@ class OtpReadout extends StatefulWidget {
   });
 
   final GroupAccount account;
-  final String? secret;
+  // 指向 Rust 裡的金鑰；沒有「查看金鑰」時是 null，改用伺服器產碼
+  final SecretHandle? secret;
   final ServerCodes? server;
   final bool hidden;
   // 詳細資料用的大字版

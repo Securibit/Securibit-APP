@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/result.dart';
+import '../../../core/security_core.dart';
 import '../../../core/theme/tokens.dart';
 import '../../../core/widgets/feedback.dart';
+import '../../../src/rust/api/secrets.dart' as core;
 import '../../codes/code_models.dart';
+import '../../codes/secret_handle.dart';
 import '../../codes/totp/categories.dart';
 import '../../codes/totp/otp.dart';
 import '../../codes/widgets/otp_readout.dart';
@@ -15,6 +18,7 @@ import 'admin_totp_form.dart';
 /*
  * 使用者的 2FA（他的預設群組，同網站 UserTotpList）：按「顯示」才載入，每次載入都會記一筆操作紀錄。
  * 動態碼在 App 用金鑰產生；預設群組已加密時沒有金鑰，只顯示「已加密」，管理員也不能改金鑰。
+ * 這裡的金鑰是後台 RPC 直接回傳給 Dart 的（管理員要能顯示、編輯），產碼一樣交給 Rust，隱藏或離開時清掉。
  */
 class UserTotpSection extends StatefulWidget {
   const UserTotpSection({super.key, required this.user, required this.canManage});
@@ -31,6 +35,36 @@ class _UserTotpSectionState extends State<UserTotpSection> {
   bool _loading = false;
   // 顯示金鑰的那幾筆
   final _revealed = <String>{};
+  // 產碼用：Rust 記憶體裡這個畫面的那一格
+  final _scope = newSecretScope('admin');
+  Map<String, SecretHandle> _handles = const {};
+
+  @override
+  void initState() {
+    super.initState();
+    SecretSeal.sealed.addListener(_onSealChanged);
+  }
+
+  @override
+  void dispose() {
+    SecretSeal.sealed.removeListener(_onSealChanged);
+    clearSecretScope(_scope);
+    super.dispose();
+  }
+
+  // App 鎖定時 Rust 清掉了金鑰，解鎖後再放回去
+  void _onSealChanged() {
+    if (!SecretSeal.sealed.value && _items != null) setState(_syncSecrets);
+  }
+
+  // 畫面上的金鑰交給 Rust 產碼（每次清單變了就整份換掉）
+  void _syncSecrets() {
+    final raw = {
+      for (final item in _items ?? const <AdminTotpItem>[])
+        if (!item.encrypted && item.secret != null) item.id: item.secret!,
+    };
+    _handles = SecretHandle.fromMetas(_scope, core.secretsPut(scope: _scope, raw: raw));
+  }
 
   Future<void> _reveal() async {
     setState(() => _loading = true);
@@ -39,7 +73,10 @@ class _UserTotpSectionState extends State<UserTotpSection> {
     setState(() => _loading = false);
     switch (result) {
       case Ok(:final data):
-        setState(() => _items = data);
+        setState(() {
+          _items = data;
+          _syncSecrets();
+        });
       case Err(:final message):
         await showErrorDialog(context, '載入 2FA 失敗', message);
     }
@@ -48,6 +85,8 @@ class _UserTotpSectionState extends State<UserTotpSection> {
   void _hide() => setState(() {
         _items = null;
         _revealed.clear();
+        _handles = const {};
+        clearSecretScope(_scope);
       });
 
   // 預設群組已加密時金鑰是密文，管理員看不到也不能改
@@ -66,7 +105,10 @@ class _UserTotpSectionState extends State<UserTotpSection> {
     );
     // 只更新畫面上那一筆，不重新載入（重新載入會再寫一筆查看紀錄）
     if (updated != null && mounted) {
-      setState(() => _items = [for (final i in _items ?? const <AdminTotpItem>[]) i.id == updated.id ? updated : i]);
+      setState(() {
+        _items = [for (final i in _items ?? const <AdminTotpItem>[]) i.id == updated.id ? updated : i];
+        _syncSecrets();
+      });
     }
   }
 
@@ -85,7 +127,10 @@ class _UserTotpSectionState extends State<UserTotpSection> {
       await showErrorDialog(context, '刪除驗證碼失敗', message);
       return;
     }
-    setState(() => _items = _items?.where((i) => i.id != item.id).toList());
+    setState(() {
+      _items = _items?.where((i) => i.id != item.id).toList();
+      _syncSecrets();
+    });
     showToast(context, '已刪除');
   }
 
@@ -107,6 +152,7 @@ class _UserTotpSectionState extends State<UserTotpSection> {
         final item = items[i];
         rows.add(_TotpRow(
           item: item,
+          handle: _handles[item.id],
           canManage: widget.canManage,
           showSecret: _revealed.contains(item.id),
           onToggleSecret: () => setState(() => _revealed.contains(item.id) ? _revealed.remove(item.id) : _revealed.add(item.id)),
@@ -138,6 +184,7 @@ class _UserTotpSectionState extends State<UserTotpSection> {
 class _TotpRow extends StatelessWidget {
   const _TotpRow({
     required this.item,
+    required this.handle,
     required this.canManage,
     required this.showSecret,
     required this.onToggleSecret,
@@ -146,6 +193,8 @@ class _TotpRow extends StatelessWidget {
   });
 
   final AdminTotpItem item;
+  // 產碼用的 Rust handle
+  final SecretHandle? handle;
   final bool canManage;
   final bool showSecret;
   final VoidCallback onToggleSecret;
@@ -234,7 +283,7 @@ class _TotpRow extends StatelessWidget {
                           ),
                         ],
                       )
-                    : OtpReadout(account: _account, secret: secret, server: null, leading: leading),
+                    : OtpReadout(account: _account, secret: handle, server: null, leading: leading),
               ),
               if (actions.isNotEmpty)
                 MoreMenuButton<String>(

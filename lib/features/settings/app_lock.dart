@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
@@ -7,6 +8,7 @@ import 'package:local_auth/local_auth.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/platform.dart';
+import '../../core/security_core.dart';
 import '../../core/window_visibility.dart';
 import '../auth/auth_controller.dart';
 import 'lock/app_lock_controller.dart';
@@ -72,6 +74,8 @@ Future<String?> authenticateOwner() async {
  * 鎖定時下面的畫面不繪製（Offstage），看不到內容但狀態保留，解鎖後回到原本的畫面。
  * 桌面視窗只是失去焦點不會鎖，最小化、切到背景或（macOS 選單列常駐時）關掉視窗才算離開。
  * 沒有登入時沒有資料要保護，不顯示鎖定畫面。
+ * 鎖定時同時封存 Rust 記憶體裡的金鑰（全部歸零），解鎖後各個畫面再從離線快取的密文放回來；
+ * 桌面視窗藏起來（例如 macOS 選單列常駐）時，過了自動鎖定時間就先鎖，不用等視窗重新顯示。
  */
 class AppLockGate extends StatefulWidget {
   const AppLockGate({super.key, required this.child});
@@ -87,10 +91,13 @@ class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
   // 冷啟動一定要解鎖
   late bool _locked = _lock.enabled;
 
+  // 視窗藏著時，到了自動鎖定時間就鎖
+  Timer? _autoLock;
+
   @override
   void initState() {
     super.initState();
-    _lock.screenLocked = _locked;
+    _setLocked(_locked);
     _lock.leftAt = null;
     WidgetsBinding.instance.addObserver(this);
     WindowVisibility.visible.addListener(_onWindowVisibility);
@@ -99,6 +106,7 @@ class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    _autoLock?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     WindowVisibility.visible.removeListener(_onWindowVisibility);
     _lock.removeListener(_onLockChanged);
@@ -109,6 +117,9 @@ class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
   void _setLocked(bool value) {
     _locked = value;
     _lock.screenLocked = value;
+    if (value) _autoLock?.cancel();
+    // 鎖定：Rust 清掉全部金鑰；解鎖：讓各個畫面把金鑰放回來
+    if (value != SecretSeal.sealed.value) value ? SecretSeal.seal() : SecretSeal.unseal();
   }
 
   // 關閉鎖定或忘記密碼之後就不再鎖著
@@ -133,18 +144,24 @@ class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
     if (!_lock.enabled || _biometricPromptActive) return;
     _lock.leftAt ??= DateTime.now();
     // 「立即」在離開時就鎖，回來的第一個畫面就是鎖定畫面
-    if (_lock.timeout == LockTimeout.immediate) _lockNow();
+    if (_lock.timeout == LockTimeout.immediate) {
+      _lockNow();
+    } else {
+      _autoLock?.cancel();
+      _autoLock = Timer(_lock.timeout.duration, _lockNow);
+    }
   }
 
   void _return() {
     if (!_lock.enabled || _biometricPromptActive) return;
+    _autoLock?.cancel();
     final at = _lock.leftAt;
     _lock.leftAt = null;
     if (shouldLockAfterBackground(backgroundedAt: at, now: DateTime.now(), timeout: _lock.timeout)) _lockNow();
   }
 
   void _lockNow() {
-    if (_locked) return;
+    if (_locked || !mounted || !_lock.enabled) return;
     FocusManager.instance.primaryFocus?.unfocus();
     setState(() => _setLocked(true));
   }

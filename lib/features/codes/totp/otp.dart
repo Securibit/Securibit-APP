@@ -1,12 +1,10 @@
-import 'package:crypto/crypto.dart';
-
-import 'base32.dart';
-import 'secret.dart';
+import '../../../src/rust/api/totp.dart' as core;
 import 'totp_params.dart';
 
 /*
- * TOTP（RFC 6238）：counter = floor(時間 / 週期)，HMAC 後做動態截斷取 digits 位數。
- * 結果與網站用的 totp-generator 相同；金鑰不合法時回傳 null（畫面顯示「金鑰錯誤」）。
+ * TOTP（RFC 6238）的計算在 Rust 安全核心（rust/core/src/totp.rs），結果與網站用的 totp-generator 相同。
+ * 群組裡的驗證碼不走這裡（金鑰留在 Rust，見 SecretHandle）；這裡給介紹頁的示範金鑰與後台用。
+ * 金鑰不合法時回傳 null（畫面顯示「金鑰錯誤」）。
  */
 String? generateOtp({
   required String secret,
@@ -14,41 +12,8 @@ String? generateOtp({
   int period = TotpDefaults.period,
   TotpAlgorithm algorithm = TotpDefaults.algorithm,
   required int timestampMs,
-}) {
-  final normalized = normalizeSecret(secret);
-  if (!isBase32(normalized)) return null;
-  try {
-    return hotp(base32Decode(normalized), timestampMs ~/ 1000 ~/ period, digits: digits, algorithm: algorithm);
-  } on FormatException {
-    return null;
-  }
-}
-
-/// HOTP（RFC 4226）：key 是原始金鑰位元組
-String hotp(List<int> key, int counter, {int digits = TotpDefaults.digits, TotpAlgorithm algorithm = TotpDefaults.algorithm}) {
-  final message = List<int>.filled(8, 0);
-  var value = counter;
-  for (var i = 7; i >= 0; i--) {
-    message[i] = value & 0xff;
-    value >>= 8;
-  }
-  final hash = switch (algorithm) {
-    TotpAlgorithm.sha1 => sha1,
-    TotpAlgorithm.sha256 => sha256,
-    TotpAlgorithm.sha512 => sha512,
-  };
-  final mac = Hmac(hash, key).convert(message).bytes;
-  final offset = mac.last & 0x0f;
-  final binary = ((mac[offset] & 0x7f) << 24) |
-      ((mac[offset + 1] & 0xff) << 16) |
-      ((mac[offset + 2] & 0xff) << 8) |
-      (mac[offset + 3] & 0xff);
-  var modulo = 1;
-  for (var i = 0; i < digits; i++) {
-    modulo *= 10;
-  }
-  return (binary % modulo).toString().padLeft(digits, '0');
-}
+}) =>
+    core.totpGenerate(secret: secret, digits: digits, period: period, algorithm: algorithm.label, timestampMs: timestampMs);
 
 /// 每 3 / 4 位插一個空白方便閱讀（6 位數 → 123 456，8 位數 → 1234 5678），同網站
 String formatOtp(String otp) {

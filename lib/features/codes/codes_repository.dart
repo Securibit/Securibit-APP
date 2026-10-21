@@ -1,10 +1,12 @@
-import 'package:cryptography/cryptography.dart';
-
+import '../../core/env.dart';
 import '../../core/json.dart';
+import '../../core/platform.dart';
 import '../../core/result.dart';
 import '../../core/rpc.dart';
-import '../vault/vault_crypto.dart';
+import '../../src/rust/api/secrets.dart' as core;
+import '../../src/rust/api/vault.dart' as vault;
 import 'code_models.dart';
+import 'secret_handle.dart';
 import 'totp/categories.dart';
 import 'totp/secret.dart';
 import 'totp/totp_params.dart';
@@ -12,29 +14,49 @@ import 'totp/totp_params.dart';
 // 群組裡我看得到的驗證碼（不含金鑰），原始 JSON 給離線快取
 Future<Result<List<Map<String, dynamic>>>> loadGroupAccountsRaw(String gid) => rpc('group_accounts', asMapList, {'gid': gid});
 
-// 我有「查看金鑰」的全部金鑰 { id: secret }，加密群組是 enc:v1 密文（會記一筆「查看金鑰」紀錄）
-Future<Result<Map<String, String>>> loadGroupAccountSecretsRaw(String gid) => rpc(
-      'group_account_secrets',
-      (data) => asMap(data).map((k, v) => MapEntry(k, asString(v))),
-      {'gid': gid},
-    );
+/// 讀回來的金鑰：handles 指向 Rust 記憶體裡的金鑰，sealedCache 是封起來給離線快取存的密文
+class SecretsLoad {
+  const SecretsLoad({required this.handles, required this.sealedCache, required this.sealed});
 
-/// 給 key 時（加密群組）把 enc:v1 密文解開；解不開的（例如別的裝置用舊密碼寫入）保留原值，畫面會顯示金鑰錯誤
-Future<Map<String, String>> decryptSecrets(Map<String, String> raw, SecretKey? key) async {
-  if (key == null) return raw;
-  final result = <String, String>{};
-  for (final entry in raw.entries) {
-    if (!isEncrypted(entry.value)) {
-      result[entry.key] = entry.value;
-      continue;
-    }
+  final Map<String, SecretHandle> handles;
+  final String? sealedCache;
+  // App 鎖定中，金鑰沒有放進記憶體（解鎖後從 sealedCache 放回來）
+  final bool sealed;
+}
+
+/// 我有「查看金鑰」的全部金鑰（會記一筆「查看金鑰」紀錄）。
+/// 由 Rust 直接連 Supabase 取得、解密（加密群組）並留在 Rust 的 scope 裡，金鑰不經過 Dart
+Future<Result<SecretsLoad>> loadGroupSecrets(String gid, {required String scope, required bool encrypted}) async {
+  var session = supabase.auth.currentSession;
+  if (session == null) return const Err('尚未登入');
+  if (session.isExpired) {
     try {
-      result[entry.key] = await decryptText(key, entry.value);
-    } catch (_) {
-      result[entry.key] = entry.value;
+      session = (await supabase.auth.refreshSession()).session ?? session;
+    } catch (error) {
+      return errorResult(error);
     }
   }
-  return result;
+  final result = await core.secretsFetch(
+    connection: core.SupabaseConnection(
+      url: Env.supabaseUrl,
+      anonKey: Env.supabaseAnonKey,
+      accessToken: session.accessToken,
+      userAgent: AppPlatform.userAgent,
+    ),
+    gid: gid,
+    scope: scope,
+    encrypted: encrypted,
+  );
+  final error = result.error;
+  if (error != null) return Err(error, offline: result.offline);
+  return Ok(SecretsLoad(handles: SecretHandle.fromMetas(scope, result.metas), sealedCache: result.cache, sealed: result.sealed));
+}
+
+/// 從離線快取的密文放回 Rust 的 scope；解不開或 App 鎖定中回傳 null
+Map<String, SecretHandle>? restoreGroupSecrets(String scope, String? sealedCache, {required bool encrypted}) {
+  if (sealedCache == null) return const {};
+  final metas = core.secretsRestore(scope: scope, encrypted: encrypted, cache: sealedCache);
+  return metas == null ? null : SecretHandle.fromMetas(scope, metas);
 }
 
 // 只有「查看驗證碼」時，請網站產生動態碼（金鑰不會傳到 App）
@@ -56,16 +78,19 @@ Future<Result<ServerCodes>> loadGroupCodes(String gid) async {
   }
 }
 
-// 加密群組要給 key：先在 App 把金鑰加密成 enc:v1 再送出；沒加密的群組不要給（資料庫會拒絕存入密文）
-Future<String> _encodeSecret(String secret, SecretKey? key) async {
+// 加密群組：先在 Rust 把金鑰加密成 enc:v1 再送出；沒加密的群組不要加密（資料庫會拒絕存入密文）
+// 金鑰是使用者在表單打的，本來就在 Dart；加密群組還沒解鎖時回傳 null
+String? _encodeSecret(String secret, {required bool encrypted}) {
   final normalized = normalizeSecret(secret);
-  return key == null ? normalized : encryptText(key, normalized);
+  return encrypted ? vault.vaultEncrypt(text: normalized) : normalized;
 }
 
-Future<Result<List<String>>> addGroupAccount(String gid, TotpInput input, SecretKey? key) async {
-  final item = input
-      .copyWith(name: input.name.trim(), category: normalizeCategories(input.category), secret: await _encodeSecret(input.secret, key))
-      .toJson();
+const _vaultLocked = '加密群組已鎖定，請先解鎖';
+
+Future<Result<List<String>>> addGroupAccount(String gid, TotpInput input, {required bool encrypted}) async {
+  final secret = _encodeSecret(input.secret, encrypted: encrypted);
+  if (secret == null) return const Err(_vaultLocked);
+  final item = input.copyWith(name: input.name.trim(), category: normalizeCategories(input.category), secret: secret).toJson();
   return rpc('group_account_add', (data) => data is List ? data.map((e) => '$e').toList() : <String>[], {
     'gid': gid,
     'items': [item],
@@ -73,14 +98,16 @@ Future<Result<List<String>>> addGroupAccount(String gid, TotpInput input, Secret
 }
 
 /// 只送要修改的欄位；secret 為 null 代表不修改（避免沒有「查看金鑰」的人誤把金鑰清掉）
-Future<Result<void>> updateGroupAccount(String accountId, TotpInput input, {String? secret, SecretKey? key}) async {
+Future<Result<void>> updateGroupAccount(String accountId, TotpInput input, {String? secret, required bool encrypted}) async {
+  final encoded = secret == null ? null : _encodeSecret(secret, encrypted: encrypted);
+  if (secret != null && encoded == null) return const Err(_vaultLocked);
   final patch = <String, dynamic>{
     'name': input.name.trim(),
     'category': normalizeCategories(input.category),
     'digits': input.digits,
     'period': input.period,
     'algorithm': input.algorithm.label,
-    if (secret != null) 'secret': await _encodeSecret(secret, key),
+    'secret': ?encoded,
   };
   return rpcVoid('group_account_update', {'account_id': accountId, 'patch': patch});
 }

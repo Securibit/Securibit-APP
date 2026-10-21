@@ -47,6 +47,17 @@ void main() {
       expect(LockHash.fromJson(null), isNull);
     });
 
+    test('改用 Rust 之前存在裝置上的雜湊照樣驗證得過', () async {
+      // 由舊版 Dart（cryptography 套件的 PBKDF2-SHA256 2 萬次）產生，格式同 app-lock:config 裡的 hash
+      final stored = LockHash.fromJson({
+        'salt': 'AAECAwQFBgcICQoLDA0ODw==',
+        'iterations': 20000,
+        'hash': 'FozAQs62Zp557/j6l1/R4t34NJaUf+6TBX7cI7akphQ=',
+      })!;
+      expect(await verifyLockSecret('0-1-2-5-8', stored), isTrue);
+      expect(await verifyLockSecret('0-1-2-5', stored), isFalse);
+    });
+
     test('固定時間比對', () {
       expect(constantTimeEquals([1, 2, 3], [1, 2, 3]), isTrue);
       expect(constantTimeEquals([1, 2, 3], [1, 2, 4]), isFalse);

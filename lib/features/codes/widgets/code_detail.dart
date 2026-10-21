@@ -7,8 +7,8 @@ import '../../../core/widgets/grouped_list.dart';
 import '../../settings/settings_controller.dart';
 import '../code_models.dart';
 import '../codes_controller.dart';
+import '../secret_handle.dart';
 import '../totp/categories.dart';
-import '../totp/secret.dart';
 import 'code_form.dart';
 import 'otp_readout.dart';
 
@@ -193,7 +193,7 @@ class _Detail extends StatelessWidget {
 class _SecretSection extends StatefulWidget {
   const _SecretSection({required this.secret, required this.encrypted});
 
-  final String? secret;
+  final SecretHandle? secret;
   final bool encrypted;
 
   @override
@@ -214,8 +214,9 @@ class _SecretSectionState extends State<_SecretSection> {
         children: const [GroupedRow(label: '金鑰', value: '看不到')],
       );
     }
-    final valid = isValidSecret(secret);
-    final display = !valid ? '金鑰錯誤' : (_visible ? normalizeSecret(secret) : '•' * 16);
+    final valid = secret.valid;
+    // 按了「顯示金鑰」才從 Rust 取出來
+    final display = !valid ? '金鑰錯誤' : (_visible ? (secret.reveal() ?? '金鑰錯誤') : '•' * 16);
     return GroupedList(
       header: '金鑰',
       footer: !valid
@@ -240,7 +241,10 @@ class _SecretSectionState extends State<_SecretSection> {
                     IconButton(
                       tooltip: '複製金鑰',
                       visualDensity: VisualDensity.compact,
-                      onPressed: () => copyText(context, normalizeSecret(secret), message: '已複製金鑰'),
+                      onPressed: () {
+                        final value = secret.reveal();
+                        if (value != null) copyText(context, value, message: '已複製金鑰');
+                      },
                       icon: Icon(Icons.copy_rounded, size: 20, color: colors.inkMuted),
                     ),
                   ],

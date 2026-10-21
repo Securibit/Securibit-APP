@@ -1,18 +1,19 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:securibit/features/codes/totp/base32.dart';
 import 'package:securibit/features/codes/totp/secret.dart';
 import 'package:securibit/features/codes/totp/totp_params.dart';
 import 'package:securibit/features/codes/totp/validate.dart';
+import 'package:securibit/src/rust/api/totp.dart' as core;
 
+// Base32、金鑰檢查與表單驗證都在 Rust 安全核心，這裡確認 Dart 端拿到的結果與訊息同網站
 void main() {
   test('RFC 4648 編碼（不補 =）', () {
-    expect(base32Encode(ascii.encode('')), '');
-    expect(base32Encode(ascii.encode('f')), 'MY');
-    expect(base32Encode(ascii.encode('foobar')), 'MZXW6YTBOI');
-    expect(utf8.decode(base32Decode('MZXW6YTBOI')), 'foobar');
-    expect(() => base32Decode('MZ1'), throwsFormatException);
+    expect(core.base32Encode(bytes: ascii.encode('')), '');
+    expect(core.base32Encode(bytes: ascii.encode('f')), 'MY');
+    expect(core.base32Encode(bytes: ascii.encode('foobar')), 'MZXW6YTBOI');
+    expect(utf8.decode(core.base32Decode(input: 'MZXW6YTBOI').bytes), 'foobar');
+    expect(core.base32Decode(input: 'MZ1').error, '不是 Base32 字元：1');
   });
 
   test('正規化：去空白、連字號、轉大寫、去掉結尾的 =', () {
@@ -35,6 +36,7 @@ void main() {
     final bad = validateTotpInput(const TotpInput(name: 'a', secret: 'abc1'));
     expect(bad.name, isNull);
     expect(bad.secret, secretFormatMessage);
+    expect(secretFormatMessage, '金鑰格式錯誤，只能包含 A-Z 與 2-7（Base32）');
 
     expect(validateTotpInput(const TotpInput(name: 'a', secret: 'jbsw y3dp')).isEmpty, isTrue);
 

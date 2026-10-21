@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 用網站自己的 src/lib/vault/crypto.ts 產生 test/vault_test.dart 的測試向量（需要 node 22+）
+# 用網站自己的 src/lib/vault/crypto.ts 產生 test/vault_test.dart 與 rust/core/src/vault.rs 的測試向量（需要 node 22+）
 # 用法：tool/gen_vault_vector.sh [網站路徑，預設 ../Securibit-Web]
 set -euo pipefail
 WEB="${1:-$(dirname "$0")/../../Securibit-Web}"

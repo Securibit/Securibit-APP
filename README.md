@@ -12,11 +12,27 @@ Securibit 的兩步驟驗證器 App，支援 iOS、Android、macOS、Linux（不
 | Framework | Flutter 3.35（Dart 3.9） |
 | 後端 | Supabase（Auth + Postgres RPC），網站的 `/api/groups/codes`、`/api/record-login` |
 | 狀態管理 | provider + ChangeNotifier |
-| 加密 | cryptography / cryptography_flutter（PBKDF2-SHA256 60 萬次 → AES-GCM，與網站相容） |
+| 安全核心 | Rust（`rust/core`，RustCrypto：PBKDF2-SHA256、HMAC、AES-GCM），透過 flutter_rust_bridge v2 給 Flutter 呼叫；TOTP、加密群組（與網站相容）、App 鎖定雜湊、記憶體裡的金鑰都在這裡 |
 | 其他 | supabase_flutter、google_sign_in、app_links、flutter_secure_storage、mobile_scanner、local_auth |
 | App ID | 各平台都是 `com.bityo.securibit`（iOS / macOS bundle id、Android applicationId 與 namespace、Linux application id） |
 
 ## 設定
+
+### 0. Rust
+
+安全核心是 Rust，`flutter build` / `flutter run` 時由 cargokit 自動編譯（iOS、Android、macOS、Linux 都一樣），需要先裝好 [rustup](https://rustup.rs)：
+
+```bash
+rustup toolchain install stable
+# 第一次編譯時 cargokit 會自動加上需要的 target；Android 需要 Android Studio 裡的 NDK
+```
+
+改了 `rust/api/src/api/` 底下的函式後要重新產生 Dart 端的介面（`lib/src/rust/`）：
+
+```bash
+cargo install flutter_rust_bridge_codegen --version 2.13.0 --locked   # 只要裝一次
+flutter_rust_bridge_codegen generate
+```
 
 ### 1. 連線設定 `env.json`
 
@@ -118,30 +134,43 @@ sudo apt install libgtk-3-dev libsecret-1-dev libjsoncpp-dev pkg-config clang cm
 ## 測試
 
 ```bash
+# Rust 安全核心的單元測試
+(cd rust && cargo test --workspace --release)
+
+# Flutter 的測試會載入本機編好的 Rust 函式庫（見 test/flutter_test_config.dart），要先編一次
+(cd rust && cargo build --release -p securibit_api)
 flutter analyze
 flutter test
 ```
 
-測試包含：
+測試包含（Rust 與 Dart 兩邊都有，Dart 端測的是透過 Rust 算出來的結果）：
 
 - TOTP：RFC 6238 的 SHA-1 / SHA-256 / SHA-512（8 位數）測試向量，以及和網站 totp-generator 對照的結果
 - otpauth:// 連結解析、Base32 檢查、表單驗證（錯誤訊息和網站相同）
-- 加密群組：用網站自己的 `src/lib/vault/crypto.ts` 產生的測試向量解密，證明兩邊相容。重新產生向量：`tool/gen_vault_vector.sh ../Securibit-Web`（需要 node 22 以上）
+- 加密群組：用網站自己的 `src/lib/vault/crypto.ts` 產生的測試向量解密，證明兩邊相容。重新產生向量：`tool/gen_vault_vector.sh ../Securibit-Web`（需要 node 22 以上），結果同時填進 `test/vault_test.dart` 與 `rust/core/src/vault.rs`
+- App 鎖定：改用 Rust 之前由 Dart 存在裝置上的雜湊照樣驗證得過
+- 記憶體裡的金鑰：鎖定時清掉、離線快取封起來的格式
 
 ## 程式結構
 
 ```
+rust/
+  core/                   securibit-core：純 Rust 的安全核心（不依賴 flutter_rust_bridge）
+                          base32、secret、validate、totp、otpauth、vault（enc:v1）、lock、sealed、store
+  api/                    securibit_api：flutter_rust_bridge 的薄薄一層，加上直接連 Supabase 取得金鑰（reqwest + rustls）
+rust_builder/             FRB 產生的 FFI plugin 外殼，cargokit 在 flutter build 時編譯 rust/api
 lib/
-  main.dart               初始化 Supabase、各個狀態
+  main.dart               初始化 Rust 安全核心、Supabase、各個狀態
+  src/rust/               flutter_rust_bridge 產生的 Dart 介面（不要手改）
   app.dart                主題、依登入狀態切換畫面
   core/                   連線設定、RPC、主題代幣、共用元件、秒針
   features/
     auth/                 Google 登入（手機原生 / 深層連結 / Linux 本機轉址）、profile
     groups/               my_groups、邀請、側欄
     codes/                驗證碼清單、詳細資料、新增與編輯、QR Code 掃描
-      totp/               TOTP、Base32、otpauth、類別、表單驗證（對應網站 src/lib/totp）
-    vault/                加密群組的解鎖（對應網站 src/lib/vault）
-    cache/                離線快取（系統安全儲存）
+      totp/               TOTP、otpauth、類別、表單驗證（對應網站 src/lib/totp，計算在 Rust）
+    vault/                加密群組的解鎖（對應網站 src/lib/vault，計算在 Rust）
+    cache/                離線快取（系統安全儲存；金鑰由 Rust 用這台裝置的金鑰封起來）
     settings/             主題、生物辨識鎖定、帳戶資訊、登出
     menubar/              macOS 選單列的內容與原生端的溝通（原生端在 macos/Runner/MenuBarController.swift）
     shell/                三欄 / 側欄的版面
@@ -162,3 +191,11 @@ App 鎖定中、加密群組沒解鎖、沒有登入時不列出驗證碼；開�
 
 ## 貢獻
 有問題就開 issue。要改東西的話 fork 出去開分支發 PR，commit 訊息寫清楚、確認 `flutter analyze` 與 `flutter test` 都過了再丟。
+
+## 金鑰放在哪裡
+
+- 驗證碼的金鑰由 Rust 直接向 Supabase 取得（`group_account_secrets`，Dart 只給網址、anon key 與登入 token），解密（加密群組）、產生驗證碼都在 Rust，Dart 只拿到驗證碼
+- 只有使用者按了「顯示金鑰」、「複製金鑰」或編輯時，Dart 才向 Rust 取出那一筆金鑰
+- 加密群組解開的金鑰只在 Rust；「在這台裝置記住」存的是用這台裝置的金鑰包過的密文
+- 離線快取裡的金鑰由 Rust 用這台裝置的金鑰（32 位元組隨機，存在系統安全儲存）封起來，Dart 只存密文
+- App 鎖定、登出、加密群組鎖定、刪除驗證碼、離開畫面時，Rust 記憶體裡的金鑰歸零；App 鎖定期間不接受新的金鑰，解鎖後從離線快取放回來

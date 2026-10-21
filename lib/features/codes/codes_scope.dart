@@ -17,14 +17,14 @@ class CodesScope extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final uid = context.select<AuthController, String?>((a) => a.profile?.uid) ?? '';
-    final key = context.select<VaultController, Object?>((v) => v.key);
-    final vaultKey = group.encrypted ? key : null;
+    final keyId = context.select<VaultController, int?>((v) => v.keyId);
+    final vaultKeyId = group.encrypted ? keyId : null;
     return ChangeNotifierProvider<CodesController>(
-      key: ValueKey('${group.id}|${group.permissions}|${group.encrypted}|${identityHashCode(vaultKey)}'),
+      key: ValueKey('${group.id}|${group.permissions}|${group.encrypted}|$vaultKeyId'),
       create: (context) => CodesController(
         group: group,
         uid: uid,
-        vaultKey: group.encrypted ? context.read<VaultController>().key : null,
+        vaultKeyId: vaultKeyId,
         cache: context.read<OfflineCache>(),
       ),
       child: child,

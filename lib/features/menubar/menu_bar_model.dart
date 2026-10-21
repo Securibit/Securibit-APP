@@ -1,11 +1,12 @@
 import '../codes/code_models.dart';
 import '../codes/otp_snapshot.dart';
+import '../codes/secret_handle.dart';
 import '../codes/totp/otp.dart';
 import '../groups/group_models.dart';
 
 /*
  * macOS 選單列的內容（純資料，方便測試）：依群組分段、釘選的在前，每一筆是名稱、驗證碼與剩餘秒數。
- * 原生端只拿到這裡算好的顯示文字，金鑰一直留在 Dart；點了要複製時再回來用 codeFor 算當下的碼。
+ * 原生端只拿到這裡算好的顯示文字；金鑰留在 Rust（這裡只有 SecretHandle），點了要複製時再回來用 codeFor 算當下的碼。
  */
 
 // 驗證碼加起來超過這個數量就每個群組收成一個子選單，選單才不會長到超出螢幕
@@ -22,7 +23,8 @@ class MenuGroupData {
 
   // null 代表還在載入
   final List<GroupAccount>? accounts;
-  final Map<String, String> secrets;
+  // { 驗證碼 id: 指向 Rust 裡金鑰的 handle }
+  final Map<String, SecretHandle> secrets;
   final ServerCodes? server;
   final String? error;
 }
@@ -79,7 +81,7 @@ class _CopySource {
   const _CopySource(this.account, this.secret, this.server);
 
   final GroupAccount account;
-  final String? secret;
+  final SecretHandle? secret;
   final ServerCodes? server;
 }
 
@@ -192,7 +194,7 @@ MenuBarModel buildMenuBarModel({
 MenuBarItem _item(
   String id,
   GroupAccount account,
-  String? secret,
+  SecretHandle? secret,
   ServerCodes? server, {
   required int nowMs,
   required bool hideCodes,

@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app.dart';
 import 'core/env.dart';
+import 'core/security_core.dart';
 import 'features/auth/auth_controller.dart';
 import 'features/auth/secure_session_storage.dart';
 import 'features/cache/offline_cache.dart';
@@ -15,6 +16,8 @@ import 'features/vault/vault_controller.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Rust 安全核心（TOTP、加密群組、App 鎖定雜湊、記憶體裡的金鑰）
+  await initSecurityCore();
   if (!Env.isConfigured) {
     runApp(const MissingConfigApp());
     return;
@@ -42,6 +45,8 @@ Future<void> main() async {
       groups.start(profile.uid);
     },
     onSignedOut: (uid) {
+      // Rust 記憶體裡的金鑰全部歸零
+      SecretSeal.clearAll();
       vault.detach(uid);
       groups.clear();
     },

@@ -7,6 +7,7 @@ import '../../../core/theme/tokens.dart';
 import '../../../core/widgets/feedback.dart';
 import '../code_models.dart';
 import '../codes_controller.dart';
+import '../secret_handle.dart';
 import '../totp/otpauth.dart';
 import '../totp/secret.dart';
 import '../totp/totp_params.dart';
@@ -46,8 +47,10 @@ class CodeForm extends StatefulWidget {
 
 class _CodeFormState extends State<CodeForm> {
   late final GroupAccount? _account = widget.account;
-  late final String? _originalSecret = _account == null ? null : widget.controller.secretOf(_account);
-  late final bool _secretKnown = _account == null || _originalSecret != null;
+  // 編輯時要把原本的金鑰填進欄位，這時才從 Rust 取出來
+  late final SecretHandle? _handle = _account == null ? null : widget.controller.secretOf(_account);
+  late final String? _originalSecret = _handle?.reveal();
+  late final bool _secretKnown = _account == null || _handle != null;
 
   late final _name = TextEditingController(text: _account?.name ?? '');
   late final _secret = TextEditingController(text: _originalSecret ?? '');
