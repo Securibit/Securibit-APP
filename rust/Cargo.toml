@@ -1,0 +1,11 @@
+[workspace]
+resolver = "2"
+members = ["core", "api"]
+
+[profile.release]
+# 安全核心很小，用體積優先的設定
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "unwind"
+strip = "symbols"

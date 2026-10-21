@@ -1,0 +1,20 @@
+[package]
+name = "securibit_api"
+version = "0.1.0"
+edition = "2021"
+description = "flutter_rust_bridge 的薄薄一層：把 securibit-core 接給 Flutter，另外負責連線取得金鑰"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "staticlib"]
+
+[dependencies]
+flutter_rust_bridge = "=2.13.0"
+securibit-core = { path = "../core" }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-webpki-roots"] }
+base64 = "0.22"
+serde_json = "1"
+zeroize = "1.8"
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }

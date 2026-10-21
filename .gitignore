@@ -894,3 +894,7 @@ DerivedData/
 /windows
 # 連線設定（含 Supabase anon key），用 env.example.json 複製一份
 env.json
+
+# Rust 安全核心（rust/、rust_builder/）
+!rust/Cargo.lock
+!rust_builder/cargokit/build_tool/bin/
