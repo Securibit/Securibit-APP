@@ -121,47 +121,134 @@ flutter run -d linux --dart-define-from-file=env.json
 | `make ios` | `Securibit-<版本>-ios-unsigned.ipa` | iOS release，不簽章（`--no-codesign`），要再用 Xcode 等工具簽過才能安裝 |
 | `make apk` | `securibit-<版本>-arm64-v8a.apk` 等 | 每種處理器一個 APK，混淆並去掉除錯符號（符號在 `build/symbols`，當機回報要用） |
 | `make aab` | `securibit-<版本>.aab` | 上架 Google Play 用的 App Bundle，Play 會依手機只下載需要的部分 |
-| `make linux` | `Securibit-<版本>-linux-<arm64\|x64>.tar.gz` | Linux release bundle，解開後執行 `securibit/securibit`。Linux 主機直接建置，其他主機改用 Docker |
-| `make linux-docker ARCH=arm64\|x64` | 同上 | 在 Docker 裡建置 |
-| `make deb ARCH=…` | `securibit_<版本>_<arm64\|amd64>.deb` | Debian / Ubuntu 套件 |
-| `make linux-all ARCH=…` | 以上兩種 | 一次建好 Linux 的 .tar.gz 和 .deb |
+| `make linux` | `Securibit-<版本>-linux-<arm64\|x64>.tar.gz` | Linux release bundle，解開後執行 `securibit/securibit`。自動選建置方式（見下方「Linux」） |
+| `make deb` | `securibit_<版本>_<arm64\|amd64>.deb` | Debian / Ubuntu 套件（也會產出 .tar.gz） |
+| `make linux-all` | 以上兩種 | 一次建好 Linux 的 .tar.gz 和 .deb |
+| `make linux-deps` | | 在 Debian / Ubuntu 主機上安裝直接建置需要的系統套件，並檢查 Flutter、Rust |
 | `make dist` | | 建置這台主機能建的所有平台（macOS 主機：macOS、iOS、有 Android SDK 時加 Android、Docker 有在跑時加 Linux） |
 
 一般 Android 手機裝 `arm64-v8a` 那個 APK 就好。QR 掃描用的是 Google Play 服務裡的 ML Kit 模型（沒有包進 APK），沒有 Google Play 服務的手機（例如部分華為）無法掃 QR，但可以貼上 otpauth 連結。
 
 ### Linux
 
-Linux 版要在 Linux 上建置。不想在 Mac 上跑 Docker 的話，用 GitHub Actions（`.github/workflows/linux.yml`）：在 GitHub 的 Ubuntu 22.04 主機上直接建置 x64 與 arm64，跑完安裝檢查，產出放在該次執行的 Artifacts。到 Actions → Linux → Run workflow 手動執行，或 push `v*` 標籤時自動建置並附到 Release。第一次要先在 repo 的 Settings → Secrets and variables → Actions 設定 `SUPABASE_URL`、`SUPABASE_ANON_KEY`、`GOOGLE_WEB_CLIENT_ID`。
+Linux 版只有兩種產出：`.tar.gz`（release bundle）和 `.deb`（Debian / Ubuntu 套件），而且要在 Linux 上建置。`make linux`、`make deb`、`make linux-all` 會自動選建置方式：
 
-在自己的電腦上建置時，`ARCH` 預設和主機相同；在 Linux 主機上直接建置，其他主機（例如 Apple Silicon 的 Mac）用 Docker：
+| 情況 | 建置方式 |
+| --- | --- |
+| 有設定 `REMOTE=user@host` | 把原始碼 rsync 到那台 Linux，在那裡跑同一個目標，完成後把產出拉回本機 `dist/` |
+| 不是 Linux 的主機（例如 macOS） | Docker（`docker/linux.Dockerfile`） |
+| Linux 主機，有 `flutter`、`cargo`、`rustup` | 直接在主機上建置 |
+| Linux 主機，沒有上面的工具，但 Docker 能用（`docker info` 成功） | 自動改用 Docker |
+| 兩者都沒有 | 停下來，說明要裝什麼 |
+
+`LINUX_DOCKER=0` / `LINUX_DOCKER=1` 可以強制直接建置 / 用 Docker；在 Linux 主機上有指定 `DISTRO`，或 `ARCH` 和主機不同時，也會用 Docker。`make help` 最後一段會顯示這台主機目前會用哪一種。
+
+#### 自己編譯
+
+任何人 clone 下來都可以自己編譯。步驟：
+
+1. **取得原始碼**
+
+   ```bash
+   git clone https://github.com/Securibit/Securibit-APP.git
+   cd Securibit-APP
+   ```
+
+2. **準備自己的 Supabase 專案與 `env.json`**。repo 裡沒有任何正式環境的網址或金鑰，自己編譯的版本要接自己的 Supabase 專案：
+
+   1. 到 [Supabase](https://supabase.com) 建一個專案
+   2. 到專案的 **SQL Editor**，依序執行 [Securibit-Web](https://github.com/mmm25002500/Securibit-Web) 的 `supabase/migrations/0001_*.sql` 到 `0017_*.sql`（照編號順序，一個跑完再跑下一個）
+   3. App 目前只有 Google 登入（沒有 Email 密碼登入）：到 **Authentication → Sign In / Providers → Google** 打開 Google，填入自己在 [Google Cloud Console](https://console.cloud.google.com/) 建的「網頁應用程式」OAuth 用戶端 ID 與密鑰（Google 那邊的已授權重新導向 URI 填 Supabase 頁面上顯示的 Callback URL）；再到 **Authentication → URL Configuration → Redirect URLs** 加入 `http://127.0.0.1:*/login-callback`（Linux 版登入完成後轉回 App 用，見上面「2. Supabase 登入轉址」）
+   4. 複製範例並填入自己專案的值（**Project Settings → API** 裡的 Project URL 與 anon public key）：
+
+      ```bash
+      cp env.example.json env.json
+      ```
+
+      - `SUPABASE_URL`、`SUPABASE_ANON_KEY`：自己專案的 URL 與 anon key
+      - `SECURIBIT_WEB_URL`：自己架的 Securibit-Web 網址。App 有三件事要呼叫網站：記錄登入紀錄、「只能查看驗證碼」權限的群組產生驗證碼、管理員刪除使用者。網站必須接同一個 Supabase 專案，沒有自己架的話這三項會失敗（其他功能不受影響），網址維持範例值即可
+      - `GOOGLE_WEB_CLIENT_ID`、`GOOGLE_IOS_CLIENT_ID`：只給 iOS / Android 手機原生 Google 登入用。Linux 版一律開瀏覽器走 Supabase 的 Google 登入，不會用到，留空就好（手機留空時也會改用瀏覽器登入）
+
+   沒有 `env.json` 時建置會直接停下來提示；`env.json` 已列在 `.gitignore`，不要提交。
+
+3. **二選一準備建置環境**
+
+   - **A. 用 Docker（最簡單，不用裝 Flutter、Rust）**：安裝 [Docker Engine](https://docs.docker.com/engine/install/)，執行 `sudo usermod -aG docker $USER` 後重新登入，確認 `docker info` 沒有錯誤。第一次建置會先建映像檔（下載 Flutter、Rust 與系統套件，約 4 GB），之後重複使用
+   - **B. 直接在主機上建置（Debian / Ubuntu）**：
+
+     ```bash
+     make linux-deps      # 用 sudo apt 安裝 clang、cmake、ninja、GTK 3、libsecret、jsoncpp、ayatana appindicator、dpkg-dev 等
+     ```
+
+     它會檢查 Flutter 與 Rust，沒裝的話印出安裝方式（不會自動安裝）：Flutter 用專案的版本 3.35.3（`git clone --depth 1 --branch 3.35.3 https://github.com/flutter/flutter.git ~/flutter`，把 `~/flutter/bin` 加進 PATH），Rust 用 [rustup](https://rustup.rs) 安裝（Rust 核心的建置工具要用 rustup，發行版的 `cargo` 套件不夠）
+
+4. **建置**
+
+   ```bash
+   make deb          # 產出 dist/securibit_<版本>_<amd64|arm64>.deb 和 dist/Securibit-<版本>-linux-<x64|arm64>.tar.gz
+   ```
+
+5. **安裝或執行**
+
+   ```bash
+   sudo apt install ./dist/securibit_0.3.0_amd64.deb     # 相依套件由 apt 自動安裝，裝好後從應用程式選單開啟，或執行 securibit
+   # 或不安裝，直接解開 tar.gz 執行：
+   tar -xzf dist/Securibit-0.3.0-linux-x64.tar.gz
+   ./securibit/securibit
+   ```
+
+   `.tar.gz` 不會幫你裝相依套件，系統要有 GTK 3、libsecret 與系統匣用的 `libayatana-appindicator3-1`（Debian / Ubuntu：`sudo apt install libayatana-appindicator3-1 libsecret-1-0 libgtk-3-0`，大部分桌面系統已經有 GTK 3 與 libsecret）。
+
+**架構要對**：x64（amd64）的電腦用 x64 的產出，arm64（例如 Raspberry Pi 4/5、ARM 筆電）用 arm64 的產出。`ARCH` 預設和建置的主機相同；Docker 可以用 `ARCH=x64` / `ARCH=arm64` 建另一種架構（透過模擬執行，慢很多）。
+
+#### 選發行版：`DISTRO=`
+
+Docker 建置可以選底層的發行版：`ubuntu-22.04`（預設）、`ubuntu-24.04`、`debian-12`、`debian-13`。
 
 ```bash
-make linux-all ARCH=arm64     # Apple Silicon 上原生執行，第一次約 2 分鐘，之後約 20 秒
-make linux-all ARCH=x64       # Apple Silicon 上透過模擬執行（--platform linux/amd64），比較慢
+make deb DISTRO=debian-12
 ```
 
-- 建置環境在 `docker/linux.Dockerfile`：Ubuntu 22.04（glibc 2.35，建出來的程式在 22.04 以後的發行版都能跑）、和主機相同版本的 Flutter（讀 `flutter --version`）、clang、cmake、ninja、GTK 3、libsecret、ayatana appindicator，以及 rustup 與 cargo（Rust 核心要用）
-- 映像檔會重複使用；pub 快取、cargo registry 與建置目錄放在 Docker volume（`securibit-<arch>-*`），第二次建置只重編有改的部分。`make docker-clean ARCH=…` 刪掉這些 volume
-- 原生 Linux 主機（Debian / Ubuntu）要先安裝：
+- 預設的 Ubuntu 22.04（glibc 2.35）建出來的程式在 Ubuntu 22.04 以後、Debian 12 以後的發行版都能跑，相容性最廣，檔名不帶發行版：`securibit_0.3.0_amd64.deb`、`Securibit-0.3.0-linux-x64.tar.gz`
+- 其他發行版建出來的只保證在同一版（或更新）上能跑，檔名會加上發行版：`securibit_0.3.0_debian-12_amd64.deb`、`Securibit-0.3.0-linux-debian-12-x64.tar.gz`
+- 每個發行版有自己的映像檔（`securibit-linux:<Flutter 版本>-<DISTRO>-<arch>`，各約 4 GB）與 volume（`securibit-<DISTRO>-<arch>-work`、`-pub-cache`、`-cargo-registry`、`-cargo-git`），不互相影響；`make docker-clean DISTRO=… ARCH=…` 刪掉該組 volume
+- 直接在主機上建置時不看 `DISTRO`，用主機本身的系統：檔名的發行版取自 `/etc/os-release`（`<ID>-<VERSION_ID>`），在 Ubuntu 22.04 上不加，其他系統例如 Debian 12 會是 `securibit_0.3.0_debian-12_amd64.deb`
+
+#### 在另一台 Linux 上建置：`REMOTE=`
+
+在 Mac 或沒有 Docker 的電腦上，可以借另一台 Linux（有 Docker，或有 Flutter 與 Rust）建置：
+
+```bash
+make deb REMOTE=user@192.168.1.20
+make deb REMOTE=user@192.168.1.20 REMOTE_SSH_OPTS='-i ~/.ssh/id_ed25519' DISTRO=debian-12
+```
+
+- 先用 rsync 把原始碼（含 `env.json`）同步到遠端的 `REMOTE_DIR`（預設 `~/securibit-build`），不帶 `.git`、`build`、`dist`、`.dart_tool`、`rust/target`、其他平台的資料夾與 `local.mk`
+- 再 ssh 到遠端跑同一個 make 目標，有指定的 `ARCH`、`DISTRO`、`LINUX_DOCKER` 會一起傳過去；沒指定時由遠端自己決定（例如 `ARCH` 用遠端的架構、自動選直接建置或 Docker）
+- 完成後把遠端這次的產出拉回本機 `dist/`
+- 遠端要有 `rsync` 與 `make`；`make deb-check REMOTE=…` 也可以直接在遠端跑安裝檢查
+- 常用的設定可以寫在 `local.mk`（已列在 `.gitignore`），之後只要打 `make deb`：
 
   ```bash
-  sudo apt install clang cmake ninja-build pkg-config libgtk-3-dev libsecret-1-dev libjsoncpp-dev \
-    libayatana-appindicator3-dev dpkg-dev
-  # Rust 核心：https://rustup.rs 安裝 rustup，會一起裝好 cargo
+  cp local.mk.example local.mk    # 填入 REMOTE、REMOTE_SSH_OPTS 等
   ```
 
-  也可以 `LINUX_DOCKER=1` 一樣用 Docker 建置
+#### GitHub Actions
 
-打包內容：
+不想在自己的電腦上建置的話，用 GitHub Actions（`.github/workflows/linux.yml`）：在 GitHub 的 Ubuntu 22.04 主機上直接建置 x64 與 arm64（和 `make linux-deps`、`make linux-all` 相同的流程），跑完安裝檢查，產出放在該次執行的 Artifacts。到 Actions → Linux → Run workflow 手動執行，或 push `v*` 標籤時自動建置並附到 Release。第一次要先在 repo 的 Settings → Secrets and variables → Actions 設定 `SUPABASE_URL`、`SUPABASE_ANON_KEY`、`GOOGLE_WEB_CLIENT_ID`。
 
+#### 打包內容與檢查
+
+- Docker 的建置環境在 `docker/linux.Dockerfile`：`DISTRO` 對應的發行版、和主機相同版本的 Flutter（讀 `flutter --version`，讀不到時用 3.35.3）、clang、cmake、ninja、GTK 3、libsecret、ayatana appindicator，以及 rustup 與 cargo（Rust 核心要用）
 - `.deb`：程式裝在 `/opt/securibit`，`/usr/bin/securibit` 指向它，另外有 `.desktop` 與 48、128、256、512 的 hicolor 圖示（`linux/packaging/`）。
   `Depends` 由 `dpkg-shlibdeps` 依實際連結的函式庫算出來（GTK 3、libsecret、ayatana appindicator 等），再加上執行時才載入的 libEGL、libGL；`Recommends: gnome-keyring`
 
-檢查打包結果（都在 Docker 裡）：
+檢查打包結果（都在 Docker 裡，`ARCH`、`DISTRO` 要和建置時相同）：
 
 ```bash
-make linux-smoke ARCH=arm64     # 在 Xvfb 裡實際開 App：視窗大小與標題、系統匣選單、關視窗藏到系統匣、再開一次叫回視窗、結束；截圖在 build/linux-smoke/
-make deb-check ARCH=arm64       # 在乾淨的 Ubuntu 22.04／24.04、Debian 12／13 裡 apt install .deb 並啟動
+make linux-smoke                 # 在 Xvfb 裡實際開 App：視窗大小與標題、系統匣選單、關視窗藏到系統匣、再開一次叫回視窗、結束；截圖在 build/linux-smoke/
+make deb-check                   # 在乾淨的 Ubuntu 22.04／24.04、Debian 12／13 裡 apt install .deb 並啟動
+make deb-check DISTRO=debian-12  # 其他發行版建的 .deb 只在同一個發行版裡檢查
 ```
 
 登入狀態存在系統金鑰圈（Secret Service，例如 gnome-keyring 或 KWallet），系統沒有的話登入狀態會改存一般設定檔，離線快取和「記住密語」會失效且不會提示，請確認桌面環境有在跑 gnome-keyring 或 KWallet。
