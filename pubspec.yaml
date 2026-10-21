@@ -2,7 +2,7 @@ name: securibit
 description: "Securibit 兩步驟驗證器（iOS、Android、macOS、Linux），後端與網站共用 Supabase。"
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 1.1.0+2
 
 environment:
   sdk: ^3.9.0
@@ -27,6 +27,9 @@ dependencies:
   securibit_api:
     path: rust_builder
   flutter_rust_bridge: 2.13.0
+  qr_flutter: ^4.1.0
+  file_picker: ^11.0.3
+  share_plus: ^12.0.2
 
 dev_dependencies:
   flutter_test:
