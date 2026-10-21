@@ -312,7 +312,7 @@ class _GroupVisualState extends State<_GroupVisual> {
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
             child: Text.rich(
               TextSpan(children: [
-                const TextSpan(text: 'Bityo 公司帳號', style: TextStyle(fontWeight: FontWeight.w600)),
+                const TextSpan(text: '幣友 BITYO 團隊帳號', style: TextStyle(fontWeight: FontWeight.w600)),
                 TextSpan(text: ' · ${_members.length} 位成員', style: TextStyle(color: colors.inkMuted)),
               ]),
               style: const TextStyle(fontSize: AppText.body),

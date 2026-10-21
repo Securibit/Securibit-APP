@@ -330,7 +330,10 @@ Linux 版用同一份選單內容常駐在系統匣（Ayatana AppIndicator，原
 - GNOME 要先安裝 [AppIndicator 擴充功能](https://extensions.gnome.org/extension/615/appindicator-support/)（Ubuntu 已內建）才看得到圖示；KDE、XFCE、Cinnamon 可以直接使用
 
 ## 開發者
+由幣友 BITYO 與靈魂之神工作室共同開發。
+
 - 夏特稀 — <https://github.com/mmm25002500>
+- 糖豆魚 — <https://github.com/PTDTW>
 
 ## 貢獻
 有問題就開 issue。要改東西的話 fork 出去開分支發 PR，commit 訊息寫清楚、確認 `flutter analyze` 與 `flutter test` 都過了再丟。
