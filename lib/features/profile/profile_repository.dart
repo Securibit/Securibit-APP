@@ -1,9 +1,12 @@
+import 'package:supabase_flutter/supabase_flutter.dart' show SignOutScope;
+
 import '../../core/json.dart';
 import '../../core/result.dart';
 import '../../core/rpc.dart';
 import '../admin/admin_format.dart';
 import '../admin/admin_models.dart';
 import 'profile_models.dart';
+import 'session_models.dart';
 
 /*
  * 自己的個人資料、@ID、活動紀錄與別人的公開資料（同網站 src/lib/totp/account.ts、src/lib/users/）
@@ -66,6 +69,50 @@ Future<Result<List<AccountActivity>>> loadMyAccountActivity(int? beforeId, int p
       (data) => asMapList(data).map(AccountActivity.fromJson).toList(),
       {'before_id': beforeId, 'page_size': pageSize},
     );
+
+// ---------- 已登入的裝置（0019） ----------
+
+/// 自己所有登入中的 session（這台排第一）
+Future<Result<List<SessionRecord>>> loadMySessions() => rpc(
+      'list_my_sessions',
+      (data) => asMapList(data).map(SessionRecord.fromJson).toList(),
+    );
+
+/// 登出某一台裝置（不能是這台）
+Future<Result<void>> revokeMySession(String sessionId) => rpcVoid('revoke_my_session', {'session_id': sessionId});
+
+/// 登出這台以外的所有裝置（Auth API，這台的 session 保留）
+Future<Result<void>> signOutOtherSessions() async {
+  try {
+    await supabase.auth.signOut(scope: SignOutScope.others).timeout(const Duration(seconds: 20));
+    return const Ok(null);
+  } catch (error) {
+    return errorResult(error);
+  }
+}
+
+/// 記下目前這個 session 是哪台裝置（RLS 只允許寫自己目前的 session）
+Future<Result<void>> saveSessionDevice({
+  required String sessionId,
+  required String userId,
+  required String deviceName,
+  required String platform,
+  required String appVersion,
+}) async {
+  try {
+    await supabase.from('session_devices').upsert({
+      'session_id': sessionId,
+      'user_id': userId,
+      'device_name': deviceName,
+      'platform': platform,
+      'app_version': appVersion,
+      'last_seen_at': DateTime.now().toUtc().toIso8601String(),
+    }, onConflict: 'session_id').timeout(const Duration(seconds: 20));
+    return const Ok(null);
+  } catch (error) {
+    return errorResult(error);
+  }
+}
 
 // ---------- 別人的公開資料 ----------
 

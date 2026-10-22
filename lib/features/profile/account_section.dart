@@ -28,7 +28,7 @@ Future<void> openUsernameEdit(BuildContext context, Profile profile) =>
 /*
  * 設定頁最上面的帳戶資料（同網站個人頁面的 PersonalCard 與 /me/update_info）：
  * 身分卡（背景圖、大頭照、名稱、email、編輯），「帳戶」分組（名稱、@ID、UID、Email、電話、身分組），
- * 再來是編輯、活動紀錄與同步 Google 資料。
+ * 再來是編輯、活動紀錄、已登入的裝置與同步 Google 資料。
  */
 class AccountSection extends StatelessWidget {
   const AccountSection({super.key, required this.profile});
@@ -84,6 +84,11 @@ class AccountSection extends StatelessWidget {
             GroupedRow(
               label: '活動紀錄',
               onTap: () => openActivity(context),
+              trailing: Icon(Icons.chevron_right_rounded, color: colors.inkMuted),
+            ),
+            GroupedRow(
+              label: '已登入的裝置',
+              onTap: () => openDevices(context),
               trailing: Icon(Icons.chevron_right_rounded, color: colors.inkMuted),
             ),
             const _SyncGoogleRow(),

@@ -4,11 +4,12 @@ import 'package:provider/provider.dart';
 import '../auth/auth_controller.dart';
 import '../settings/settings_view.dart';
 import 'activity_page.dart';
+import 'devices_page.dart';
 import 'profile_frame.dart';
 import 'user_profile_page.dart';
 
 /*
- * 個人資料的入口：其他畫面只透過這裡打開別人的個人頁面與自己的活動紀錄
+ * 個人資料的入口：其他畫面只透過這裡打開別人的個人頁面、自己的活動紀錄與已登入的裝置
  */
 
 /// 打開某個使用者的個人頁；是自己時打開設定（自己的帳戶資料在那裡）
@@ -24,4 +25,9 @@ Future<void> openUserProfile(BuildContext context, String userId) async {
 /// 打開自己的登入紀錄與帳號操作紀錄
 Future<void> openActivity(BuildContext context) async {
   await showProfilePage(context, (inDialog) => ActivityPage(inDialog: inDialog));
+}
+
+/// 打開自己已登入的裝置
+Future<void> openDevices(BuildContext context) async {
+  await showProfilePage(context, (inDialog) => DevicesPage(inDialog: inDialog));
 }
