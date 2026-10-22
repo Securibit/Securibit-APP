@@ -108,6 +108,18 @@ class DesktopTray {
     }
   }
 
+  /// Mac 上方「顯示方式」選單的「顯示／隱藏側邊欄」：available 是現在有沒有可以收起來的側欄（桌面寬視窗）
+  static Future<void> setSidebar({required bool available, required bool collapsed}) async {
+    if (TrayPlatform.current != TrayPlatform.macos) return;
+    try {
+      await channel.invokeMethod<void>('setSidebar', {'available': available, 'collapsed': collapsed});
+    } on MissingPluginException {
+      // 測試環境沒有原生端
+    } on PlatformException {
+      // 下次再送
+    }
+  }
+
   /// 把算好的選單內容交給原生端（只有顯示用的文字）
   static Future<void> update(Map<String, Object?> model) async {
     if (!supported) return;

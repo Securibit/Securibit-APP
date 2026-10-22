@@ -17,13 +17,16 @@ import 'groups_controller.dart';
  * 側欄（桌面的左欄、手機的 Drawer）：群組清單（照 my_groups 的順序）、待回覆的邀請，最下面是帳戶。
  * 預設群組標「預設」，加密的群組有鎖頭。群組標題旁的「＋」新增群組或用邀請加入；
  * 群組列按右鍵、「…」或長按（手機）打開管理群組、邀請成員、調整順序。
+ * 桌面寬視窗的側欄可以收起來，收起鍵放在最上面一列的右邊（headerAction）。
  */
 class GroupSidebar extends StatelessWidget {
-  const GroupSidebar({super.key, required this.onOpenSettings, this.onSelected});
+  const GroupSidebar({super.key, required this.onOpenSettings, this.onSelected, this.headerAction});
 
   final VoidCallback onOpenSettings;
   // 選了群組之後（手機要關掉 Drawer）
   final VoidCallback? onSelected;
+  // 最上面一列右邊的按鈕（桌面寬視窗的收起側欄）
+  final Widget? headerAction;
 
   @override
   Widget build(BuildContext context) {
@@ -40,7 +43,10 @@ class GroupSidebar extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 16, 12),
+              padding: headerAction == null
+                  ? const EdgeInsets.fromLTRB(20, 16, 16, 12)
+                  // 按鈕比 Logo 高，上下少留一點，整列一樣高
+                  : const EdgeInsets.fromLTRB(20, 10, 8, 6),
               child: Row(
                 children: [
                   const AppLogo(size: 28),
@@ -51,6 +57,7 @@ class GroupSidebar extends StatelessWidget {
                     const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                   else if (groups.offline)
                     Tooltip(message: '目前離線', child: Icon(Icons.cloud_off_rounded, size: 18, color: colors.inkMuted)),
+                  if (headerAction != null) ...[const SizedBox(width: 4), headerAction!],
                 ],
               ),
             ),

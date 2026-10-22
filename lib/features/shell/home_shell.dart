@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/platform.dart';
 import '../../core/theme/tokens.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/feedback.dart';
@@ -23,11 +24,13 @@ import '../groups/group_tabs.dart';
 import '../groups/groups_controller.dart';
 import '../groups/manage/group_entry.dart';
 import '../links/deep_link_host.dart';
+import '../settings/settings_controller.dart';
 import '../settings/settings_view.dart';
+import 'collapsible_sidebar.dart';
 
 /*
  * 主畫面，依視窗寬度排版（參考 Proton Pass 桌面版）：
- * - 寬（≥ 1000）：左側欄（群組、帳戶）｜中間驗證碼清單｜右邊詳細資料
+ * - 寬（≥ 1000）：左側欄（群組、帳戶）｜中間驗證碼清單｜右邊詳細資料；桌面版的側欄可以收起來（見 CollapsibleSidebar）
  * - 中（≥ 720）：側欄收進 Drawer｜清單｜詳細資料
  * - 窄（手機）：側欄收進 Drawer，主畫面是清單，點一筆開下一頁
  * 沒有左側欄時，有兩個以上的群組（或有待回覆的邀請，選單鍵才看得到數字）就在最上面放一排可以滑動切換的群組分頁
@@ -74,6 +77,7 @@ class _HomeShellState extends State<HomeShell> {
     final group = context.select<GroupsController, GroupSummary?>((g) => g.selected);
     final groupCount = context.select<GroupsController, int>((g) => g.groups?.length ?? 0);
     final pendingInvitations = context.select<GroupsController, int>((g) => g.pendingInvitations);
+    final sidebarCollapsed = context.select<SettingsController, bool>((s) => s.sidebarCollapsed);
     // 手機的側欄收在 Drawer 裡（打開才建立），全站權限（能不能建立群組）在這裡先讀
     final uid = context.select<AuthController, String?>((a) => a.profile?.uid);
     final access = SiteAccessController.shared;
@@ -90,6 +94,9 @@ class _HomeShellState extends State<HomeShell> {
         // 分頁列放在換群組時不會重建的地方，底色才滑得過去；選單鍵也移到分頁列
         final tabs = !wide && group != null && (groupCount > 1 || pendingInvitations > 0);
         final listMenu = wide || tabs ? null : openDrawer;
+        // 桌面寬視窗的側欄可以收起來；收起來時清單左上角放「顯示側邊欄」
+        final collapsible = wide && AppPlatform.isDesktop;
+        final showSidebarButton = collapsible && sidebarCollapsed ? SidebarToggleButton(badgeCount: pendingInvitations) : null;
 
         final sidebar = AdminSidebarEntry(
           onOpen: () {
@@ -102,12 +109,13 @@ class _HomeShellState extends State<HomeShell> {
               openSettings(context);
             },
             onSelected: wide ? null : closeDrawer,
+            headerAction: collapsible ? const SidebarToggleButton() : null,
           ),
         );
 
         Widget content;
         if (group == null) {
-          content = _NoGroup(onMenu: wide ? null : openDrawer);
+          content = _NoGroup(onMenu: wide ? null : openDrawer, leading: showSidebarButton);
         } else {
           final vertical = VerticalDivider(width: 0.5, thickness: 0.5, color: colors.line.withValues(alpha: 0.6));
           content = CodesScope(
@@ -127,7 +135,7 @@ class _HomeShellState extends State<HomeShell> {
                           openId: id,
                           listWidth: listWidth,
                           divider: vertical,
-                          list: CodeListPane(onOpen: controller.select, onMenu: listMenu),
+                          list: CodeListPane(onOpen: controller.select, onMenu: listMenu, leading: showSidebarButton),
                           detailBuilder: (shownId) => CodeDetailView(
                             accountId: shownId,
                             onClose: () => controller.select(null),
@@ -158,27 +166,35 @@ class _HomeShellState extends State<HomeShell> {
           );
         }
 
+        final Widget body;
+        if (collapsible) {
+          body = CollapsibleSidebar(sidebar: sidebar, child: SafeArea(left: false, child: content));
+        } else if (wide) {
+          // 平板的寬版面：側欄一直顯示
+          body = Row(
+            children: [
+              SizedBox(width: 260, child: sidebar),
+              VerticalDivider(width: 0.5, thickness: 0.5, color: colors.line.withValues(alpha: 0.6)),
+              Expanded(child: SafeArea(left: false, child: content)),
+            ],
+          );
+        } else {
+          body = SafeArea(
+            // 一直用 Column：分頁列出現或消失時，下面的清單不會整個重建
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (tabs) GroupTabBar(onMenu: openDrawer),
+                Expanded(child: content),
+              ],
+            ),
+          );
+        }
+
         return Scaffold(
           key: _scaffoldKey,
           drawer: wide ? null : Drawer(width: 300, child: sidebar),
-          body: wide
-              ? Row(
-                  children: [
-                    SizedBox(width: 260, child: sidebar),
-                    VerticalDivider(width: 0.5, thickness: 0.5, color: colors.line.withValues(alpha: 0.6)),
-                    Expanded(child: SafeArea(left: false, child: content)),
-                  ],
-                )
-              : SafeArea(
-                  // 一直用 Column：分頁列出現或消失時，下面的清單不會整個重建
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      if (tabs) GroupTabBar(onMenu: openDrawer),
-                      Expanded(child: content),
-                    ],
-                  ),
-                ),
+          body: body,
         );
       },
     );
@@ -201,9 +217,11 @@ class _DetailPage extends StatelessWidget {
 
 // 還沒有可以顯示的群組：載入中、失敗或一個群組都沒有
 class _NoGroup extends StatelessWidget {
-  const _NoGroup({this.onMenu});
+  const _NoGroup({this.onMenu, this.leading});
 
   final VoidCallback? onMenu;
+  // 沒有 onMenu 時左上角的按鈕（收起側欄後的「顯示側邊欄」）
+  final Widget? leading;
 
   @override
   Widget build(BuildContext context) {
@@ -261,12 +279,12 @@ class _NoGroup extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (onMenu != null)
+        if (onMenu != null || leading != null)
           Align(
             alignment: Alignment.centerLeft,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(4, 12, 0, 0),
-              child: MenuButtonWithBadge(onPressed: onMenu!),
+              child: onMenu != null ? MenuButtonWithBadge(onPressed: onMenu!) : leading,
             ),
           ),
         Expanded(child: Align(alignment: Alignment.topCenter, child: body)),

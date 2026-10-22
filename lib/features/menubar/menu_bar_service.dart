@@ -10,6 +10,7 @@ import '../auth/auth_controller.dart';
 import '../groups/groups_controller.dart';
 import '../settings/settings_controller.dart';
 import '../settings/settings_view.dart';
+import '../shell/collapsible_sidebar.dart';
 import '../update/update_controller.dart';
 import '../update/update_dialog.dart';
 import '../vault/vault_controller.dart';
@@ -24,6 +25,7 @@ import 'menu_bar_model.dart';
  * - Linux 不一定知道選單什麼時候打開，主視窗藏起來時也當作開著，每秒送完整內容（見 DesktopTray.refreshWhileHidden）
  * - 點了某一筆（copy）：在這裡（由 Rust）算當下的碼並複製，原生端與 Dart 都不會拿到金鑰
  * - 主視窗藏起來或重新顯示時通知 App 鎖定（見 WindowVisibility）
+ * - Mac 上方「顯示方式」選單的「顯示／隱藏側邊欄」：側欄狀態有變就告訴原生端（標題、能不能按），點了由這裡切換
  */
 class MenuBarService {
   MenuBarService({
@@ -46,6 +48,8 @@ class MenuBarService {
   bool _open = false;
   bool _pushScheduled = false;
   String? _lastPushed;
+  // 上次告訴原生端的側欄狀態
+  (bool, bool)? _lastSidebar;
 
   void start() {
     if (!DesktopTray.supported) return;
@@ -56,6 +60,19 @@ class MenuBarService {
     // 網站或其他裝置改了驗證碼（即時通知；輪詢的檢查不算，避免每分鐘多記一筆「查看金鑰」）
     groups.codesSignals.where((s) => s.confirmed).listen((s) => codes.markStale(s.groupId));
     _onChanged();
+    if (TrayPlatform.current == TrayPlatform.macos) {
+      settings.addListener(_syncSidebar);
+      SidebarCommands.available.addListener(_syncSidebar);
+      _syncSidebar();
+    }
+  }
+
+  // 原生選單的「顯示側邊欄／隱藏側邊欄」跟著現在的狀態；沒有側欄（窄視窗、還沒登入）時變灰
+  void _syncSidebar() {
+    final state = (SidebarCommands.available.value, settings.sidebarCollapsed);
+    if (state == _lastSidebar) return;
+    _lastSidebar = state;
+    unawaited(DesktopTray.setSidebar(available: state.$1, collapsed: state.$2));
   }
 
   bool get _active => settings.showInMenuBar;
@@ -148,6 +165,9 @@ class MenuBarService {
         return null;
       case 'checkForUpdates':
         _checkForUpdates();
+        return null;
+      case 'toggleSidebar':
+        if (SidebarCommands.available.value) settings.toggleSidebar();
         return null;
       case 'windowWillHide':
         WindowVisibility.visible.value = false;

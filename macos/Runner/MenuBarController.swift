@@ -30,6 +30,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
   // 主視窗是不是被藏起來了
   private var windowHidden = false
   private var copiedReset: DispatchWorkItem?
+  // 上方「顯示方式」選單的「顯示／隱藏側邊欄」：狀態由 Dart 告訴（setSidebar），點了請 Dart 切換
+  private var sidebarItem: NSMenuItem?
+  private var sidebarAvailable = false
+  private var sidebarCollapsed = false
 
   func attach(window: NSWindow, messenger: FlutterBinaryMessenger) {
     self.window = window
@@ -63,6 +67,11 @@ final class MenuBarController: NSObject, NSMenuDelegate {
       setLaunchAtLogin(args?["enabled"] as? Bool ?? false, result: result)
     case "showWindow":
       showMainWindow()
+      result(nil)
+    case "setSidebar":
+      sidebarAvailable = args?["available"] as? Bool ?? false
+      sidebarCollapsed = args?["collapsed"] as? Bool ?? false
+      updateSidebarItem()
       result(nil)
     case "openLoginItemsSettings":
       if #available(macOS 13.0, *) { SMAppService.openSystemSettingsLoginItems() }
@@ -399,7 +408,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 extension MenuBarController {
   private static let repoURL = "https://github.com/Securibit/Securibit-APP"
 
-  /// Securibit（關於、檢查更新、設定、服務、隱藏、結束）、編輯、顯示方式、視窗、說明
+  /// Securibit（關於、檢查更新、設定、服務、隱藏、結束）、編輯、顯示方式（側邊欄、全螢幕）、視窗、說明
   func installMainMenu() {
     let main = NSMenu()
 
@@ -435,6 +444,13 @@ extension MenuBarController {
     main.addItem(submenuItem("編輯", edit))
 
     let view = NSMenu(title: "顯示方式")
+    // ⌃⌘S 同系統的「顯示／隱藏側邊欄」；Flutter 先收到按鍵，Dart 處理了就不會再觸發這裡
+    let sidebar = menuItem("隱藏側邊欄", #selector(toggleSidebar), key: "s")
+    sidebar.keyEquivalentModifierMask = [.command, .control]
+    view.addItem(sidebar)
+    sidebarItem = sidebar
+    updateSidebarItem()
+    view.addItem(.separator())
     let fullScreen = standardItem("進入全螢幕", #selector(NSWindow.toggleFullScreen(_:)), key: "f")
     fullScreen.keyEquivalentModifierMask = [.command, .control]
     view.addItem(fullScreen)
@@ -492,6 +508,14 @@ extension MenuBarController {
     NSApp.orderFrontStandardAboutPanel(options: [.applicationName: "Securibit", .credits: credits])
   }
 
+  private func updateSidebarItem() {
+    sidebarItem?.title = sidebarCollapsed ? "顯示側邊欄" : "隱藏側邊欄"
+  }
+
+  @objc private func toggleSidebar() {
+    channel?.invokeMethod("toggleSidebar", arguments: nil)
+  }
+
   @objc private func checkForUpdates() {
     showMainWindow()
     channel?.invokeMethod("checkForUpdates", arguments: nil)
@@ -503,5 +527,15 @@ extension MenuBarController {
 
   @objc private func openIssues() {
     NSWorkspace.shared.open(URL(string: Self.repoURL + "/issues")!)
+  }
+}
+
+// MARK: - 上方選單的項目能不能按
+
+extension MenuBarController: NSMenuItemValidation {
+  // 只有上方選單會問（選單列圖示的選單關掉了 autoenablesItems）；沒有可以收起來的側欄時變灰
+  func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+    if menuItem.action == #selector(toggleSidebar) { return sidebarAvailable }
+    return true
   }
 }
