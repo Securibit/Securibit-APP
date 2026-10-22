@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/theme/tokens.dart';
 import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/feedback.dart';
 import '../admin/admin_entry.dart';
 import '../admin/admin_page.dart';
 import '../admin/permission_defs.dart';
@@ -21,6 +22,7 @@ import '../groups/group_sidebar.dart';
 import '../groups/group_tabs.dart';
 import '../groups/groups_controller.dart';
 import '../groups/manage/group_entry.dart';
+import '../links/deep_link_host.dart';
 import '../settings/settings_view.dart';
 
 /*
@@ -42,6 +44,29 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   final _scaffoldKey = GlobalKey<ScaffoldState>();
+  late final GroupsController _groups = context.read<GroupsController>();
+  late bool _offline = _groups.offline;
+
+  @override
+  void initState() {
+    super.initState();
+    _groups.addListener(_onGroupsChanged);
+  }
+
+  @override
+  void dispose() {
+    _groups.removeListener(_onGroupsChanged);
+    super.dispose();
+  }
+
+  // 斷線或連回來時提示一次（每分鐘的同步與回到前景時發現）
+  void _onGroupsChanged() {
+    final offline = _groups.offline;
+    if (offline == _offline) return;
+    _offline = offline;
+    if (!mounted) return;
+    showToast(context, offline ? '沒有網路，無法同步，先顯示上次同步的資料' : '已重新連線，資料已同步');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -87,45 +112,48 @@ class _HomeShellState extends State<HomeShell> {
           final vertical = VerticalDivider(width: 0.5, thickness: 0.5, color: colors.line.withValues(alpha: 0.6));
           content = CodesScope(
             group: group,
-            child: Builder(
-              builder: (context) {
-                final controller = context.read<CodesController>();
-                if (wide || medium) {
-                  // 右欄預設收起來，清單佔滿；點了一筆才從右邊往左滑進來，按關閉或刪掉那筆就往右滑回去
-                  final listWidth = wide ? ((width - 260) * 0.45).clamp(380.0, 460.0) : 380.0;
-                  return Selector<CodesController, String?>(
-                    selector: (_, c) => c.locked ? null : c.openId,
-                    builder: (context, id, _) {
-                      final split = _SplitPane(
-                        openId: id,
-                        listWidth: listWidth,
-                        divider: vertical,
-                        list: CodeListPane(onOpen: controller.select, onMenu: listMenu),
-                        detailBuilder: (shownId) => CodeDetailView(
-                          accountId: shownId,
-                          onClose: () => controller.select(null),
-                          onClosed: () => controller.select(null),
+            // 從 otpauth 連結新增驗證碼：選好群組後在這裡打開新增表單（見 CodeLinkHost）
+            child: CodeLinkHost(
+              child: Builder(
+                builder: (context) {
+                  final controller = context.read<CodesController>();
+                  if (wide || medium) {
+                    // 右欄預設收起來，清單佔滿；點了一筆才從右邊往左滑進來，按關閉或刪掉那筆就往右滑回去
+                    final listWidth = wide ? ((width - 260) * 0.45).clamp(380.0, 460.0) : 380.0;
+                    return Selector<CodesController, String?>(
+                      selector: (_, c) => c.locked ? null : c.openId,
+                      builder: (context, id, _) {
+                        final split = _SplitPane(
+                          openId: id,
+                          listWidth: listWidth,
+                          divider: vertical,
+                          list: CodeListPane(onOpen: controller.select, onMenu: listMenu),
+                          detailBuilder: (shownId) => CodeDetailView(
+                            accountId: shownId,
+                            onClose: () => controller.select(null),
+                            onClosed: () => controller.select(null),
+                          ),
+                        );
+                        // 一直包著同一層，打開或收起時 _SplitPane 才不會被重建（重建就沒有動畫）
+                        return _EscapeToClose(enabled: id != null, onEscape: () => controller.select(null), child: split);
+                      },
+                    );
+                  }
+                  return CodeListPane(
+                    onMenu: listMenu,
+                    highlightSelection: false,
+                    onOpen: (id) {
+                      controller.select(id);
+                      Navigator.of(context).push(MaterialPageRoute<void>(
+                        builder: (_) => ChangeNotifierProvider<CodesController>.value(
+                          value: controller,
+                          child: _DetailPage(accountId: id),
                         ),
-                      );
-                      // 一直包著同一層，打開或收起時 _SplitPane 才不會被重建（重建就沒有動畫）
-                      return _EscapeToClose(enabled: id != null, onEscape: () => controller.select(null), child: split);
+                      ));
                     },
                   );
-                }
-                return CodeListPane(
-                  onMenu: listMenu,
-                  highlightSelection: false,
-                  onOpen: (id) {
-                    controller.select(id);
-                    Navigator.of(context).push(MaterialPageRoute<void>(
-                      builder: (_) => ChangeNotifierProvider<CodesController>.value(
-                        value: controller,
-                        child: _DetailPage(accountId: id),
-                      ),
-                    ));
-                  },
-                );
-              },
+                },
+              ),
             ),
           );
         }

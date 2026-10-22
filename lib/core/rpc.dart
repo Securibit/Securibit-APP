@@ -28,7 +28,9 @@ Err<T> errorResult<T>(Object error, {String? function}) {
     return Err<T>(error.message);
   }
   if (error is AuthException) {
-    return _isNetworkMessage(error.message) ? Err<T>(offlineMessage, offline: true) : Err<T>(error.message);
+    // 登入 token 過期又暫時換不到新的（沒網路、伺服器忙）：當成離線，改用離線快取，不要擋在錯誤畫面
+    final offline = error is AuthRetryableFetchException || _isNetworkMessage(error.message);
+    return offline ? Err<T>(offlineMessage, offline: true) : Err<T>(error.message);
   }
   return Err<T>('發生錯誤：$error');
 }

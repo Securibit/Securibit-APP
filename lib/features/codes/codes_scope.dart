@@ -4,10 +4,12 @@ import 'package:provider/provider.dart';
 import '../auth/auth_controller.dart';
 import '../cache/offline_cache.dart';
 import '../groups/group_models.dart';
+import '../groups/groups_controller.dart';
 import '../vault/vault_controller.dart';
 import 'codes_controller.dart';
 
-/// 為選中的群組建立 CodesController；換群組、解鎖或鎖定時整個換新的
+/// 為選中的群組建立 CodesController；換群組、解鎖或鎖定時整個換新的。
+/// 網站或其他裝置改了這個群組時由 GroupsController 通知背景同步（同一個 controller，不會閃讀取中）
 class CodesScope extends StatelessWidget {
   const CodesScope({super.key, required this.group, required this.child});
 
@@ -26,6 +28,7 @@ class CodesScope extends StatelessWidget {
         uid: uid,
         vaultKeyId: vaultKeyId,
         cache: context.read<OfflineCache>(),
+        signals: context.read<GroupsController>().codesSignals,
       ),
       child: child,
     );

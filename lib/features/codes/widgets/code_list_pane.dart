@@ -83,7 +83,7 @@ class _CodeListPaneState extends State<CodeListPane> {
     }
 
     final banners = <Widget>[
-      if (controller.offline) _Banner(text: '目前離線，顯示上次載入的驗證碼'),
+      if (controller.offline) _Banner(text: '沒有網路，無法同步，顯示的是上次同步的驗證碼'),
       if (controller.error != null) _Banner(text: controller.error!, alarm: true, onClose: controller.clearError),
     ];
 
