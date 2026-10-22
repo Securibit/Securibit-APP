@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- GitHub 版才有的自動更新（Google Play 版不合併這份，見 build.gradle.kts 的 distribution）：
+     下載好的 APK 用 FileProvider 交給系統的安裝畫面（MainActivity.kt 的 securibit/update），
+     要 REQUEST_INSTALL_PACKAGES 才能打開；Google Play 不允許 App 自己下載更新，也限制這個權限。 -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
+
+    <application>
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.updates"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/update_paths"/>
+        </provider>
+    </application>
+</manifest>

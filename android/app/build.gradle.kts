@@ -13,6 +13,12 @@ val keyProperties = Properties().apply {
     if (file.exists()) file.inputStream().use { load(it) }
 }
 
+// 發行管道：github（預設，App 自己下載、驗證並安裝更新）或 play（上架 Google Play，不含自我更新）。
+// play 版：flutter build appbundle --android-project-arg=distribution=play（make aab-play）。
+// 不用 product flavor：flavor 會讓每次 flutter run／build 都得加 --flavor，pubspec 的 default-flavor 又會套到 macOS、iOS 而建置失敗
+val distribution = (project.findProperty("distribution") as String?) ?: "github"
+require(distribution == "github" || distribution == "play") { "distribution 只能是 github 或 play" }
+
 android {
     namespace = "com.bityo.securibit"
     compileSdk = 36
@@ -51,6 +57,14 @@ android {
         release {
             signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
+    }
+}
+
+// GitHub 版才合併 src/selfUpdate/AndroidManifest.xml（REQUEST_INSTALL_PACKAGES 與 FileProvider）；
+// App 執行時看 manifest 有沒有這個權限決定要不要檢查更新（MainActivity.kt 的 selfUpdate），兩邊不會對不上
+androidComponents {
+    onVariants { variant ->
+        if (distribution == "github") variant.sources.manifests.addStaticManifestFile("src/selfUpdate/AndroidManifest.xml")
     }
 }
 

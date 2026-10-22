@@ -85,10 +85,29 @@ void main() {
       expect(AppRelease.fromJson(null), isNull);
     });
 
-    test('Markdown 轉成純文字', () {
-      const markdown = '## 新功能\r\n\r\n- **檢查更新**：看 [GitHub](https://github.com)\r\n* 修正 `otpauth` 解析\r\n\r\n\r\n\r\n<!-- 註解 -->結尾 ##';
-      expect(plainReleaseNotes(markdown), '新功能\n\n・檢查更新：看 GitHub\n・修正 otpauth 解析\n\n結尾');
-      expect(plainReleaseNotes('   '), '');
+    test('Markdown 拆成標題、段落、清單與表格，「下載」段落拿掉', () {
+      const markdown = '說明第一段\r\n\r\n## 新功能\r\n\r\n**群組**\r\n- **檢查更新**：看 [GitHub](https://github.com)\r\n  - 子項目\r\n1. 第一步\r\n\r\n'
+          '## 下載\r\n\r\n| 平台 | 檔案 |\r\n|---|---|\r\n| macOS | `a.dmg` |\r\n\r\n## 注意\r\n\r\n| 甲 | 乙 |\r\n|:--|--:|\r\n| 1 | 2 |\r\n<!-- 註解 -->結尾 ##';
+      final blocks = releaseNoteBlocks(markdown);
+      expect([for (final b in blocks) b.type], [
+        NoteBlockType.paragraph,
+        NoteBlockType.heading,
+        NoteBlockType.paragraph,
+        NoteBlockType.bullet,
+        NoteBlockType.bullet,
+        NoteBlockType.bullet,
+        NoteBlockType.heading,
+        NoteBlockType.table,
+        NoteBlockType.paragraph,
+      ]);
+      expect(blocks[1].text, '新功能');
+      expect(blocks[3].text, '**檢查更新**：看 [GitHub](https://github.com)');
+      expect((blocks[4].depth, blocks[4].marker), (1, '•'));
+      expect(blocks[5].marker, '1.');
+      expect(blocks[6].text, '注意');
+      expect(blocks[7].rows, [['甲', '乙'], ['1', '2']]);
+      expect(blocks.any((b) => b.text.contains('macOS') || b.rows.any((r) => r.contains('macOS'))), isFalse);
+      expect(releaseNoteBlocks('   '), isEmpty);
     });
   });
 
@@ -104,6 +123,8 @@ void main() {
       'securibit-0.4.0-armeabi-v7a.apk',
       'securibit-0.4.0-x86_64.apk',
       'securibit-0.4.0.aab',
+      'Securibit-0.4.0-windows-x64-setup.exe',
+      'Securibit-0.4.0-windows-x64.zip',
     ];
     final release = _release('v0.4.0', all);
     String file(UpdateTarget target) => release.downloadUrl(target).replaceFirst('https://dl.example/', '');
@@ -134,7 +155,20 @@ void main() {
       expect(_release('v0.4.0', ['securibit-0.4.0-x86_64.apk']).downloadUrl(arm64), 'https://github.com/$_repo/releases/tag/v0.4.0');
     });
 
+    test('Windows：安裝檔裝的先找 setup.exe，免安裝版先找 .zip；缺一種時用另一種', () {
+      expect(file(const UpdateTarget(UpdatePlatform.windows, arch: 'x64', setup: true)), 'Securibit-0.4.0-windows-x64-setup.exe');
+      expect(file(const UpdateTarget(UpdatePlatform.windows, arch: 'x64')), 'Securibit-0.4.0-windows-x64.zip');
+      final setupOnly = _release('v0.4.0', ['Securibit-0.4.0-windows-x64-setup.exe']);
+      expect(setupOnly.downloadUrl(const UpdateTarget(UpdatePlatform.windows, arch: 'x64')), 'https://dl.example/Securibit-0.4.0-windows-x64-setup.exe');
+      final zipOnly = _release('v0.4.0', ['Securibit-0.4.0-windows-x64.zip']);
+      expect(zipOnly.downloadUrl(const UpdateTarget(UpdatePlatform.windows, arch: 'x64', setup: true)), 'https://dl.example/Securibit-0.4.0-windows-x64.zip');
+      // 認不得架構（目前只有 x64）就開 Release 頁面
+      expect(release.downloadUrl(const UpdateTarget(UpdatePlatform.windows, setup: true)), 'https://github.com/$_repo/releases/tag/v0.4.0');
+    });
+
     test('Abi 對到檔名用的架構名稱', () {
+      expect(UpdateTarget.windowsArch(Abi.windowsX64), 'x64');
+      expect(UpdateTarget.windowsArch(Abi.windowsArm64), isNull);
       expect(UpdateTarget.linuxArch(Abi.linuxX64), 'x64');
       expect(UpdateTarget.linuxArch(Abi.linuxArm64), 'arm64');
       expect(UpdateTarget.linuxArch(Abi.linuxRiscv64), isNull);
@@ -241,24 +275,14 @@ void main() {
       expect(controller(target: null, respond: (_) async => json({})).supported, isFalse);
     });
 
-    test('略過的版本：自動檢查不再提示、手動檢查照樣顯示，記在裝置上；更新的版本又會提示', () async {
-      var tag = 'v0.4.0';
-      final updates = controller(respond: (_) async => json(_releaseJson(tag)));
+    test('有新版本時自動檢查每次都提示（不能略過），舊版留下的略過紀錄會清掉', () async {
+      SharedPreferences.setMockInitialValues({'securibit:updateSkipped': '0.4.0'});
+      final updates = controller(respond: (_) async => json(_releaseJson('v0.4.0')));
       await updates.load();
-      final release = (await updates.checkAutomatically())!;
-      await updates.skip(release);
-      expect(updates.skippedVersion, '0.4.0');
-      expect(await updates.checkAutomatically(), isNull);
-      expect((await updates.check())?.version, _v('0.4.0'));
-
-      // 重開 App 還記得
-      final reopened = controller(respond: (_) async => json(_releaseJson(tag)));
-      await reopened.load();
-      expect(reopened.skippedVersion, '0.4.0');
-      expect(await reopened.checkAutomatically(), isNull);
-
-      tag = 'v0.4.1';
-      expect((await reopened.checkAutomatically())?.version, _v('0.4.1'));
+      expect((await updates.checkAutomatically())?.version, _v('0.4.0'));
+      expect((await updates.checkAutomatically())?.version, _v('0.4.0'));
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.containsKey('securibit:updateSkipped'), isFalse);
     });
 
     test('關掉啟動時檢查更新就不自動檢查，設定記在裝置上', () async {
@@ -302,7 +326,7 @@ void main() {
     });
   });
 
-  testWidgets('提示顯示版本與更新內容，「略過這個版本」記下來並關閉', (tester) async {
+  testWidgets('不能自動安裝時的提示：版本與排版後的更新內容，只有「稍後」與「用瀏覽器下載」', (tester) async {
     SharedPreferences.setMockInitialValues({});
     final updates = UpdateController(
       repo: _repo,
@@ -315,21 +339,22 @@ void main() {
     await tester.pumpWidget(MaterialApp(
       theme: buildTheme(Brightness.light),
       home: Builder(
-        builder: (context) => TextButton(onPressed: () => showUpdateDialog(context, updates, release), child: const Text('open')),
+        builder: (context) => TextButton(onPressed: () => showUpdatePrompt(context, updates, release), child: const Text('open')),
       ),
     ));
     await tester.tap(find.text('open'));
     await tester.pumpAndSettle();
-    expect(find.text('有新版本'), findsOneWidget);
+    expect(find.text('有新版本，強烈建議更新'), findsOneWidget);
     expect(find.text('Securibit 0.4.0 已推出，目前是 0.3.0'), findsOneWidget);
-    expect(find.text('新功能\n・檢查更新'), findsOneWidget);
-    for (final label in ['下載', '略過這個版本', '稍後']) {
+    expect(find.text('新功能'), findsOneWidget);
+    expect(find.text('檢查更新', findRichText: true), findsOneWidget);
+    expect(find.text('•'), findsOneWidget);
+    for (final label in ['用瀏覽器下載', '稍後']) {
       expect(find.text(label), findsOneWidget);
     }
-    await tester.tap(find.text('略過這個版本'));
+    expect(find.text('略過這個版本'), findsNothing);
+    await tester.tap(find.text('稍後'));
     await tester.pumpAndSettle();
-    expect(find.text('有新版本'), findsNothing);
-    expect(updates.skippedVersion, '0.4.0');
-    expect(updates.shouldPrompt(release), isFalse);
+    expect(find.text('有新版本，強烈建議更新'), findsNothing);
   });
 }

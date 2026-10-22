@@ -17,5 +17,9 @@ class Env {
   // 檢查更新用的 GitHub repo（owner/name），讀它的 Releases；留空就不檢查更新（自己架後端的人可以關掉或指向自己的 repo）
   static const updateRepo = String.fromEnvironment('UPDATE_REPO');
 
+  // 只在開發測試時用：改讀這個網址的「最新版」JSON（格式同 GitHub 的 releases/latest，可以是本機的 http），
+  // 用來在本機測整個自動更新流程。正式版不設定，照 UPDATE_REPO 讀 GitHub
+  static const updateFeedUrl = String.fromEnvironment('UPDATE_FEED_URL');
+
   static bool get isConfigured => supabaseUrl.isNotEmpty && supabaseAnonKey.isNotEmpty;
 }
