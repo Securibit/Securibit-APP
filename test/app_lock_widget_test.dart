@@ -38,7 +38,7 @@ void main() {
       ),
     ));
 
-    expect(find.text('輸入密碼'), findsOneWidget);
+    expect(find.text('輸入 4 位數密碼'), findsOneWidget);
     expect(find.text('驗證碼內容'), findsNothing);
 
     Future<void> enter(String pin) async {
@@ -57,7 +57,7 @@ void main() {
     expect(find.text('驗證碼內容'), findsNothing);
 
     await enter('2580');
-    expect(find.text('輸入密碼'), findsNothing);
+    expect(find.text('輸入 4 位數密碼'), findsNothing);
     expect(find.text('驗證碼內容'), findsOneWidget);
     expect(lock.attempts.failures, 0);
   });

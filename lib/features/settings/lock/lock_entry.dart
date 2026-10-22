@@ -12,23 +12,26 @@ import 'pattern_pad.dart';
 
 /*
  * 輸入圖形或密碼的區塊（鎖定畫面與設定流程共用），仿 iOS 的密碼畫面：
- * 標題、一行提示、圓點＋數字鍵盤（或九宮格）。輸入完自動送出，onSubmit 回傳 false 時抖動並清掉重來。
+ * 標題（或鎖定畫面的品牌標題 heading）、一行提示、圓點＋數字鍵盤（或九宮格）。輸入完自動送出，onSubmit 回傳 false 時抖動並清掉重來。
  * 桌面可以直接用鍵盤輸入數字（上排數字鍵與數字小鍵盤）、Backspace 刪除。
  */
 class LockEntry extends StatefulWidget {
   const LockEntry({
     super.key,
     required this.type,
-    required this.title,
+    this.title,
+    this.heading,
     required this.onSubmit,
     this.message,
     this.error = false,
     this.enabled = true,
     this.keypadAction,
-  });
+  }) : assert(title != null || heading != null);
 
   final LockType type;
-  final String title;
+  // 文字標題；有 heading 時用 heading 取代
+  final String? title;
+  final Widget? heading;
   final String? message;
   // 提示是錯誤（紅字）
   final bool error;
@@ -199,6 +202,7 @@ class _LockEntryState extends State<LockEntry> with SingleTickerProviderStateMix
     final colors = context.colors;
     final message = _localMessage ?? widget.message;
     final isError = _localMessage != null || widget.error;
+    final heading = widget.heading;
     final shaking = AnimatedBuilder(
       animation: _shake,
       builder: (context, child) {
@@ -215,29 +219,33 @@ class _LockEntryState extends State<LockEntry> with SingleTickerProviderStateMix
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            widget.title,
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: AppText.title, fontWeight: FontWeight.w700, color: colors.ink),
-          ),
-          const SizedBox(height: 8),
+          if (heading != null)
+            heading
+          else
+            Text(
+              widget.title ?? '',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: AppText.title, fontWeight: FontWeight.w700, color: colors.ink),
+            ),
+          SizedBox(height: heading != null ? 6 : 8),
+          // 留兩行的高度，錯誤提示換行時下面的鍵盤不會跳動
           SizedBox(
             width: 300,
-            height: 48,
+            height: 44,
             child: Text(
               message ?? '',
               textAlign: TextAlign.center,
               maxLines: 2,
               style: TextStyle(
                 fontSize: AppText.secondary,
-                fontWeight: FontWeight.w600,
+                fontWeight: isError ? FontWeight.w600 : FontWeight.w400,
                 color: isError ? colors.alarm : colors.inkMuted,
               ),
             ),
           ),
           if (widget.type.isPin) ...[
             shaking,
-            const SizedBox(height: 40),
+            const SizedBox(height: 30),
             _PinPad(
               enabled: _enabled,
               onDigit: _digit,
@@ -252,7 +260,7 @@ class _LockEntryState extends State<LockEntry> with SingleTickerProviderStateMix
   }
 }
 
-// 密碼的圓點：輸入幾位就填滿幾個
+// 密碼的圓點：輸入幾位就填滿幾個（綠色），還沒輸入的是灰色空心圈，錯誤時整排變紅
 class _PinDots extends StatelessWidget {
   const _PinDots({required this.length, required this.filled, required this.error});
 
@@ -263,7 +271,7 @@ class _PinDots extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final color = error ? colors.alarm : colors.ink;
+    Color color(int i) => error ? colors.alarm : (i < filled ? colors.accent : colors.inkMuted);
     return Semantics(
       label: '已輸入 $filled 位，共 $length 位',
       child: Row(
@@ -271,15 +279,15 @@ class _PinDots extends StatelessWidget {
         children: [
           for (var i = 0; i < length; i++)
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 120),
                 width: 14,
                 height: 14,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: i < filled ? color : Colors.transparent,
-                  border: Border.all(color: color, width: 1.6),
+                  color: i < filled ? color(i) : Colors.transparent,
+                  border: Border.all(color: color(i), width: 1.6),
                 ),
               ),
             ),
@@ -289,7 +297,7 @@ class _PinDots extends StatelessWidget {
   }
 }
 
-// iOS 風格的圓形數字鍵盤：1–9、左下角動作鍵、0、刪除
+// iOS 風格的圓形數字鍵盤：1–9、左下角動作鍵、0、刪除（只有圖示、沒有圓底）；鍵距同設計稿（左右 106、上下 90）
 class _PinPad extends StatelessWidget {
   const _PinPad({required this.enabled, required this.onDigit, required this.onDelete, this.action});
 
@@ -303,7 +311,7 @@ class _PinPad extends StatelessWidget {
     final colors = context.colors;
     Widget key(String digit) => _PadKey(enabled: enabled, onTap: () => onDigit(digit), semantics: digit, child: Text(digit));
     Widget row(List<Widget> keys) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
+          padding: const EdgeInsets.symmetric(vertical: 6),
           child: Row(mainAxisSize: MainAxisSize.min, children: [for (final k in keys) Padding(padding: const EdgeInsets.symmetric(horizontal: 14), child: k)]),
         );
     return Column(
@@ -319,10 +327,12 @@ class _PinPad extends StatelessWidget {
             dimension: _PadKey.size,
             child: onDelete == null
                 ? null
-                : TextButton(
+                : IconButton(
+                    tooltip: '刪除',
                     onPressed: enabled ? onDelete : null,
-                    style: TextButton.styleFrom(foregroundColor: colors.ink, shape: const CircleBorder()),
-                    child: const Text('刪除', style: TextStyle(fontSize: AppText.body, fontWeight: FontWeight.w600)),
+                    color: colors.inkMuted,
+                    iconSize: 30,
+                    icon: const Icon(Icons.backspace_outlined),
                   ),
           ),
         ]),
@@ -344,24 +354,26 @@ class _PadKey extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    // 深色用軟底、亮色再深一階，在漸層底上才看得出圓鍵
+    final dark = Theme.of(context).brightness == Brightness.dark;
     return Semantics(
       button: true,
       label: semantics,
       excludeSemantics: true,
       child: Material(
-        color: colors.surface1,
+        color: dark ? colors.surface1 : colors.surface2,
         shape: const CircleBorder(),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: enabled ? onTap : null,
-          highlightColor: colors.surface2,
+          highlightColor: dark ? colors.surface2 : colors.line,
           splashFactory: NoSplash.splashFactory,
           child: SizedBox.square(
             dimension: size,
             child: Center(
               child: DefaultTextStyle(
                 style: TextStyle(
-                  fontSize: 32,
+                  fontSize: 30,
                   fontWeight: FontWeight.w600,
                   color: enabled ? colors.ink : colors.inkMuted,
                   fontFeatures: const [FontFeature.tabularFigures()],

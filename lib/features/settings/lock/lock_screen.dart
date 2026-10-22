@@ -5,6 +5,7 @@ import '../../../core/platform.dart';
 import '../../../core/secure_store.dart';
 import '../../../core/theme/tokens.dart';
 import '../../../core/widgets/feedback.dart';
+import '../../../core/widgets/lock_backdrop.dart';
 import '../../../core/widgets/logo.dart';
 import '../../auth/auth_controller.dart';
 import '../app_lock.dart';
@@ -16,6 +17,7 @@ import 'lock_wait.dart';
  * 全螢幕的鎖定畫面：蓋住所有內容，輸入圖形或密碼解鎖。
  * 有開生物辨識時一出現就自動跳出 Face ID / 指紋；取消後可以按鍵盤左下角（圖形是下方的按鈕）再試。
  * 「忘記密碼」會登出並清除這台裝置的資料，重新登入後驗證碼從伺服器回來。
+ * 版面照設計稿：漸層底、「解鎖＋盾牌＋Securibit」標題、底部幣友署名；窄螢幕整塊等比縮小，不會超出畫面。
  */
 class LockScreen extends StatefulWidget {
   const LockScreen({super.key, required this.lock, required this.onUnlocked});
@@ -144,50 +146,61 @@ class _LockScreenState extends State<LockScreen> with WidgetsBindingObserver, Lo
     final biometricIcon = Icon(_face ? Icons.face_rounded : Icons.fingerprint_rounded, size: 34);
     final waitText = waitMessage;
 
+    final prompt = type.isPin ? '輸入 ${type.pinLength} 位數密碼' : '畫出解鎖圖形';
+
     return Scaffold(
-      backgroundColor: colors.surface,
-      body: SafeArea(
-        child: Center(
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const AppLogo(size: 52),
-                  const SizedBox(height: 20),
-                  LockEntry(
-                    type: type,
-                    title: type.isPin ? '輸入密碼' : '畫出解鎖圖形',
-                    message: waitText ?? _message,
-                    error: waitText != null || _error,
-                    enabled: waitText == null && !_resetting,
-                    onSubmit: _check,
-                    keypadAction: _canBiometric
-                        ? IconButton(
-                            tooltip: biometricLabel,
-                            onPressed: _resetting ? null : _biometric,
-                            color: colors.accent,
-                            icon: biometricIcon,
-                          )
-                        : null,
-                  ),
-                  const SizedBox(height: 16),
-                  if (_canBiometric && !type.isPin)
-                    TextButton.icon(
-                      onPressed: _resetting ? null : _biometric,
-                      icon: Icon(_face ? Icons.face_rounded : Icons.fingerprint_rounded),
-                      label: Text(biometricLabel),
+      body: LockBackdrop(
+        child: SafeArea(
+          child: Column(
+            children: [
+              Expanded(
+                child: Center(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          LockEntry(
+                            type: type,
+                            heading: const UnlockTitle(),
+                            message: waitText ?? _message ?? prompt,
+                            error: waitText != null || (_error && _message != null),
+                            enabled: waitText == null && !_resetting,
+                            onSubmit: _check,
+                            keypadAction: _canBiometric
+                                ? IconButton(
+                                    tooltip: biometricLabel,
+                                    onPressed: _resetting ? null : _biometric,
+                                    color: colors.accent,
+                                    icon: biometricIcon,
+                                  )
+                                : null,
+                          ),
+                          const SizedBox(height: 14),
+                          if (_canBiometric && !type.isPin)
+                            TextButton.icon(
+                              onPressed: _resetting ? null : _biometric,
+                              icon: Icon(_face ? Icons.face_rounded : Icons.fingerprint_rounded),
+                              label: Text(biometricLabel),
+                            ),
+                          TextButton(
+                            onPressed: _resetting ? null : _forgot,
+                            style: TextButton.styleFrom(
+                              foregroundColor: colors.inkMuted,
+                              textStyle: TextStyle(fontSize: AppText.secondary, fontWeight: FontWeight.w400, fontFamilyFallback: AppPlatform.fontFamilyFallback),
+                            ),
+                            child: Text('忘記${lockNoun(type)}'),
+                          ),
+                        ],
+                      ),
                     ),
-                  TextButton(
-                    onPressed: _resetting ? null : _forgot,
-                    style: TextButton.styleFrom(foregroundColor: colors.inkMuted),
-                    child: Text('忘記${lockNoun(type)}'),
                   ),
-                ],
+                ),
               ),
-            ),
+              const Padding(padding: EdgeInsets.only(bottom: 20), child: BityoCredit()),
+            ],
           ),
         ),
       ),
