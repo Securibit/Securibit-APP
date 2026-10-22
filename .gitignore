@@ -891,7 +891,6 @@ DerivedData/
 !**/ios/**/default.pbxuser
 !**/ios/**/default.perspectivev3
 !/packages/flutter_tools/test/data/dart_dependencies_test/**/.packages
-/windows
 # 連線設定（含 Supabase anon key），用 env.example.json 複製一份
 env.json
 # 個人的 make 設定（REMOTE 等），用 local.mk.example 複製一份

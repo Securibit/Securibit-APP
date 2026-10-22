@@ -4,12 +4,20 @@
 #   Securibit-<版本>-macos.dmg               macOS 安裝檔：拖曳 securibit.app 到「應用程式」（未簽章公證，見 README）
 #   Securibit-<版本>-macos.zip               macOS App（同上，壓縮檔）
 #   Securibit-<版本>-ios-unsigned.ipa        iOS（沒有簽章，要用 Xcode 或其他工具簽過才能安裝）
-#   securibit-<版本>-<abi>.apk                Android，每種處理器一個（arm64-v8a、armeabi-v7a、x86_64）
-#   securibit-<版本>.aab                      Android App Bundle（上架 Google Play）
+#   securibit-<版本>-<abi>.apk                Android（GitHub 版，會自己更新），每種處理器一個（arm64-v8a、armeabi-v7a、x86_64）
+#   securibit-<版本>.aab                      Android App Bundle（上架 Google Play，不含自我更新）
+#   SHA256SUMS.txt                           上面這些檔案的 SHA-256（make checksums；App 自動更新時用它確認下載的檔案完整）
 #   Securibit-<版本>-linux-<arm64|x64>.tar.gz Linux release bundle，解開後執行 securibit/securibit
 #   securibit_<版本>_<arm64|amd64>.deb        Debian / Ubuntu 套件
 #   （Linux 在 Ubuntu 22.04 以外的系統建置時，檔名多一段發行版，例如
 #     Securibit-<版本>-linux-debian-12-x64.tar.gz、securibit_<版本>_debian-12_amd64.deb）
+#   Securibit-<版本>-windows-x64-setup.exe    Windows 安裝檔（每個使用者各自安裝，會自動更新；未簽章，見 README）
+#   Securibit-<版本>-windows-x64.zip          Windows 免安裝版，解開後執行 Securibit\securibit.exe（不會自動更新）
+#
+# Windows 版要在 Windows 上建置（tool/windows/build.ps1）：
+#   - WIN_REMOTE=user@host：把原始碼用 tar 經 ssh 送到那台 Windows，在那裡跑 build.ps1，再用 scp 把產出拉回 dist/
+#   - 在 Windows 上可以直接執行 powershell -NoProfile -File tool\windows\build.ps1（不用 make）
+#   WIN_REMOTE、WIN_SSH_OPTS 也可以寫在 local.mk
 #
 # Linux 版要在 Linux 上建置，make linux／deb／linux-all 會自動選建置方式：
 #   - REMOTE=user@host：把原始碼 rsync 到另一台 Linux，在那裡跑同一個目標，再把產出拉回 dist/
@@ -79,6 +87,8 @@ endif
 REMOTE ?=
 REMOTE_DIR ?= ~/securibit-build
 REMOTE_SSH_OPTS ?=
+# REMOTE 是 Windows（OpenSSH）時，在它的 WSL2 發行版裡建置，例如 WSL_DISTRO=Ubuntu-22.04
+WSL_DISTRO ?=
 
 # Linux 的建置方式：remote、docker、host（直接在這台主機建置）、none（無法建置）
 ifneq ($(strip $(REMOTE)),)
@@ -139,7 +149,7 @@ DOCKER_RUN := $(DOCKER) run --rm --platform $(DOCKER_PLATFORM) $(DOCKER_VOLUMES)
 LINUX_BUILD_DESC := $(if $(filter remote,$(LINUX_BUILD)),在 $(REMOTE) 上建置（$(REMOTE_DIR)）,$(if $(filter docker,$(LINUX_BUILD)),Docker（$(DISTRO)，$(ARCH)）,$(if $(filter host,$(LINUX_BUILD)),直接在這台主機建置（$(HOST_DISTRO)，$(ARCH)）,無法建置：沒有 flutter／cargo／rustup，Docker 也不能用（make deb 會說明要裝什麼）)))
 
 .PHONY: help deps analyze test clean env-check rust-lib rust-test codegen codegen-tool \
-  macos ios apk aab \
+  macos ios apk aab checksums windows \
   linux deb linux-all linux-deps docker-image docker-smoke-image linux-smoke deb-check \
   dist docker-clean
 
@@ -157,6 +167,11 @@ help: ## 列出所有目標
 	@echo "  REMOTE_SSH_OPTS=...   ssh 的額外參數，例如 '-i ~/.ssh/金鑰'"
 	@echo "  FLUTTER=...           flutter 的路徑（預設 flutter）"
 	@echo "  REMOTE 等設定可以寫在 local.mk（見 local.mk.example）"
+	@echo
+	@echo "Windows 建置（make windows）："
+	@echo "  WIN_REMOTE=user@host  在這台 Windows 上建置（目前：$(or $(WIN_REMOTE),沒有設定)），完成後把產出拉回 $(DIST)/"
+	@echo "  WIN_REMOTE_DIR=...    遠端的建置資料夾，相對於遠端的家目錄（預設 securibit-build）"
+	@echo "  WIN_SSH_OPTS=...      ssh、scp 的額外參數，例如 '-i ~/.ssh/金鑰'"
 
 # ─── 基本 ──────────────────────────────────────────────
 
@@ -208,6 +223,7 @@ macos: env-check ## macOS release：Securibit-<版本>-macos.dmg（拖曳安裝�
 	hdiutil create -volname "Securibit $(VERSION)" -srcfolder build/macos/dmg -fs HFS+ -format UDZO -ov $(DIST)/Securibit-$(VERSION)-macos.dmg
 	rm -rf build/macos/dmg
 	@echo "→ $(DIST)/Securibit-$(VERSION)-macos.dmg"
+	@$(MAKE) --no-print-directory checksums
 
 ios: env-check ## iOS release（不簽章），打包成 Securibit-<版本>-ios-unsigned.ipa
 	$(FLUTTER) build ios --release --no-codesign $(DEFINES)
@@ -215,18 +231,24 @@ ios: env-check ## iOS release（不簽章），打包成 Securibit-<版本>-ios-
 	cp -R build/ios/iphoneos/Runner.app build/ios/ipa-unsigned/Payload/
 	cd build/ios/ipa-unsigned && rm -f ../../../$(DIST)/Securibit-$(VERSION)-ios-unsigned.ipa && zip -qry ../../../$(DIST)/Securibit-$(VERSION)-ios-unsigned.ipa Payload
 	@echo "→ $(DIST)/Securibit-$(VERSION)-ios-unsigned.ipa"
+	@$(MAKE) --no-print-directory checksums
 
-apk: env-check ## Android APK：每種處理器一個、混淆並去掉除錯符號（符號在 build/symbols）
-	$(FLUTTER) build apk --release --split-per-abi --obfuscate --split-debug-info=build/symbols $(DEFINES)
+# Android 的發行管道（android/app/build.gradle.kts 的 distribution）：
+#   github（預設）：manifest 有 REQUEST_INSTALL_PACKAGES 與 FileProvider，App 自己下載、驗證並安裝更新
+#   play：不含自我更新，檢查更新也關掉，交給 Google Play 商店
+apk: env-check ## Android APK（GitHub 版，會自己更新）：每種處理器一個、混淆並去掉除錯符號（符號在 build/symbols）
+	$(FLUTTER) build apk --release --split-per-abi --obfuscate --split-debug-info=build/symbols --android-project-arg=distribution=github $(DEFINES)
 	@for abi in arm64-v8a armeabi-v7a x86_64; do \
 	  src=build/app/outputs/flutter-apk/app-$$abi-release.apk; \
 	  if [[ -f $$src ]]; then cp $$src $(DIST)/securibit-$(VERSION)-$$abi.apk; echo "→ $(DIST)/securibit-$(VERSION)-$$abi.apk"; fi; \
 	done
+	@$(MAKE) --no-print-directory checksums
 
-aab: env-check ## Android App Bundle（上架 Google Play）
-	$(FLUTTER) build appbundle --release --obfuscate --split-debug-info=build/symbols $(DEFINES)
+aab: env-check ## Android App Bundle（上架 Google Play：不含自我更新與 REQUEST_INSTALL_PACKAGES）
+	$(FLUTTER) build appbundle --release --obfuscate --split-debug-info=build/symbols --android-project-arg=distribution=play $(DEFINES)
 	cp build/app/outputs/bundle/release/app-release.aab $(DIST)/securibit-$(VERSION).aab
 	@echo "→ $(DIST)/securibit-$(VERSION).aab"
+	@$(MAKE) --no-print-directory checksums
 
 # ─── Linux ─────────────────────────────────────────────
 
@@ -240,6 +262,7 @@ RSYNC_EXCLUDES := --exclude=/.git/ --exclude=/build/ --exclude=/dist/ --exclude=
   --exclude=/rust/target/ --exclude=/android/ --exclude=/ios/ --exclude=/macos/ --exclude=/windows/ \
   --exclude=/web/ --exclude=/linux/flutter/ephemeral/ --exclude=/local.mk --exclude=.DS_Store
 
+ifeq ($(strip $(WSL_DISTRO)),)
 define remote_sync
 	@echo "==> 同步原始碼到 $(REMOTE):$(REMOTE_DIR)"
 	@$(REMOTE_SSH) 'mkdir -p $(REMOTE_PATH)'
@@ -258,6 +281,36 @@ define remote_fetch
 	  $(REMOTE_SSH) "cd $(REMOTE_PATH)/$(DIST) && tar -cf - $$files" | tar -xf - -C $(DIST) && \
 	  for f in $$files; do echo "  $(DIST)/$$f"; done
 endef
+else
+# Windows 上的 WSL2：Windows 沒有 rsync，原始碼用 tar 經 ssh 送進 WSL；遠端的預設 shell 是 cmd，
+# 交給 wsl 的指令只用 ; 串接（&&、|、> 會先被 cmd 吃掉）。wsl 沒帶 -- 時，後面整段原樣交給 bash
+WSL_RUN := $(REMOTE_SSH) wsl -d $(WSL_DISTRO) --cd '~'
+WSL_TAR_EXCLUDES := --exclude=./.git --exclude=./build --exclude=./dist --exclude=./.dart_tool --exclude=./rust/target \
+  --exclude=./android --exclude=./ios --exclude=./macos --exclude=./windows --exclude=./web \
+  --exclude=./linux/flutter/ephemeral --exclude=./rust_builder/cargokit/build_tool/.dart_tool \
+  --exclude=./local.mk --exclude='*.jks' --exclude='*.keystore' --exclude='*.p12' --exclude='*.pem' \
+  --exclude=key.properties --exclude=.DS_Store
+# 原始碼刪掉的檔案在遠端也要消失：送之前先刪掉這些資料夾（build、.dart_tool、rust/target 的快取留著）
+WSL_CLEAN_DIRS := lib test tool assets linux/runner linux/packaging rust/core/src rust/api/src
+
+define remote_sync
+	@echo "==> 同步原始碼到 $(REMOTE) 的 WSL（$(WSL_DISTRO)）:$(REMOTE_DIR)"
+	COPYFILE_DISABLE=1 tar -czf - --no-mac-metadata --no-xattrs $(WSL_TAR_EXCLUDES) . | \
+	  $(WSL_RUN) bash -c "'mkdir -p $(REMOTE_PATH); cd $(REMOTE_PATH); rm -rf $(WSL_CLEAN_DIRS); tar --warning=no-unknown-keyword -xzf -'"
+endef
+
+define remote_make
+	@echo "==> 在 $(REMOTE) 的 WSL（$(WSL_DISTRO)）上執行 make $(1) $(REMOTE_PASS)"
+	$(WSL_RUN) bash -lc "'cd $(REMOTE_PATH); make --no-print-directory $(1) REMOTE= WSL_DISTRO= $(REMOTE_PASS)'"
+endef
+
+define remote_fetch
+	@echo "==> 取回產出到 $(DIST)/"
+	@files="$$($(WSL_RUN) cat $(REMOTE_PATH)/$(DIST)/.last-build | tr -d '\r' | tr '\n' ' ')" && test -n "$$files" && \
+	  $(WSL_RUN) bash -c "'cd $(REMOTE_PATH)/$(DIST); tar -cf - $$files'" | tar -xf - -C $(DIST) && \
+	  for f in $$files; do echo "  $(DIST)/$$f"; done
+endef
+endif
 
 define linux_none
 	@{ \
@@ -295,12 +348,15 @@ LINUX_PREREQ := $(if $(filter docker,$(LINUX_BUILD)),docker-image)
 
 linux: env-check $(LINUX_PREREQ) ## Linux release bundle → .tar.gz（自動選建置方式，見下方「Linux 建置」）
 	$(call linux_build,bundle,linux)
+	@$(MAKE) --no-print-directory checksums
 
 deb: env-check $(LINUX_PREREQ) ## Linux .deb（也會產出 .tar.gz）
 	$(call linux_build,deb,deb)
+	@$(MAKE) --no-print-directory checksums
 
 linux-all: env-check $(LINUX_PREREQ) ## Linux 的 .tar.gz 和 .deb 一次建好
 	$(call linux_build,all,linux-all)
+	@$(MAKE) --no-print-directory checksums
 
 linux-deps: ## 在這台 Debian／Ubuntu 上用 sudo apt 安裝直接建置需要的系統套件，並檢查 Flutter、Rust
 	FLUTTER="$(FLUTTER)" FLUTTER_WANT=$(FLUTTER_PINNED) tool/linux/install_deps.sh
@@ -341,18 +397,70 @@ endif
 docker-clean: ## 刪掉 Linux 建置用的 Docker volume（DISTRO、ARCH；下次會重新下載套件、完整重建）
 	-$(DOCKER) volume rm $(VOLUME_PREFIX)-work $(VOLUME_PREFIX)-pub-cache $(VOLUME_PREFIX)-cargo-registry $(VOLUME_PREFIX)-cargo-git
 
+# ─── Windows ───────────────────────────────────────────
+
+# 在另一台 Windows 上建置：原始碼用 tar 經 ssh 送過去（Windows 10 以後內建 tar 與 OpenSSH，沒有 rsync），
+# 遠端執行 tool/windows/build.ps1，再依遠端 dist\.last-build（這次的產出清單）用 scp 拉回來。
+# 遠端的預設 shell 是 cmd，目前目錄是使用者的家目錄（%USERPROFILE%），WIN_REMOTE_DIR 相對於它。
+WIN_REMOTE ?=
+WIN_REMOTE_DIR ?= securibit-build
+WIN_SSH_OPTS ?=
+WIN_SSH := ssh $(subst ~/,$(HOME)/,$(WIN_SSH_OPTS)) $(WIN_REMOTE)
+WIN_SCP := scp -q $(subst ~/,$(HOME)/,$(WIN_SSH_OPTS))
+# 不送建置結果、其他平台的資料夾、git 與個人設定；env.json 要送（建置時編進 App），其他祕密（簽章金鑰等）不送
+WIN_TAR_EXCLUDES := --exclude=./.git --exclude=./build --exclude=./dist --exclude=./.dart_tool --exclude=./rust/target \
+  --exclude=./android --exclude=./ios --exclude=./macos --exclude=./web --exclude=./linux/flutter/ephemeral \
+  --exclude=./windows/flutter/ephemeral --exclude=./rust_builder/cargokit/build_tool/.dart_tool \
+  --exclude=./local.mk --exclude='*.jks' --exclude='*.keystore' --exclude='*.p12' --exclude='*.pem' \
+  --exclude=key.properties --exclude=.DS_Store
+# 原始碼刪掉的檔案在遠端也要消失：送之前先刪掉這些資料夾（build、.dart_tool、rust\target 的快取留著，第二次建置比較快）
+WIN_CLEAN_DIRS := lib test tool assets windows\runner rust\core\src rust\api\src
+
+windows: env-check ## Windows 安裝檔與免安裝版（.exe、.zip）：要設定 WIN_REMOTE，或在 Windows 上執行
+ifneq ($(strip $(WIN_REMOTE)),)
+	@echo "==> 同步原始碼到 $(WIN_REMOTE):$(WIN_REMOTE_DIR)"
+	@$(WIN_SSH) "if not exist $(WIN_REMOTE_DIR) mkdir $(WIN_REMOTE_DIR)& cd $(WIN_REMOTE_DIR)& for %d in ($(WIN_CLEAN_DIRS)) do @if exist %d rmdir /s /q %d"
+	COPYFILE_DISABLE=1 tar -czf - --no-mac-metadata $(WIN_TAR_EXCLUDES) . | $(WIN_SSH) "tar -xzf - -C $(WIN_REMOTE_DIR)"
+	@echo "==> 在 $(WIN_REMOTE) 上執行 tool/windows/build.ps1"
+	$(WIN_SSH) "powershell -NoProfile -ExecutionPolicy RemoteSigned -File $(WIN_REMOTE_DIR)\tool\windows\build.ps1"
+	@echo "==> 取回產出到 $(DIST)/"
+	@files="$$($(WIN_SSH) "type $(WIN_REMOTE_DIR)\dist\.last-build" | tr -d '\r')" && test -n "$$files" && \
+	  for f in $$files; do $(WIN_SCP) "$(WIN_REMOTE):$(WIN_REMOTE_DIR)/dist/$$f" $(DIST)/ && chmod 644 "$(DIST)/$$f" && echo "  $(DIST)/$$f" || exit 1; done
+	@$(MAKE) --no-print-directory checksums
+else ifeq ($(OS),Windows_NT)
+	powershell -NoProfile -ExecutionPolicy RemoteSigned -File tool/windows/build.ps1
+else
+	@echo "Windows 版要在 Windows 上建置：設定 WIN_REMOTE=user@host（可以寫在 local.mk），或在 Windows 上執行 tool\windows\build.ps1（見 README）" >&2; exit 1
+endif
+
 # ─── 發行 ──────────────────────────────────────────────
 
-# macOS 主機：macOS、iOS、Android（有 Android SDK 時）、Linux（Docker 有在跑或有設定 REMOTE 時）
+# macOS 主機：macOS、iOS、Android（有 Android SDK 時）、Linux（Docker 有在跑或有設定 REMOTE 時）、Windows（有設定 WIN_REMOTE 時）
 # Linux 主機：Android（有 Android SDK 時）、Linux（能建置時）
 HAS_ANDROID := $(if $(or $(ANDROID_HOME),$(ANDROID_SDK_ROOT),$(wildcard $(HOME)/Library/Android/sdk),$(wildcard $(HOME)/Android/Sdk)),1,)
 HAS_DOCKER = $(shell $(DOCKER) info >/dev/null 2>&1 && echo 1)
 DIST_TARGETS = $(if $(filter Darwin,$(HOST_OS)),macos ios) \
   $(if $(HAS_ANDROID),apk aab) \
-  $(if $(or $(filter host remote,$(LINUX_BUILD)),$(and $(filter docker,$(LINUX_BUILD)),$(HAS_DOCKER))),linux-all)
+  $(if $(or $(filter host remote,$(LINUX_BUILD)),$(and $(filter docker,$(LINUX_BUILD)),$(HAS_DOCKER))),linux-all) \
+  $(if $(strip $(WIN_REMOTE)),windows)
 
-dist: env-check ## 建置這台主機能建的所有平台
+dist: env-check ## 建置這台主機能建的所有平台（每個目標建完都會更新 SHA256SUMS.txt）
 	@echo "這台主機會建置：$(strip $(DIST_TARGETS))"
 	@$(MAKE) --no-print-directory $(DIST_TARGETS)
 	@echo
 	@ls -lh $(DIST)
+
+# 這個版本在 dist/ 裡的所有產出（Linux 從別台建好拉回來的也算），格式同 sha256sum：「<sha256>  <檔名>」。
+# 每個平台的目標建完都會重新產生一次。
+# App 自動更新時下載這份比對，不符就不安裝；release.py 上傳前也會依實際上傳的檔案重新產生
+CHECKSUM_FILES = $(sort $(notdir $(wildcard $(DIST)/*$(VERSION)*.dmg $(DIST)/*$(VERSION)*.zip $(DIST)/*$(VERSION)*.ipa \
+  $(DIST)/*$(VERSION)*.apk $(DIST)/*$(VERSION)*.aab $(DIST)/*$(VERSION)*.deb $(DIST)/*$(VERSION)*.tar.gz $(DIST)/*$(VERSION)*.exe)))
+
+# Linux 用 coreutils 的 sha256sum，macOS 用內建的 shasum（輸出格式相同）
+SHA256SUM := $(if $(shell command -v sha256sum 2>/dev/null),sha256sum,shasum -a 256)
+
+checksums: ## 產生 dist/SHA256SUMS.txt（這個版本的所有產出）
+	@test -n "$(CHECKSUM_FILES)" || { echo "dist/ 裡沒有 $(VERSION) 的產出，先建置" >&2; exit 1; }
+	cd $(DIST) && $(SHA256SUM) $(CHECKSUM_FILES) > SHA256SUMS.txt
+	@echo "→ $(DIST)/SHA256SUMS.txt"
+	@cat $(DIST)/SHA256SUMS.txt

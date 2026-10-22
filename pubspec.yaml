@@ -2,7 +2,7 @@ name: securibit
 description: "Securibit 兩步驟驗證器（iOS、Android、macOS、Linux），後端與網站共用 Supabase。"
 publish_to: 'none'
 
-version: 1.1.0+2
+version: 1.2.0+3
 
 environment:
   sdk: ^3.9.0
@@ -18,6 +18,8 @@ dependencies:
   url_launcher: ^6.3.0
   package_info_plus: ^9.0.1
   http: ^1.2.0
+  # 檢查下載的更新檔（SHA-256）；本來就是 http、supabase 的相依套件，沒有多帶新的程式碼
+  crypto: ^3.0.6
   provider: ^6.1.2
   flutter_secure_storage: ^9.2.2
   shared_preferences: ^2.3.0

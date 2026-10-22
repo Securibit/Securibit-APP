@@ -4,7 +4,7 @@
     <img src="assets/logo.png" width="96" />
 </p>
 
-Securibit 的兩步驟驗證器 App，支援 iOS、Android、macOS、Linux（不提供網頁版，網頁請用 [2fa.bityo.tw](https://2fa.bityo.tw)）。
+Securibit 的兩步驟驗證器 App，支援 iOS、Android、macOS、Linux、Windows（不提供網頁版，網頁請用 [2fa.bityo.tw](https://2fa.bityo.tw)）。
 後端和網站 [Securibit-Web](https://github.com/Securibit/Securibit-Web) 共用同一個 Supabase：登入、群組、權限、加密群組都和網站一致，在網站新增的驗證碼 App 馬上看得到。
 
 | 項目 | 內容 |
@@ -14,13 +14,13 @@ Securibit 的兩步驟驗證器 App，支援 iOS、Android、macOS、Linux（不
 | 狀態管理 | provider + ChangeNotifier |
 | 安全核心 | Rust（`rust/core`，RustCrypto：PBKDF2-SHA256、HMAC、AES-GCM），透過 flutter_rust_bridge v2 給 Flutter 呼叫；TOTP、加密群組（與網站相容）、App 鎖定雜湊、記憶體裡的金鑰都在這裡 |
 | 其他 | supabase_flutter、google_sign_in、app_links、flutter_secure_storage、mobile_scanner、local_auth |
-| App ID | 各平台都是 `com.bityo.securibit`（iOS / macOS bundle id、Android applicationId 與 namespace、Linux application id） |
+| App ID | 各平台都是 `com.bityo.securibit`（iOS / macOS bundle id、Android applicationId 與 namespace、Linux application id）；Windows 安裝檔另有固定的 AppId（`tool/windows/securibit.iss`） |
 
 ## 設定
 
 ### 0. Rust
 
-安全核心是 Rust，`flutter build` / `flutter run` 時由 cargokit 自動編譯（iOS、Android、macOS、Linux 都一樣），需要先裝好 [rustup](https://rustup.rs)：
+安全核心是 Rust，`flutter build` / `flutter run` 時由 cargokit 自動編譯（iOS、Android、macOS、Linux、Windows 都一樣），需要先裝好 [rustup](https://rustup.rs)：
 
 ```bash
 rustup toolchain install stable
@@ -65,13 +65,13 @@ App 用 Google 登入（PKCE），登入完成後要轉回 App。到 Supabase �
 | 平台 | Redirect URL |
 | --- | --- |
 | iOS、Android、macOS | `securibit://login-callback` |
-| Linux | `http://127.0.0.1:*/login-callback`（App 在本機隨機埠號開一個暫時的伺服器接登入結果） |
+| Linux、Windows | `http://127.0.0.1:*/login-callback`（App 在本機隨機埠號開一個暫時的伺服器接登入結果） |
 
 網站目前只有 Google 登入，App 也只有 Google 登入。
 
 ### 3. 手機原生 Google 登入（iOS、Android）
 
-iOS 和 Android 在 App 內直接跳出 Google 帳號選單（Android 走 Credential Manager），不用開瀏覽器；拿到 Google 的 ID token 後用 `signInWithIdToken` 換成 Supabase session。macOS、Linux 維持瀏覽器登入。
+iOS 和 Android 在 App 內直接跳出 Google 帳號選單（Android 走 Credential Manager），不用開瀏覽器；拿到 Google 的 ID token 後用 `signInWithIdToken` 換成 Supabase session。macOS、Linux、Windows 維持瀏覽器登入。
 **還沒設定用戶端 ID 時手機會自動改用瀏覽器登入**（上一節的 `securibit://login-callback`），所以可以先不設定。
 
 1. **建立 iOS 用戶端**：[Google Cloud Console](https://console.cloud.google.com/) → 選 Supabase 用的那個專案 → **APIs & Services → Credentials** → **Create credentials → OAuth client ID** → Application type 選 **iOS**，Bundle ID 填 `com.bityo.securibit`（App Store ID、Team ID 上架後再補）→ Create。記下 **Client ID** 和 **iOS URL scheme**（`com.googleusercontent.apps.…`）
@@ -105,6 +105,7 @@ flutter run -d macos --dart-define-from-file=env.json
 # 其他平台
 flutter run -d <iPhone / Android 裝置 id> --dart-define-from-file=env.json
 flutter run -d linux --dart-define-from-file=env.json
+flutter run -d windows --dart-define-from-file=env.json
 ```
 
 `flutter devices` 可以列出可用的裝置。沒有帶 `--dart-define-from-file` 時 App 會顯示「缺少連線設定」。
@@ -119,20 +120,33 @@ flutter run -d linux --dart-define-from-file=env.json
 | `make deps`、`make analyze`、`make test`、`make clean` | | `flutter pub get`、`flutter analyze`、`flutter test`、清掉建置結果與 `dist/` |
 | `make macos` | `Securibit-<版本>-macos.dmg`、`.zip` | macOS release（未簽章公證）。`.dmg` 是安裝檔：打開後把 securibit.app 拖到「應用程式」（用系統內建的 `hdiutil` 製作） |
 | `make ios` | `Securibit-<版本>-ios-unsigned.ipa` | iOS release，不簽章（`--no-codesign`），要再用 Xcode 等工具簽過才能安裝 |
-| `make apk` | `securibit-<版本>-arm64-v8a.apk` 等 | 每種處理器一個 APK，混淆並去掉除錯符號（符號在 `build/symbols`，當機回報要用） |
-| `make aab` | `securibit-<版本>.aab` | 上架 Google Play 用的 App Bundle，Play 會依手機只下載需要的部分 |
+| `make apk` | `securibit-<版本>-arm64-v8a.apk` 等 | GitHub 版（會自己更新）：每種處理器一個 APK，混淆並去掉除錯符號（符號在 `build/symbols`，當機回報要用） |
+| `make aab` | `securibit-<版本>.aab` | 上架 Google Play 用的 App Bundle（不含自我更新與 `REQUEST_INSTALL_PACKAGES`，見下方「檢查與自動更新」），Play 會依手機只下載需要的部分 |
 | `make linux` | `Securibit-<版本>-linux-<arm64\|x64>.tar.gz` | Linux release bundle，解開後執行 `securibit/securibit`。自動選建置方式（見下方「Linux」） |
 | `make deb` | `securibit_<版本>_<arm64\|amd64>.deb` | Debian / Ubuntu 套件（也會產出 .tar.gz） |
 | `make linux-all` | 以上兩種 | 一次建好 Linux 的 .tar.gz 和 .deb |
 | `make linux-deps` | | 在 Debian / Ubuntu 主機上安裝直接建置需要的系統套件，並檢查 Flutter、Rust |
-| `make dist` | | 建置這台主機能建的所有平台（macOS 主機：macOS、iOS、有 Android SDK 時加 Android、Docker 有在跑時加 Linux） |
+| `make windows` | `Securibit-<版本>-windows-x64-setup.exe`、`Securibit-<版本>-windows-x64.zip` | Windows 安裝檔與免安裝版。要在 Windows 上建置：設定 `WIN_REMOTE=user@host` 時送到那台 Windows 建置再拉回來（見下方「Windows」） |
+| `make dist` | | 建置這台主機能建的所有平台（macOS 主機：macOS、iOS、有 Android SDK 時加 Android、Docker 有在跑時加 Linux、有設定 `WIN_REMOTE` 時加 Windows） |
+| `make checksums` | `SHA256SUMS.txt` | 這個版本所有產出的 SHA-256（每個建置目標建完都會自動更新）；發版時一起上傳，App 自動更新時用它確認檔案完整 |
 
 一般 Android 手機裝 `arm64-v8a` 那個 APK 就好。QR 掃描用的是 Google Play 服務裡的 ML Kit 模型（沒有包進 APK），沒有 Google Play 服務的手機（例如部分華為）無法掃 QR，但可以貼上 otpauth 連結。
 
-### 檢查更新
+### 檢查與自動更新
 
-macOS、Linux、Android 版開啟時（以及常駐在選單列／系統匣時每天一次）會讀 `env.json` 的 `UPDATE_REPO`（例如 `Securibit/Securibit-APP`）在 GitHub 的最新正式 Release，有新版本就提示，「下載」用瀏覽器打開對應的檔案，不會自動安裝；`UPDATE_REPO` 留空就關閉。iOS 不檢查。
-發版時標籤用 `v<版本>`（例如 `v0.4.0`，和 `pubspec.yaml` 的版本相同），附件直接用 `dist/` 的檔名：`Securibit-<版本>-macos.dmg`（其次 `.zip`）、`securibit_<版本>_<amd64|arm64>.deb`（用 .deb 安裝的）、`Securibit-<版本>-linux-<x64|arm64>.tar.gz`、`securibit-<版本>-<arm64-v8a|armeabi-v7a|x86_64>.apk`。找不到對應的檔案時打開 Release 頁面。
+macOS、Linux、Windows、Android（GitHub 版）開啟時會讀 `env.json` 的 `UPDATE_REPO`（例如 `Securibit/Securibit-APP`）在 GitHub 的最新正式 Release，之後每小時再查一次；`UPDATE_REPO` 留空就關閉。iOS 與 Google Play 版不檢查。
+有新版本時在背景下載這個平台的安裝檔，和 Release 附的 `SHA256SUMS.txt` 比對，不符就丟掉、絕不安裝（下載失敗會安靜地重試）；通過後提示「新版本已準備好」，按「重新啟動並更新」：
+
+- macOS：下載 `.zip`，用 `ditto` 解開並確認 Bundle ID、版本與簽章（Team ID 和目前的 App 相同），App 結束後由替換腳本把目前執行中的 .app（不一定在「應用程式」）換成新版、拿掉隔離屬性再打開；使用者直接結束 App 時也會順便換好。從磁碟映像檔或 App Translocation 執行、或沒有寫入權限時，提示先搬到「應用程式」或用瀏覽器下載。為了能替換自己，1.2.0 起關掉 App Sandbox，第一次啟動時會把舊沙盒裡的設定搬過來（`macos/Runner/SandboxMigration.swift`）
+- Linux `.tar.gz`：資料夾可以寫入時同 macOS（等 App 結束後替換資料夾並重新打開），不能寫入時用瀏覽器下載
+- Linux `.deb`（執行檔在 `/usr`、`/opt` 底下或由 dpkg 管理）：「立即更新」用 `pkexec apt-get install -y` 安裝後重新打開；沒有 pkexec 或取消授權時說明原因，可以改用瀏覽器下載
+- Windows 安裝檔裝的（執行檔旁邊有 Inno Setup 的 `unins000.exe`）：下載 `Securibit-<版本>-windows-x64-setup.exe`，按「重新啟動並更新」時用 `/SILENT /SUPPRESSMSGBOXES /NORESTART /NOCANCEL /SP- /UPDATE` 啟動它再結束 App；安裝檔先等 App 結束（互斥鎖），裝好後自動打開新版。每個使用者各自安裝，不會跳出 UAC；App 自己下載的檔案沒有「從網路下載」的標記，也不會跳 SmartScreen
+- Windows 免安裝版（`.zip` 解開的）：不自動更新，提示用瀏覽器下載
+- Android：下載這支手機 ABI 的 APK，交給系統的安裝畫面（第一次要允許「安裝不明應用程式」）。Google Play 不允許 App 自己下載更新，所以 `make aab` 用 `--android-project-arg=distribution=play` 建置：不合併 `android/app/src/selfUpdate/AndroidManifest.xml`（`REQUEST_INSTALL_PACKAGES` 與 FileProvider），App 執行時看到沒有這個權限就整個關掉檢查更新。沒有用 product flavor，因為 flavor 會讓每次 `flutter run`／`build` 都得加 `--flavor`
+
+發版時標籤用 `v<版本>`（例如 `v0.4.0`，和 `pubspec.yaml` 的版本相同），附件直接用 `dist/` 的檔名：`Securibit-<版本>-macos.dmg` 與 `.zip`、`securibit_<版本>_<amd64|arm64>.deb`、`Securibit-<版本>-linux-<x64|arm64>.tar.gz`、`securibit-<版本>-<arm64-v8a|armeabi-v7a|x86_64>.apk`、`Securibit-<版本>-windows-x64-setup.exe` 與 `Securibit-<版本>-windows-x64.zip`，再加上 `SHA256SUMS.txt`（沒有附的話 App 只會提示用瀏覽器下載）。
+
+本機測試整個流程：`python3 tool/update_feed.py <放安裝檔的資料夾> <假的版本>` 在 `127.0.0.1:8765` 提供假的 `latest.json`、安裝檔與 `SHA256SUMS.txt`，App 用 `--dart-define=UPDATE_FEED_URL=http://127.0.0.1:8765/latest.json` 建置就會改讀這份（只有這時允許 http）。正式版不要設定。
 
 ### Linux
 
@@ -259,6 +273,61 @@ make deb-check DISTRO=debian-12  # 其他發行版建的 .deb 只在同一個發
 登入狀態存在系統金鑰圈（Secret Service，例如 gnome-keyring 或 KWallet），系統沒有的話登入狀態會改存一般設定檔，離線快取和「記住密語」會失效且不會提示，請確認桌面環境有在跑 gnome-keyring 或 KWallet。
 Linux 的 Flutter 不會自己找中文的備援字型，App 依序使用 Noto Sans CJK TC、文泉驛等常見字型（見 `lib/core/platform.dart`），系統至少要裝一套中文字型（例如 `fonts-noto-cjk`）。
 
+### Windows
+
+Windows 版要在 Windows 10 以上（x64）建置，產出兩種：
+
+- `Securibit-<版本>-windows-x64-setup.exe`：安裝檔（Inno Setup，`tool/windows/securibit.iss`）。每個使用者各自安裝在 `%LOCALAPPDATA%\Programs\Securibit`，不需要系統管理員；建立開始功能表捷徑（桌面捷徑可以勾選）；在 `HKCU\Software\Classes` 註冊 `securibit`、`otpauth`、`otpauth-migration` 三種連結；介面有繁體中文與英文（依系統語言）；完成頁可以勾選打開 Securibit。解除安裝會刪掉程式、捷徑、`securibit://`、登入時自動開啟的 Run 值與自動更新的暫存檔；`otpauth`、`otpauth-migration` 還指向 Securibit 時才刪（使用者後來改用別的驗證器就不動）。設定與登入資料（`%APPDATA%\BITYO\Securibit`）照 macOS、Linux 的慣例留著
+- `Securibit-<版本>-windows-x64.zip`：免安裝版，解開後執行 `Securibit\securibit.exe`。不會註冊連結、不會自動更新
+
+兩種都沒有程式碼簽章：用瀏覽器下載後第一次打開時，SmartScreen 會顯示「Windows 已保護您的電腦」，要按「其他資訊」→「仍要執行」。
+
+#### 自己在 Windows 上建置
+
+1. 安裝：
+   - [Flutter 3.35.3](https://docs.flutter.dev/get-started/install/windows/desktop)（加到 `PATH`，或放在 `%USERPROFILE%\flutter`）與 Git
+   - Visual Studio 2022 或 Build Tools 2022 的「使用 C++ 的桌面開發」，**另外勾選「適用於最新 v143 建置工具的 C++ ATL」**（`flutter_secure_storage` 的 Windows 外掛要用 ATL，沒有的話會出現找不到 `atlstr.h`）
+   - [Rust](https://rustup.rs)：`rustup default stable-msvc`
+   - [Inno Setup 6](https://jrsoftware.org/isinfo.php)（或 `winget install JRSoftware.InnoSetup`）
+   - 打開「設定 › 系統 › 開發人員專用 › 開發人員模式」（Flutter 外掛要用到 symbolic link）
+2. 準備 `env.json`（同上面的「自己編譯」）
+3. 在專案資料夾執行：
+
+   ```powershell
+   powershell -NoProfile -File tool\windows\build.ps1
+   ```
+
+   會依序 `flutter build windows --release`、把 Visual Studio 的 Visual C++ 執行階段（`msvcp140.dll`、`vcruntime140.dll` 等）放進 App 的資料夾（乾淨的 Windows 不一定有）、打包 `.zip`、用 Inno Setup 做安裝檔，最後重新產生 `dist\SHA256SUMS.txt`（`dist\` 裡這個版本的所有產出）。`FLUTTER`、`ISCC` 環境變數可以指定 flutter 與 `ISCC.exe` 的路徑
+
+開發時用 `flutter run -d windows --dart-define-from-file=env.json`。同一個使用者只能開一個 Securibit：已經開著安裝版時，`flutter run` 開的程式會把視窗交給它然後結束，要先關掉安裝版。
+
+`build.ps1` 會在這次建置裡把 `PATH` 中的 `WindowsApps` 拿掉：從 Microsoft Store 裝的 PowerShell 7 在 SSH 等非互動的登入裡執行會「存取被拒」，`flutter.bat` 找到它就會失敗。
+
+#### 從 Mac 送到另一台 Windows 建置：`WIN_REMOTE=`
+
+```bash
+make windows WIN_REMOTE=user@192.168.1.30 WIN_SSH_OPTS='-i ~/.ssh/id_ed25519'
+```
+
+- Windows 要開啟 OpenSSH 伺服器（預設的 shell 是 cmd），上面的工具都裝好
+- 原始碼（含 `env.json`，不含 `.git`、`build`、`dist`、`.dart_tool`、`rust/target`、Android／iOS／macOS 的資料夾、`local.mk` 與簽章金鑰）用 `tar` 經 ssh 送到遠端家目錄下的 `WIN_REMOTE_DIR`（預設 `securibit-build`）。Windows 沒有 rsync，所以送之前先刪掉遠端的 `lib`、`test`、`tool` 等原始碼資料夾，`build` 等快取留著，第二次建置比較快
+- 在遠端執行 `tool\windows\build.ps1`，再依 `dist\.last-build` 用 `scp` 把這次的產出拉回本機 `dist/`，最後更新 `dist/SHA256SUMS.txt`
+- `WIN_REMOTE`、`WIN_SSH_OPTS`、`WIN_REMOTE_DIR` 可以寫在 `local.mk`
+
+#### Windows 上的功能
+
+| 功能 | 狀態 |
+| --- | --- |
+| 登入 | Google 登入開瀏覽器，用 127.0.0.1 本機轉址帶回 App（同 macOS、Linux） |
+| 安全儲存 | `flutter_secure_storage` 的 Windows 版不用認證管理員（每筆上限 2560 bytes），而是把全部項目合成一份 JSON，用 DPAPI 綁這個 Windows 使用者加密，存在 `%APPDATA%\BITYO\Securibit\flutter_secure_storage.dat`，大的離線快取也放得下。每次寫入都是整份重寫，App 把 Windows 上的讀寫排隊一筆一筆做（`lib/core/secure_store.dart`） |
+| 從圖片讀 QR Code | Rust 核心（同 Linux），支援 PNG、JPG、WebP、GIF、BMP |
+| 相機掃描 | 沒有（mobile_scanner 沒有 Windows 版），按鈕不顯示 |
+| 禁止截圖 | 設定頁關掉「允許截圖」時用 `SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE)`，視窗不出現在截圖、錄影與螢幕分享（2004 以前的 Windows 10 會拍到黑色）。預設允許，同 macOS、Linux |
+| 點連結打開 App | 安裝檔註冊三種連結；App 已經開著時，新開的程式把連結交給原本的視窗（`WM_COPYDATA`）並叫到前面，自己結束（`windows/runner/main.cpp`，同一個使用者只會有一個 Securibit） |
+| 自動更新 | 安裝檔裝的會自動更新；免安裝版用瀏覽器下載（見上方「檢查與自動更新」） |
+| 系統匣常駐、登入時自動開啟 | 見下方「Windows 系統匣」 |
+| 生物辨識（Windows Hello） | 還沒做：App 鎖定可以用密碼、PIN 或圖形 |
+
 ## 測試
 
 ```bash
@@ -278,7 +347,8 @@ flutter test
 - 加密群組：用網站自己的 `src/lib/vault/crypto.ts` 產生的測試向量解密，證明兩邊相容。重新產生向量：`tool/gen_vault_vector.sh ../Securibit-Web`（需要 node 22 以上），結果同時填進 `test/vault_test.dart` 與 `rust/core/src/vault.rs`
 - App 鎖定：改用 Rust 之前由 Dart 存在裝置上的雜湊照樣驗證得過
 - 記憶體裡的金鑰：鎖定時清掉、離線快取封起來的格式
-- 選單列／系統匣的內容（分組、釘選、鎖定、遮住驗證碼、Linux 用的一行文字）與 Linux 登入時自動開啟的 autostart 檔
+- 選單列／系統匣的內容（分組、釘選、鎖定、遮住驗證碼、Linux 與 Windows 用的一行文字）、各平台的差異與設定頁的說明，以及 Linux 登入時自動開啟的 autostart 檔
+- 自動更新：各平台要下載的檔案（含 Windows 安裝檔與免安裝版）、安裝方式的判斷、Windows 安裝檔的參數；Windows 安全儲存的排隊
 
 ## 程式結構
 
@@ -294,16 +364,19 @@ lib/
   app.dart                主題、依登入狀態切換畫面
   core/                   連線設定、RPC、主題代幣、共用元件、秒針
   features/
-    auth/                 Google 登入（手機原生 / 深層連結 / Linux 本機轉址）、profile
+    auth/                 Google 登入（手機原生 / 深層連結 / 桌面本機轉址）、profile
     groups/               my_groups、邀請、側欄
     codes/                驗證碼清單、詳細資料、新增與編輯、QR Code 掃描
       totp/               TOTP、otpauth、類別、表單驗證（對應網站 src/lib/totp，計算在 Rust）
     vault/                加密群組的解鎖（對應網站 src/lib/vault，計算在 Rust）
     cache/                離線快取（系統安全儲存；金鑰由 Rust 用這台裝置的金鑰封起來）
     settings/             主題、生物辨識鎖定、帳戶資訊、登出
-    menubar/              macOS 選單列、Linux 系統匣的內容與原生端的溝通，Linux 的登入時自動開啟
-                          （原生端在 macos/Runner/MenuBarController.swift、linux/runner/tray.cc）
+    menubar/              macOS 選單列、Linux 與 Windows 系統匣的內容與原生端的溝通，Linux 的登入時自動開啟
+                          （原生端在 macos/Runner/MenuBarController.swift、linux/runner/tray.cc、windows/runner/tray.cpp）
     shell/                三欄 / 側欄的版面
+windows/runner/           Windows 的原生端：單一執行個體與連結轉交、視窗大小、截圖保護（securibit/privacy）、
+                          系統匣（tray.cpp）、登入時自動開啟（launch_at_login.cpp）
+tool/windows/             Windows 的建置腳本（build.ps1）與 Inno Setup 安裝檔（securibit.iss、繁體中文介面翻譯）
 ```
 
 版面參考 Proton Pass：寬視窗是「群組側欄｜驗證碼清單｜詳細資料」三欄；視窗變窄時側欄收進左上角的選單；手機是清單一頁、點一筆開詳細資料。
@@ -328,6 +401,19 @@ Linux 版用同一份選單內容常駐在系統匣（Ayatana AppIndicator，原
 - 視窗藏起來算離開 App、叫回來算回來，App 鎖定照常生效
 - 設定頁的「在系統匣顯示」與「登入時自動開啟」：後者會在 `~/.config/autostart/com.bityo.securibit.desktop` 寫入（或刪除）啟動項目，指向目前執行的程式
 - GNOME 要先安裝 [AppIndicator 擴充功能](https://extensions.gnome.org/extension/615/appindicator-support/)（Ubuntu 已內建）才看得到圖示；KDE、XFCE、Cinnamon 可以直接使用
+
+### Windows 系統匣
+
+Windows 版用同一份選單內容常駐在系統匣（`Shell_NotifyIcon` 與 `TrackPopupMenu`，原生端在 `windows/runner/tray.cpp`）：
+左鍵或右鍵點圖示都會打開選單，依群組列出驗證碼（驗證碼很多時每個群組收成子選單），點一下複製，系統匣跳出「已複製」的通知（不出聲、勿擾時不顯示，兩秒後收掉）。
+鎖定、加密群組沒解鎖、沒有登入時的顯示和 macOS、Linux 一樣，原生端一樣只拿到顯示用的文字。
+
+- 選單只能顯示一行文字（同 Linux）；打開前才向 App 要最新的驗證碼，選單開著時文字不更新，點了以後由 App 算當下的碼，複製到的一定正確
+- 打開系統匣時關掉視窗（X、Alt+F4）只是藏起來，選「結束 Securibit」才會結束；從系統匣選「打開 Securibit」或再開一次 App 會叫回視窗。圖示加不上去時關掉視窗就直接結束
+- 視窗藏起來算離開 App、叫回來算回來，App 鎖定照常生效
+- 「登入時自動開啟」寫在 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` 的 `Securibit`（`"<securibit.exe>" --hidden`），登入時直接藏在系統匣、不跳出視窗；在「設定 › 應用程式 › 啟動」關掉的話，設定頁會說明要到那裡打開。安裝檔更新時改指向新的位置，解除安裝時刪掉
+- 安裝或解除安裝時 Securibit 還開著（例如藏在系統匣），安裝檔會先問，再請 App 自己結束（送 `Securibit.Quit` 視窗訊息）；App 自動更新是 App 先結束再安裝，照常運作
+- Windows 11 預設把新的圖示收在工作列右下角的「^」裡，可以拖到工作列上一直顯示
 
 ## 開發者
 由幣友 BITYO 與靈魂之神工作室共同開發。

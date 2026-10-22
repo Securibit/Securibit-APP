@@ -15,3 +15,8 @@
 
 # Linux 主機上強制直接建置（0）或用 Docker（1）；不設定就自動選
 # LINUX_DOCKER = 1
+
+# 在另一台 Windows 上建置（make windows 會用 tar 經 ssh 送原始碼過去、執行 tool/windows/build.ps1，再用 scp 把產出拉回 dist/）
+# WIN_REMOTE = user@192.168.1.30
+# WIN_REMOTE_DIR = securibit-build
+# WIN_SSH_OPTS = -i ~/.ssh/id_ed25519

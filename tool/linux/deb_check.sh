@@ -23,6 +23,8 @@ if [[ -n "$missing" ]]; then
 fi
 test "$(readlink /usr/bin/securibit)" = /opt/securibit/securibit
 test -f /usr/share/applications/com.bityo.securibit.desktop
+# 點 securibit://、otpauth://、otpauth-migration:// 連結時開 Securibit
+grep -q '^MimeType=.*x-scheme-handler/otpauth-migration;' /usr/share/applications/com.bityo.securibit.desktop
 test -f /usr/share/icons/hicolor/256x256/apps/com.bityo.securibit.png
 
 # 在虛擬螢幕上啟動，10 秒後還在跑就算成功（timeout 結束時回傳 124）
