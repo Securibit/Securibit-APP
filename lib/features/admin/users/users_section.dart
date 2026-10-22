@@ -229,7 +229,9 @@ class _UserRow extends StatelessWidget {
                       Text('${user.totpCount} 筆', style: TextStyle(fontSize: AppText.secondary, color: colors.inkMuted, fontFeatures: tabular)),
                     ],
                   ),
-                  Text(formatDate(user.lastLoginAt), style: TextStyle(fontSize: AppText.caption, color: colors.inkMuted, fontFeatures: tabular)),
+                  // 同網站的清單：最後登入與最後活動（沒有就是「無」）
+                  Text('最後登入 ${formatDate(user.lastLoginAt)}', style: TextStyle(fontSize: AppText.caption, color: colors.inkMuted, fontFeatures: tabular)),
+                  Text('最後活動 ${formatDate(user.lastActiveAt)}', style: TextStyle(fontSize: AppText.caption, color: colors.inkMuted, fontFeatures: tabular)),
                 ],
               ),
               Icon(Icons.chevron_right_rounded, color: colors.inkMuted),

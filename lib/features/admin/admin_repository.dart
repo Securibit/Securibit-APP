@@ -5,6 +5,7 @@ import '../codes/totp/categories.dart';
 import '../codes/totp/secret.dart';
 import '../codes/totp/totp_params.dart';
 import '../groups/groups_repository.dart';
+import '../profile/session_models.dart';
 import 'admin_models.dart';
 
 // 群組的 RPC 前台後台共用，放在 groups_repository；後台照舊用 repo.xxx 呼叫
@@ -87,12 +88,19 @@ Future<Result<void>> updateAdminUserTotp(String userId, String itemId, Map<Strin
 Future<Result<void>> deleteAdminUserTotp(String userId, String itemId) =>
     rpcVoid('admin_delete_user_totp', {'user_id': userId, 'item_id': itemId});
 
-// ---------- 登入紀錄與帳號操作紀錄（0014） ----------
+// ---------- 登入紀錄與帳號操作紀錄 ----------
 
 Future<Result<List<LoginRecord>>> loadAdminUserLoginHistory(String userId, int? beforeId, int pageSize) => rpc(
       'admin_user_login_history',
       (data) => asMapList(data).map(LoginRecord.fromJson).toList(),
       {'user_id': userId, 'before_id': beforeId, 'page_size': pageSize},
+    );
+
+/// 這位使用者已登入的裝置（同 list_my_sessions 的格式；current 一律 false，管不到對方時 ip 是 null）
+Future<Result<List<SessionRecord>>> loadAdminUserSessions(String userId) => rpc(
+      'admin_user_sessions',
+      (data) => asMapList(data).map(SessionRecord.fromJson).toList(),
+      {'user_id': userId},
     );
 
 Future<Result<List<AccountActivity>>> loadAdminUserActivity(String userId, int? beforeId, int pageSize) => rpc(
@@ -133,13 +141,8 @@ Future<Result<List<AdminGroup>>> loadAdminGroups(String search) => rpc(
     );
 
 /// 全站「管理所有群組」直接把使用者加進群組（不用邀請，只在後台）；target：電子郵件、@ID 或使用者 ID
-Future<Result<AddedMember>> addGroupMember(String gid, String target) async {
-  final result = await rpc('group_add_member', AddedMember.fromJson, {'gid': gid, 'target': target.trim()});
-  if (result case Err(:final message) when message.contains('「group_add_member」')) {
-    return const Err('資料庫還沒更新，請先在 Supabase 執行 0017_admin_add_member.sql');
-  }
-  return result;
-}
+Future<Result<AddedMember>> addGroupMember(String gid, String target) =>
+    rpc('group_add_member', AddedMember.fromJson, {'gid': gid, 'target': target.trim()});
 
 // ---------- 操作紀錄 ----------
 

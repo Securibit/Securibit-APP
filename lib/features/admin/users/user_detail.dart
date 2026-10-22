@@ -11,6 +11,8 @@ import '../../../core/widgets/feedback.dart';
 import '../../../core/widgets/grouped_list.dart';
 import '../../auth/auth_controller.dart';
 import '../../groups/groups_controller.dart';
+import '../../profile/devices_page.dart';
+import '../../profile/session_models.dart';
 import '../admin_format.dart';
 import '../admin_models.dart';
 import '../admin_nav.dart';
@@ -30,7 +32,7 @@ import 'user_totp_section.dart';
 const _activityPageSize = 10;
 
 /*
- * 後台使用者詳細資料（同網站 /admin/users/[id]）：身分、帳號、登入資訊、身分組、2FA、登入紀錄、操作紀錄，最後是刪除。
+ * 後台使用者詳細資料（同網站 /admin/users/[id]）：身分、帳號、登入資訊、身分組、2FA、已登入的裝置（只能查看）、登入紀錄、操作紀錄，最後是刪除。
  * 修改資料、刪除要「管理使用者」而且階層比對方高、不是自己；2FA 要自己的或階層比對方高（資料庫同樣檢查）。
  */
 class UserDetailView extends StatefulWidget {
@@ -161,6 +163,8 @@ class _UserDetailViewState extends State<UserDetailView> {
           children: [
             GroupedRow(label: '建立時間', value: formatDateTime(user.creationTime)),
             GroupedRow(label: '最後登入', value: formatDateTime(user.lastLoginAt)),
+            // 所有登入中裝置的最後活動取最新的；沒有登入中的裝置時是「無」
+            GroupedRow(label: '最後活動', value: formatDateTime(user.lastActiveAt)),
             // 階層不比對方高時資料庫不給 IP（null）
             GroupedRow(
               label: 'IP',
@@ -186,6 +190,9 @@ class _UserDetailViewState extends State<UserDetailView> {
           const SizedBox(height: 24),
           UserTotpSection(user: user, canManage: access.can(SitePermission.manageUserTotp)),
         ],
+        const SizedBox(height: 24),
+        const SectionHeader('已登入的裝置'),
+        _UserSessions(key: ValueKey('sessions-${user.id}'), userId: user.id),
         const SizedBox(height: 24),
         const SectionHeader('登入紀錄'),
         PagedList<LoginRecord>(
@@ -362,5 +369,52 @@ class _GroupChip extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// 已登入的裝置（只能查看，同網站後台的 SessionList readOnly）：和個人頁面的「已登入的裝置」同一種列
+class _UserSessions extends StatefulWidget {
+  const _UserSessions({super.key, required this.userId});
+
+  final String userId;
+
+  @override
+  State<_UserSessions> createState() => _UserSessionsState();
+}
+
+class _UserSessionsState extends State<_UserSessions> {
+  // null：載入中
+  List<SessionRecord>? _sessions;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_load());
+  }
+
+  Future<void> _load() async {
+    final result = await repo.loadAdminUserSessions(widget.userId);
+    if (!mounted) return;
+    setState(() {
+      switch (result) {
+        case Ok(:final data):
+          _sessions = data;
+          _error = null;
+        case Err(:final message):
+          _sessions ??= const [];
+          _error = message;
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sessions = _sessions;
+    if (sessions == null) return const ListLoading();
+    // 讀不到（例如舊的資料庫沒有這個功能）直接寫在這裡，不跳對話框
+    if (_error != null && sessions.isEmpty) return SoftCard(child: MutedText('載入已登入的裝置失敗：$_error'));
+    if (sessions.isEmpty) return const ListEmpty('沒有登入中的裝置');
+    return GroupedList(children: [for (final session in sessions) SessionRow(session: session, readOnly: true)]);
   }
 }

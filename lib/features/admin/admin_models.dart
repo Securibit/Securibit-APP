@@ -1,4 +1,5 @@
 import '../../core/json.dart';
+import '../codes/totp/categories.dart';
 import '../codes/totp/totp_params.dart';
 
 /*
@@ -139,6 +140,7 @@ class AdminUser {
     required this.lastLoginAt,
     required this.lastLoginIp,
     required this.lastLoginDevice,
+    this.lastActiveAt,
     required this.roleIds,
     required this.topPosition,
     required this.totpCount,
@@ -155,6 +157,8 @@ class AdminUser {
   // 階層不比對方高時資料庫不給（null）
   final String? lastLoginIp;
   final String? lastLoginDevice;
+  // 最後活動：所有登入中裝置的最後活動取最新的；沒有登入中的裝置（或舊的資料庫）是 null
+  final String? lastActiveAt;
   final List<String> roleIds;
   final int topPosition;
   // 預設群組的驗證碼數
@@ -172,6 +176,7 @@ class AdminUser {
         // 空字串（沒有紀錄）和 null（不公開）要分開
         lastLoginIp: json['last_login_ip'] is String ? json['last_login_ip'] as String : null,
         lastLoginDevice: asNullableString(json['last_login_device']),
+        lastActiveAt: asNullableString(json['last_active_at']),
         roleIds: _stringList(json['role_ids']),
         topPosition: asInt(json['top_position']),
         totpCount: asInt(json['totp_count']),
@@ -506,6 +511,7 @@ class AdminGroupDetail {
     required this.members,
     this.invites = const [],
     this.emailInvites = const [],
+    this.categoryOrder = const [],
   });
 
   final GroupInfo group;
@@ -523,6 +529,8 @@ class AdminGroupDetail {
   // 有「邀請成員」或「管理群組」才有，否則是空的
   final List<GroupInvite> invites;
   final List<GroupEmailInvite> emailInvites;
+  // 類別的自訂順序（所有成員共用）；舊的資料庫沒有這個欄位時是空的
+  final List<String> categoryOrder;
 
   factory AdminGroupDetail.fromJson(Object? json) {
     final map = asMap(json);
@@ -537,6 +545,7 @@ class AdminGroupDetail {
       members: asMapList(map['members']).map(GroupMember.fromJson).toList(),
       invites: asMapList(map['invites']).map(GroupInvite.fromJson).toList(),
       emailInvites: asMapList(map['email_invites']).map(GroupEmailInvite.fromJson).toList(),
+      categoryOrder: parseCategoryOrder(map['category_order']),
     );
   }
 }

@@ -38,7 +38,7 @@ class _DevicesPageState extends State<DevicesPage> {
   }
 
   Future<void> _load() async {
-    // 開 App 時那次可能沒寫成功（例如當時資料庫還沒有 0019），先補寫這台，列表才不會是「未知裝置」
+    // 開 App 時那次可能沒寫成功（例如當時資料庫還沒有這個功能），先補寫這台，列表才不會是「未知裝置」
     await SessionDeviceReporter.reportNow();
     final result = await repo.loadMySessions();
     if (!mounted) return;
@@ -126,12 +126,14 @@ class _DevicesPageState extends State<DevicesPage> {
   }
 }
 
-/// 一個 session：裝置名稱（這台標「這台裝置」）、平台 · App／瀏覽器 · IP、最後活動與首次登入，右邊是「登出」
+/// 一個 session：裝置名稱（這台標「這台裝置」）、平台 · App／瀏覽器 · IP、最後活動與首次登入，右邊是「登出」。
+/// readOnly（後台查看別人的裝置）：不標「這台裝置」、沒有「登出」
 class SessionRow extends StatelessWidget {
-  const SessionRow({super.key, required this.session, required this.onRevoke});
+  const SessionRow({super.key, required this.session, this.onRevoke, this.readOnly = false});
 
   final SessionRecord session;
-  final void Function(String name) onRevoke;
+  final void Function(String name)? onRevoke;
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -158,7 +160,7 @@ class SessionRow extends StatelessWidget {
                         style: const TextStyle(fontSize: AppText.body, fontWeight: FontWeight.w600),
                       ),
                     ),
-                    if (session.current) ...[const SizedBox(width: 8), const Tag('這台裝置')],
+                    if (session.current && !readOnly) ...[const SizedBox(width: 8), const Tag('這台裝置')],
                   ],
                 ),
                 const SizedBox(height: 2),
@@ -173,8 +175,8 @@ class SessionRow extends StatelessWidget {
               ],
             ),
           ),
-          if (!session.current)
-            TextButton(onPressed: () => onRevoke(display.name), child: const Text('登出'))
+          if (!session.current && !readOnly && onRevoke != null)
+            TextButton(onPressed: () => onRevoke!(display.name), child: const Text('登出'))
           else
             const SizedBox(width: 8),
         ],
