@@ -491,7 +491,11 @@ class _PermissionPanel extends StatelessWidget {
           ),
         ClipRRect(
           borderRadius: BorderRadius.circular(AppRadius.medium),
-          child: ColoredBox(color: colors.surface1, child: Column(children: rows)),
+          child: ColoredBox(
+            color: colors.surface1,
+            // 每一列撐滿寬度，窄的時候（說明和切換上下排）才會靠左對齊，不會依內容寬度各自置中
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: rows),
+          ),
         ),
       ],
     );
