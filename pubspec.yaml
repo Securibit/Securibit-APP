@@ -2,7 +2,7 @@ name: securibit
 description: "Securibit 兩步驟驗證器（iOS、Android、macOS、Linux），後端與網站共用 Supabase。"
 publish_to: 'none'
 
-version: 1.2.0+3
+version: 1.3.0+4
 
 environment:
   sdk: ^3.9.0
@@ -42,3 +42,4 @@ flutter:
   uses-material-design: true
   assets:
     - assets/logo.png
+    - assets/bityo.png
