@@ -23,6 +23,7 @@ import 'totp/totp_params.dart';
  * 網站或其他裝置改了這個群組（signals，見 GroupsController）時背景同步：只重新讀清單，
  * 金鑰變了、有新的或新拿到「查看金鑰」的才重新讀金鑰；不顯示讀取中，選取、搜尋、類別、排序模式都保留。
  * 讀取一律排隊（_serial），不會有舊的結果蓋掉新的。
+ * 類別的自訂順序（group_detail 的 category_order，所有成員共用）和清單一起讀，篩選與建議清單照它排。
  */
 class CodesController extends ChangeNotifier {
   CodesController({
@@ -64,6 +65,10 @@ class CodesController extends ChangeNotifier {
   int _reorderSeq = 0;
   // 正在送出的調整順序（這時背景同步讀到的還是舊順序，不套用）
   int _reordering = 0;
+  // 群組的類別順序（所有成員共用）；沒排過是空的，全部照字母排
+  List<String> categoryOrder = const [];
+  // 送出類別順序的前後各 +1：送出前或送出途中開始讀的，讀到的可能是舊順序，不套用
+  int _categoryOrderSeq = 0;
 
   StreamSubscription<CodesSignal>? _signals;
   Future<void> _queue = Future.value();
@@ -71,6 +76,8 @@ class CodesController extends ChangeNotifier {
   bool _syncSecrets = false;
   // 上次讀到的清單（原始 JSON）：背景同步時沒變就不通知畫面
   String? _accountsRaw;
+  // 上次讀到的清單，存離線快取用
+  List<Map<String, dynamic>>? _accountsData;
   // 上次讀到的金鑰封起來的密文：只重新讀清單時一起存進離線快取
   String? _sealedCache;
   // 上次讀金鑰後還是沒有金鑰的那幾筆：不要每次同步都為了它們重新讀金鑰
@@ -99,6 +106,9 @@ class CodesController extends ChangeNotifier {
   // 排序、清空要群組層級的「管理驗證碼」；兩筆以上才有順序可以調
   bool get canSort => canAdd && (accounts?.length ?? 0) >= 2;
 
+  // 調整類別順序同樣要群組層級的「管理驗證碼」；兩個以上的類別才有順序可以調
+  bool get canSortCategories => canAdd && categories.length >= 2;
+
   bool get canClear => canAdd && (accounts?.isNotEmpty ?? false);
 
   // 單筆權限覆寫要群組層級的「管理身分組」
@@ -115,7 +125,8 @@ class CodesController extends ChangeNotifier {
   // 只有自己一個人的群組（例如預設群組）用個人的說法
   bool get solo => group.memberCount <= 1;
 
-  List<String> get categories => collectCategories((accounts ?? const []).map((a) => a.category));
+  // 照群組的類別順序排，沒排過的照字母排在後面
+  List<String> get categories => orderCategories(collectCategories((accounts ?? const []).map((a) => a.category)), categoryOrder);
 
   String? get activeCategory => category != null && categories.contains(category) ? category : null;
 
@@ -150,10 +161,14 @@ class CodesController extends ChangeNotifier {
     error = null;
     _notify();
 
+    final orderSeq = _categoryOrderSeq;
+    final order = repo.loadCategoryOrder(group.id);
     final result = await repo.loadGroupAccountsRaw(group.id);
     if (_disposed) return;
     switch (result) {
       case Ok(:final data):
+        _applyCategoryOrder(await order, orderSeq);
+        if (_disposed) return;
         await _applyWithSecrets(data, quiet: false);
       case Err(:final message, offline: final isOffline):
         final cached = isOffline ? await cache.loadGroupData(uid, group.id) : null;
@@ -161,9 +176,11 @@ class CodesController extends ChangeNotifier {
         if (cached != null) {
           accounts = cached.accounts.map(GroupAccount.fromJson).toList();
           secrets = repo.restoreGroupSecrets(_scope, cached.sealedSecrets, encrypted: group.encrypted) ?? const {};
+          categoryOrder = cached.categoryOrder;
           offline = true;
           _fromCache = true;
           _accountsRaw = null;
+          _accountsData = null;
         } else {
           error = message;
           offline = isOffline;
@@ -203,13 +220,10 @@ class CodesController extends ChangeNotifier {
     offline = false;
     _fromCache = false;
     _accountsRaw = jsonEncode(data);
+    _accountsData = data;
     _sealedCache = sealedCache;
     _unresolved = {for (final a in list) if (hasPermission(a.permissions, GroupPermission.viewSecrets) && !handles.containsKey(a.id)) a.id};
-    unawaited(cache.saveGroupData(
-      uid,
-      group.id,
-      CachedGroupData(accounts: data, sealedSecrets: sealedCache, savedAt: DateTime.now().millisecondsSinceEpoch),
-    ));
+    _saveCache();
     _restartServerCodes();
     _notify();
   }
@@ -239,7 +253,10 @@ class CodesController extends ChangeNotifier {
       withSecrets = false;
       _ownSecretsAt = null;
     }
+    final orderSeq = _categoryOrderSeq;
+    final order = repo.loadCategoryOrder(group.id);
     final result = await repo.loadGroupAccountsRaw(group.id);
+    final orderResult = await order;
     if (_disposed || _reordering > 0 || SecretSeal.sealed.value) return;
     final data = result.dataOrNull;
     if (data == null) {
@@ -250,6 +267,7 @@ class CodesController extends ChangeNotifier {
       }
       return;
     }
+    final orderChanged = _applyCategoryOrder(orderResult, orderSeq);
     final list = data.map(GroupAccount.fromJson).toList();
     final ids = {for (final a in list) a.id};
     final viewable = {for (final a in list) if (hasPermission(a.permissions, GroupPermission.viewSecrets)) a.id};
@@ -268,17 +286,40 @@ class CodesController extends ChangeNotifier {
     final reconnected = offline;
     offline = false;
     if (raw == _accountsRaw) {
-      if (reconnected) _notify();
+      // 清單沒變、只有類別順序變了
+      if (orderChanged) _saveCache();
+      if (reconnected || orderChanged) _notify();
       return;
     }
     _applyList(list);
     _accountsRaw = raw;
+    _accountsData = data;
+    _saveCache();
+    _notify();
+  }
+
+  // 套用讀到的類別順序，回傳有沒有變；讀不到就保留原本的
+  bool _applyCategoryOrder(Result<List<String>> result, int seq) {
+    final next = result.dataOrNull;
+    if (next == null || seq != _categoryOrderSeq || listEquals(next, categoryOrder)) return false;
+    categoryOrder = next;
+    return true;
+  }
+
+  // 最後一次讀到的清單、金鑰密文與類別順序存進離線快取
+  void _saveCache() {
+    final data = _accountsData;
+    if (data == null) return;
     unawaited(cache.saveGroupData(
       uid,
       group.id,
-      CachedGroupData(accounts: data, sealedSecrets: _sealedCache, savedAt: DateTime.now().millisecondsSinceEpoch),
+      CachedGroupData(
+        accounts: data,
+        sealedSecrets: _sealedCache,
+        categoryOrder: categoryOrder,
+        savedAt: DateTime.now().millisecondsSinceEpoch,
+      ),
     ));
-    _notify();
   }
 
   // 排隊執行讀取，前一個做完才做下一個
@@ -434,6 +475,24 @@ class CodesController extends ChangeNotifier {
     return null;
   }
 
+  /// 調整類別順序（所有成員共用）：成功就換上資料庫整理過的順序，再背景同步一次
+  Future<String?> saveCategoryOrder(List<String> names) async {
+    _categoryOrderSeq++;
+    final result = await repo.setCategoryOrder(group.id, names);
+    _categoryOrderSeq++;
+    if (_disposed) return null;
+    switch (result) {
+      case Err(:final message):
+        return message;
+      case Ok(:final data):
+        categoryOrder = data;
+        _saveCache();
+        _notify();
+        sync();
+        return null;
+    }
+  }
+
   /// 清空全部（只會刪掉我能管理的那些）；成功回傳刪掉的筆數
   Future<Result<int>> clear() async {
     final result = await repo.clearGroupAccounts(group.id);
@@ -469,6 +528,7 @@ class CodesController extends ChangeNotifier {
     }
     _applyList(data.map(GroupAccount.fromJson).toList());
     _accountsRaw = jsonEncode(data);
+    _accountsData = data;
     _notify();
   }
 

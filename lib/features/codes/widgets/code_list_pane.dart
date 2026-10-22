@@ -7,6 +7,7 @@ import '../../../core/result.dart';
 import '../../../core/theme/tokens.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/feedback.dart';
+import '../../../core/widgets/lock_backdrop.dart';
 import '../../../core/widgets/pill.dart';
 import '../../groups/group_models.dart';
 import '../../groups/groups_controller.dart';
@@ -15,21 +16,24 @@ import '../../settings/settings_controller.dart';
 import '../../vault/vault_unlock_view.dart';
 import '../codes_controller.dart';
 import '../transfer/export_entry.dart';
+import 'category_order_editor.dart';
 import 'code_form.dart';
 import 'code_row.dart';
 
 /*
  * 中間欄：選中群組的驗證碼清單（同網站 GroupCodes）。
  * 上面是群組名稱、說明、搜尋與類別篩選；寬視窗點一筆在右欄顯示，窄螢幕開下一頁。
- * 「更多」選單：隱藏驗證碼、調整順序、全部匯出、群組設定、清空全部。
+ * 「更多」選單：隱藏驗證碼、調整順序、調整類別順序、全部匯出、群組設定、清空全部。
  * 排序模式時收起搜尋與篩選、顯示全部，每一筆左邊有上下移。
  */
 class CodeListPane extends StatefulWidget {
-  const CodeListPane({super.key, required this.onOpen, this.onMenu, this.highlightSelection = true});
+  const CodeListPane({super.key, required this.onOpen, this.onMenu, this.leading, this.highlightSelection = true});
 
   final ValueChanged<String> onOpen;
   // 窄螢幕：左上角開側欄
   final VoidCallback? onMenu;
+  // 沒有 onMenu 時左上角的按鈕（桌面寬視窗收起側欄後的「顯示側邊欄」）
+  final Widget? leading;
   // 寬視窗才標出選中的那一筆
   final bool highlightSelection;
 
@@ -64,18 +68,20 @@ class _CodeListPaneState extends State<CodeListPane> {
     final hidden = context.select<SettingsController, bool>((s) => s.hideCodes);
     final colors = context.colors;
 
-    return Column(
+    final pane = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _Header(group: group, controller: controller, onMenu: widget.onMenu, onRefresh: _refresh),
+        _Header(group: group, controller: controller, onMenu: widget.onMenu, leading: widget.leading, onRefresh: _refresh),
         Expanded(child: _body(context, controller, group, hidden, colors)),
       ],
     );
+    // 加密群組鎖定時整欄換成鎖定畫面的漸層底
+    return controller.locked ? LockBackdrop(child: pane) : pane;
   }
 
   Widget _body(BuildContext context, CodesController controller, GroupSummary group, bool hidden, AppColors colors) {
     if (controller.locked) {
-      return ListView(padding: const EdgeInsets.all(16), children: [VaultUnlockView(group: group)]);
+      return VaultUnlockView(group: group);
     }
     final accounts = controller.accounts;
     if (accounts == null) {
@@ -219,11 +225,12 @@ class _CodeListPaneState extends State<CodeListPane> {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.group, required this.controller, required this.onMenu, required this.onRefresh});
+  const _Header({required this.group, required this.controller, required this.onMenu, required this.leading, required this.onRefresh});
 
   final GroupSummary group;
   final CodesController controller;
   final VoidCallback? onMenu;
+  final Widget? leading;
   final Future<void> Function() onRefresh;
 
   @override
@@ -235,15 +242,18 @@ class _Header extends StatelessWidget {
       if (group.isDefault) '預設群組',
       if (group.encrypted) '已加密',
     ].join(' · ');
+    final lead = onMenu != null
+        ? IconButton(tooltip: '群組', onPressed: onMenu, icon: Icon(Icons.menu_rounded, color: colors.ink))
+        : leading;
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(onMenu == null ? 20 : 4, 12, 8, 12),
+      padding: EdgeInsets.fromLTRB(lead == null ? 20 : 4, 12, 8, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
-              if (onMenu != null) IconButton(tooltip: '群組', onPressed: onMenu, icon: Icon(Icons.menu_rounded, color: colors.ink)),
+              ?lead,
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -287,7 +297,7 @@ class _Header extends StatelessWidget {
           ),
           if (group.description.isNotEmpty)
             Padding(
-              padding: EdgeInsets.only(left: onMenu == null ? 0 : 16, top: 6),
+              padding: EdgeInsets.only(left: lead == null ? 0 : 16, top: 6),
               child: Tooltip(
                 message: group.description,
                 child: Text(
@@ -304,7 +314,7 @@ class _Header extends StatelessWidget {
   }
 }
 
-enum _ListAction { hide, sort, exportAll, groupSettings, refresh, clear }
+enum _ListAction { hide, sort, sortCategories, exportAll, groupSettings, refresh, clear }
 
 // 清單的「更多」選單（同網站 GroupCodes 的「…」）：沒有權限的項目不列出，暫時不能用的變灰
 class _MoreMenu extends StatelessWidget {
@@ -345,6 +355,8 @@ class _MoreMenu extends StatelessWidget {
         settings.setHideCodes(!settings.hideCodes);
       case _ListAction.sort:
         controller.setSorting(true);
+      case _ListAction.sortCategories:
+        unawaited(showCategoryOrderEditor(context, controller));
       case _ListAction.exportAll:
         unawaited(showExportAll(context, controller));
       case _ListAction.groupSettings:
@@ -387,6 +399,8 @@ class _MoreMenu extends StatelessWidget {
         ),
         // 排序要群組層級的「管理驗證碼」，兩筆以上才能用
         if (ready && controller.canAdd) item(_ListAction.sort, Icons.swap_vert_rounded, '調整順序', enabled: controller.canSort),
+        // 類別順序同樣要「管理驗證碼」，兩個以上的類別才列出
+        if (ready && controller.canSortCategories) item(_ListAction.sortCategories, Icons.sort_rounded, '調整類別順序'),
         // 匯出要拿得到金鑰（有「查看金鑰」）
         if (hasAccounts) item(_ListAction.exportAll, Icons.ios_share_rounded, '全部匯出', enabled: controller.exportable.isNotEmpty),
         item(_ListAction.groupSettings, Icons.settings_rounded, '群組設定…'),

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import '../../core/secure_store.dart';
 import '../../src/rust/api/secrets.dart' as core;
+import '../codes/totp/categories.dart';
 
 /*
  * 離線快取：最後一次載入的個人資料、群組清單、各群組的驗證碼清單與金鑰，存在系統的安全儲存。
@@ -48,6 +49,7 @@ class OfflineCache {
   Future<void> saveGroupData(String uid, String gid, CachedGroupData data) => _write(_groupKey(uid, gid), {
         'accounts': data.accounts,
         if (data.sealedSecrets != null) 'sealed': data.sealedSecrets,
+        if (data.categoryOrder.isNotEmpty) 'category_order': data.categoryOrder,
         'saved_at': data.savedAt,
       });
 
@@ -58,6 +60,7 @@ class OfflineCache {
     final data = CachedGroupData(
       accounts: accounts is List ? accounts.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList() : [],
       sealedSecrets: map['sealed'] is String ? map['sealed'] as String : null,
+      categoryOrder: parseCategoryOrder(map['category_order']),
       savedAt: map['saved_at'] is int ? map['saved_at'] as int : 0,
     );
     final legacy = map['secrets'];
@@ -66,6 +69,7 @@ class OfflineCache {
     final migrated = CachedGroupData(
       accounts: data.accounts,
       sealedSecrets: core.secretsSealLegacy(raw: legacy.map((k, v) => MapEntry('$k', '$v'))),
+      categoryOrder: data.categoryOrder,
       savedAt: data.savedAt,
     );
     await saveGroupData(uid, gid, migrated);
@@ -88,10 +92,12 @@ class OfflineCache {
 }
 
 class CachedGroupData {
-  const CachedGroupData({required this.accounts, required this.sealedSecrets, required this.savedAt});
+  const CachedGroupData({required this.accounts, required this.sealedSecrets, required this.savedAt, this.categoryOrder = const []});
 
   final List<Map<String, dynamic>> accounts;
   // Rust 封起來的 { 驗證碼 id: 資料庫裡的原始金鑰 }（dev:v1 密文）；沒有金鑰時是 null
   final String? sealedSecrets;
+  // 類別的自訂順序（group_detail 的 category_order）
+  final List<String> categoryOrder;
   final int savedAt;
 }

@@ -122,6 +122,14 @@ Future<Result<void>> deleteGroupAccount(String accountId) => rpcVoid('group_acco
 Future<Result<void>> reorderGroupAccounts(String gid, List<String> ids) =>
     rpcVoid('group_accounts_reorder', {'gid': gid, 'ids': ids});
 
+// 類別的自訂順序（group_detail 的 category_order，所有成員共用）；舊的資料庫沒有這個欄位時是空的
+Future<Result<List<String>>> loadCategoryOrder(String gid) =>
+    rpc('group_detail', (data) => parseCategoryOrder(asMap(data)['category_order']), {'gid': gid});
+
+// 調整類別順序（要群組層級的「管理驗證碼」），回傳資料庫整理過的順序
+Future<Result<List<String>>> setCategoryOrder(String gid, List<String> names) =>
+    rpc('group_set_category_order', parseCategoryOrder, {'gid': gid, 'names': names});
+
 // 清空：只會刪掉我能管理的那些，回傳刪掉的筆數
 Future<Result<int>> clearGroupAccounts(String gid) => rpc('group_accounts_clear', (data) => asInt(data), {'gid': gid});
 

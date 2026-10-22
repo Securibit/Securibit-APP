@@ -34,3 +34,24 @@ bool hasCategory(String value, String name) => parseCategories(value).contains(n
 
 /// 名稱下方顯示用：用「、」串起來
 String formatCategories(String value) => parseCategories(value).join('、');
+
+/// 依群組存的類別順序排列（群組成員共用，存在資料庫）：
+/// 存過的照存的順序排前面（只留還存在的），其餘照字母排在後面
+List<String> orderCategories(Iterable<String> names, List<String> order) {
+  final rest = <String>{...names};
+  final head = [for (final name in order) if (rest.remove(name)) name];
+  return [...head, ...rest.toList()..sort()];
+}
+
+/// 資料庫回傳的類別順序（group_detail 的 category_order）：不是陣列（舊的資料庫沒有這個欄位）就是空的，
+/// 只留非空字串，去頭尾空白、去重
+List<String> parseCategoryOrder(Object? value) {
+  if (value is! List) return [];
+  final seen = <String>{};
+  for (final item in value) {
+    if (item is! String) continue;
+    final name = item.trim();
+    if (name.isNotEmpty) seen.add(name);
+  }
+  return seen.toList();
+}
