@@ -25,7 +25,7 @@ String describeImportItem(TotpInput item) => [
 
 /*
  * 列出解析到的驗證碼（同網站 BulkImportModal）：可以取消勾選、統一指定類別（可多個）。
- * 金鑰和群組既有的、或和清單裡前面的重複時標「已存在」，預設不勾。
+ * 金鑰和群組既有的重複標「已存在」，和清單裡前面的重複標「和第 N 筆相同」，都預設不勾。
  */
 class BulkImportPage extends StatefulWidget {
   const BulkImportPage({super.key, required this.controller, required this.result});
@@ -39,8 +39,8 @@ class BulkImportPage extends StatefulWidget {
 
 class _BulkImportPageState extends State<BulkImportPage> {
   late final List<TotpInput> _items = widget.result.items;
-  late final List<bool> _duplicates = markDuplicates(existingSecrets(widget.controller), _items);
-  late final List<bool> _selected = [for (final duplicate in _duplicates) !duplicate];
+  late final List<String?> _duplicates = duplicateLabels(existingSecrets(widget.controller), _items);
+  late final List<bool> _selected = [for (final duplicate in _duplicates) duplicate == null];
   String _category = '';
   bool _saving = false;
 
@@ -186,12 +186,12 @@ class _BulkImportPageState extends State<BulkImportPage> {
                   ],
                 ),
               ),
-              if (_duplicates[i]) ...[
+              if (_duplicates[i] case final label?) ...[
                 const SizedBox(width: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                   decoration: BoxDecoration(color: colors.surface, borderRadius: BorderRadius.circular(999)),
-                  child: Text('已存在', style: TextStyle(fontSize: AppText.caption, color: colors.alarm, fontWeight: FontWeight.w600)),
+                  child: Text(label, style: TextStyle(fontSize: AppText.caption, color: colors.alarm, fontWeight: FontWeight.w600)),
                 ),
               ],
             ],

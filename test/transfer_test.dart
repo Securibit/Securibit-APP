@@ -133,6 +133,20 @@ void main() {
       );
       expect(marks, [true, false, true, false]);
     });
+
+    test('整批匯入：群組裡已有和清單裡自己重複分開標', () {
+      final labels = duplicateLabels(
+        ['JBSWY3DPEHPK3PXP'],
+        const [
+          TotpInput(name: '1', secret: 'jbswy3dpehpk3pxp'),
+          TotpInput(name: '2', secret: 'MZXW6YTBOI'),
+          TotpInput(name: '3', secret: 'mzxw6ytboi'),
+          TotpInput(name: '4', secret: 'GEZDGNBVGY3TQOJQ'),
+          TotpInput(name: '5', secret: 'JBSWY3DPEHPK3PXP'),
+        ],
+      );
+      expect(labels, ['已存在', null, '和第 2 筆相同', null, '已存在']);
+    });
   });
 
   group('匯出', () {

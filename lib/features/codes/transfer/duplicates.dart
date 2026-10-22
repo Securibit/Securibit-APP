@@ -23,13 +23,27 @@ GroupAccount? findDuplicate(List<GroupAccount> accounts, String? Function(GroupA
 GroupAccount? findDuplicateIn(CodesController controller, String secret) =>
     findDuplicate(controller.ordered, (account) => controller.secretOf(account)?.reveal(), secret);
 
-/// 每一筆是否和既有的、或和清單裡前面的重複（重複的預設不勾）
-List<bool> markDuplicates(Iterable<String> existing, List<TotpInput> items) {
-  final seen = {for (final secret in existing) normalizeSecret(secret)};
-  return [
-    for (final item in items) !seen.add(normalizeSecret(item.secret)),
-  ];
+/// 每一筆和誰重複：群組裡已經有是「已存在」，和清單裡前面某一筆相同是「和第 N 筆相同」，沒重複是 null。
+/// 兩種分開標，不然清單裡自己重複的（例如 Google Authenticator 存了兩次）看起來像群組裡已經有
+List<String?> duplicateLabels(Iterable<String> existing, List<TotpInput> items) {
+  final have = {for (final secret in existing) normalizeSecret(secret)};
+  final first = <String, int>{};
+  final labels = <String?>[];
+  for (final (i, item) in items.indexed) {
+    final secret = normalizeSecret(item.secret);
+    if (have.contains(secret)) {
+      labels.add('已存在');
+      continue;
+    }
+    final earlier = first.putIfAbsent(secret, () => i);
+    labels.add(earlier == i ? null : '和第 ${earlier + 1} 筆相同');
+  }
+  return labels;
 }
+
+/// 每一筆是否和既有的、或和清單裡前面的重複（重複的預設不勾）
+List<bool> markDuplicates(Iterable<String> existing, List<TotpInput> items) =>
+    [for (final label in duplicateLabels(existing, items)) label != null];
 
 /// 目前群組裡我看得到的全部金鑰（正規化），給整批匯入標示「已存在」
 Set<String> existingSecrets(CodesController controller) => {
