@@ -7,6 +7,7 @@ import 'core/theme/tokens.dart';
 import 'core/widgets/empty_state.dart';
 import 'core/widgets/logo.dart';
 import 'features/auth/auth_controller.dart';
+import 'features/links/deep_link_host.dart';
 import 'features/onboarding/signed_out_view.dart';
 import 'features/settings/app_lock.dart';
 import 'features/settings/settings_controller.dart';
@@ -52,7 +53,8 @@ class RootView extends StatelessWidget {
     final Widget child = switch (auth.status) {
       AuthStatus.loading => const _Splash(),
       AuthStatus.signedOut => const SignedOutView(),
-      AuthStatus.signedIn when auth.profile != null => const HomeShell(),
+      // 點連結打開 App 時，登入後的主畫面出來才處理（見 DeepLinkHost）
+      AuthStatus.signedIn when auth.profile != null => const DeepLinkHost(child: HomeShell()),
       AuthStatus.signedIn when auth.profileError != null => _ProfileError(message: auth.profileError!),
       AuthStatus.signedIn => const _Splash(),
     };

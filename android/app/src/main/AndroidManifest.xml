@@ -9,12 +9,14 @@
     <uses-feature android:name="android.hardware.camera" android:required="false"/>
 
     <!-- allowBackup is off: a restored EncryptedSharedPreferences file can no
-         longer be decrypted, because its key stays in the old device's keystore. -->
+         longer be decrypted, because its key stays in the old device's keystore.
+         dataExtractionRules does the same for Android 12+ device-to-device transfer. -->
     <application
         android:label="Securibit"
         android:name="${applicationName}"
         android:icon="@mipmap/launcher_icon"
-        android:allowBackup="false">
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules">
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -43,6 +45,30 @@
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="securibit" android:host="login-callback"/>
             </intent-filter>
+            <!-- 群組邀請連結：App Links，網站的 /.well-known/assetlinks.json 驗證通過後直接開 App -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https" android:host="2fa.bityo.tw" android:pathPrefix="/invite/"/>
+            </intent-filter>
+            <!-- securibit://invite/<code>（網站的「用 App 開啟」） -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="securibit" android:host="invite"/>
+            </intent-filter>
+            <!-- otpauth:// 新增驗證碼、otpauth-migration:// 整批匯入 -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="otpauth"/>
+                <data android:scheme="otpauth-migration"/>
+            </intent-filter>
+            <!-- 連結交給 app_links，不要讓 Flutter 當成路由推上 Navigator -->
+            <meta-data android:name="flutter_deeplinking_enabled" android:value="false"/>
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->

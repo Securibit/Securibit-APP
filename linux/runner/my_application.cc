@@ -117,6 +117,27 @@ static void my_application_activate(GApplication* application) {
   gtk_widget_grab_focus(GTK_WIDGET(view));
 }
 
+/*
+ * 點連結打開 App（.desktop 的 Exec=securibit %u，見 linux/packaging）：
+ * - 第一次開：local_command_line 註冊並建立視窗（外掛在 activate 裡註冊），
+ *   回傳 FALSE 後 GApplication 在這個行程送出 command-line，gtk 外掛（app_links_linux 用的）
+ *   把參數轉給 Dart；Dart 還沒準備好時訊息先排在 channel 的緩衝區，等 app_links 開始聽才收到
+ * - 已經在跑（例如藏在系統匣）：新開的行程 activate 讓原本那個叫回主視窗，
+ *   command-line 透過 D-Bus 交給原本那個行程，新行程直接結束，不會開第二個視窗
+ * gtk 外掛接在 command-line signal 上、比 class handler 先跑而且回傳值就是結果，
+ * 所以下面的 my_application_command_line 平常不會被呼叫；沒有外掛時才由它叫回主視窗
+ */
+static gint my_application_command_line(GApplication* application,
+                                        GApplicationCommandLine* command_line) {
+  MyApplication* self = MY_APPLICATION(application);
+  if (self->window == nullptr) {
+    g_application_activate(application);
+  } else {
+    tray_show_main_window();
+  }
+  return 0;
+}
+
 // Implements GApplication::local_command_line.
 static gboolean my_application_local_command_line(GApplication* application,
                                                   gchar*** arguments,
@@ -136,7 +157,8 @@ static gboolean my_application_local_command_line(GApplication* application,
   g_application_activate(application);
   *exit_status = 0;
 
-  return TRUE;
+  // 交給 GApplication 送出 command-line（連結在參數裡，見 my_application_command_line 上面的說明）
+  return FALSE;
 }
 
 // Implements GApplication::startup.
@@ -168,6 +190,7 @@ static void my_application_class_init(MyApplicationClass* klass) {
   G_APPLICATION_CLASS(klass)->activate = my_application_activate;
   G_APPLICATION_CLASS(klass)->local_command_line =
       my_application_local_command_line;
+  G_APPLICATION_CLASS(klass)->command_line = my_application_command_line;
   G_APPLICATION_CLASS(klass)->startup = my_application_startup;
   G_APPLICATION_CLASS(klass)->shutdown = my_application_shutdown;
   G_OBJECT_CLASS(klass)->dispose = my_application_dispose;
@@ -183,9 +206,10 @@ MyApplication* my_application_new() {
   g_set_prgname(APPLICATION_ID);
 
   // 不加 G_APPLICATION_NON_UNIQUE：同一個使用者只跑一個 Securibit（藏在系統匣時再開一次會叫回視窗）。
+  // HANDLES_COMMAND_LINE：再開一次時把參數（點的連結）交給原本在跑的那個。
   // 沒有 D-Bus session bus 時 GApplication 會自動改成各自獨立執行
   return MY_APPLICATION(g_object_new(my_application_get_type(),
                                      "application-id", APPLICATION_ID,
-                                     "flags", static_cast<GApplicationFlags>(0),
+                                     "flags", G_APPLICATION_HANDLES_COMMAND_LINE,
                                      nullptr));
 }

@@ -44,7 +44,20 @@
 					<string>$(GOOGLE_REVERSED_CLIENT_ID)</string>
 				</array>
 			</dict>
+			<dict>
+				<key>CFBundleTypeRole</key>
+				<string>Viewer</string>
+				<key>CFBundleURLName</key>
+				<string>otpauth</string>
+				<key>CFBundleURLSchemes</key>
+				<array>
+					<string>otpauth</string>
+					<string>otpauth-migration</string>
+				</array>
+			</dict>
 		</array>
+		<key>FlutterDeepLinkingEnabled</key>
+		<false/>
 		<key>NSCameraUsageDescription</key>
 		<string>用相機掃描兩步驟驗證的 QR Code</string>
 		<key>NSPhotoLibraryUsageDescription</key>

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 自動更新（GitHub 版）下載的 APK 放在 cacheDir/updates，只分享這個資料夾給系統的安裝程式 -->
+<paths>
+    <cache-path name="updates" path="updates/"/>
+</paths>
