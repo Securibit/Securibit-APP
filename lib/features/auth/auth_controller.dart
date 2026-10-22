@@ -58,6 +58,9 @@ class AuthController extends ChangeNotifier {
         if (_loadedUid != sessionUser.id) {
           _loadedUid = sessionUser.id;
           unawaited(loadProfile());
+        } else if (state.event == AuthChangeEvent.tokenRefreshed && profile == null && profileError != null) {
+          // 剛才 token 過期、讀不到使用者資料；換到新的 token 後自動再讀一次，不用停在錯誤畫面
+          unawaited(loadProfile());
         }
       },
       onError: (Object error) {
