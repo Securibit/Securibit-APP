@@ -94,6 +94,7 @@ class GroupSidebar extends StatelessWidget {
                       children: [
                         for (final group in list)
                           _GroupRow(
+                            key: ValueKey(group.id),
                             group: group,
                             selected: group.id == selectedId,
                             onTap: () {
@@ -146,7 +147,7 @@ class _SectionLabel extends StatelessWidget {
 }
 
 class _GroupRow extends StatefulWidget {
-  const _GroupRow({required this.group, required this.selected, required this.onTap});
+  const _GroupRow({super.key, required this.group, required this.selected, required this.onTap});
 
   final GroupSummary group;
   final bool selected;
@@ -219,13 +220,10 @@ class _GroupRowState extends State<_GroupRow> {
                       tooltip: '更多',
                       padding: EdgeInsets.zero,
                       iconSize: 18,
+                      // 用整列的 context：選單打開後滑鼠離開這一列，「…」會被拿掉，用它的 context 選完就沒反應
                       onPressed: () {
                         final box = context.findRenderObject() as RenderBox;
-                        showGroupActions(
-                          context,
-                          group,
-                          position: AppPlatform.isMobile ? null : box.localToGlobal(box.size.bottomLeft(Offset.zero)),
-                        );
+                        _showActions(box.localToGlobal(box.size.bottomLeft(Offset.zero)));
                       },
                       icon: Icon(Icons.more_horiz_rounded, color: colors.inkMuted),
                     ),

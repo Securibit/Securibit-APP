@@ -3,7 +3,13 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
-	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<string>zh-Hant</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>zh-Hant</string>
+	</array>
+	<key>CFBundleDisplayName</key>
+	<string>Securibit</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIconFile</key>
@@ -13,8 +19,6 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>$(PRODUCT_NAME)</string>
-	<key>CFBundleDisplayName</key>
 	<string>Securibit</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
@@ -30,6 +34,8 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>securibit</string>
+				<string>otpauth</string>
+				<string>otpauth-migration</string>
 			</array>
 		</dict>
 	</array>

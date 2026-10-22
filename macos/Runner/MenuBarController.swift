@@ -40,6 +40,12 @@ final class MenuBarController: NSObject, NSMenuDelegate {
       self?.handle(call, result: result)
     }
     self.channel = channel
+    // MainMenu.xib 的選單是英文範本，App 啟動完成後換成自己的中文選單
+    NotificationCenter.default.addObserver(
+      forName: NSApplication.didFinishLaunchingNotification, object: nil, queue: .main
+    ) { [weak self] _ in
+      self?.installMainMenu()
+    }
   }
 
   private func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
@@ -55,6 +61,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
       result(launchAtLoginStatus())
     case "setLaunchAtLogin":
       setLaunchAtLogin(args?["enabled"] as? Bool ?? false, result: result)
+    case "showWindow":
+      showMainWindow()
+      result(nil)
     case "openLoginItemsSettings":
       if #available(macOS 13.0, *) { SMAppService.openSystemSettingsLoginItems() }
       result(nil)
@@ -382,5 +391,117 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     } catch {
       result(FlutterError(code: "launch-at-login", message: error.localizedDescription, details: nil))
     }
+  }
+}
+
+// MARK: - 上方的 App 選單
+
+extension MenuBarController {
+  private static let repoURL = "https://github.com/Securibit/Securibit-APP"
+
+  /// Securibit（關於、檢查更新、設定、服務、隱藏、結束）、編輯、顯示方式、視窗、說明
+  func installMainMenu() {
+    let main = NSMenu()
+
+    let app = NSMenu(title: "Securibit")
+    app.addItem(menuItem("關於 Securibit", #selector(showAbout)))
+    app.addItem(menuItem("檢查更新…", #selector(checkForUpdates)))
+    app.addItem(.separator())
+    app.addItem(menuItem("設定…", #selector(openSettings), key: ","))
+    app.addItem(.separator())
+    let services = NSMenu(title: "服務")
+    app.addItem(submenuItem("服務", services))
+    NSApp.servicesMenu = services
+    app.addItem(.separator())
+    app.addItem(standardItem("隱藏 Securibit", #selector(NSApplication.hide(_:)), key: "h"))
+    let hideOthers = standardItem("隱藏其他", #selector(NSApplication.hideOtherApplications(_:)), key: "h")
+    hideOthers.keyEquivalentModifierMask = [.command, .option]
+    app.addItem(hideOthers)
+    app.addItem(standardItem("顯示全部", #selector(NSApplication.unhideAllApplications(_:))))
+    app.addItem(.separator())
+    app.addItem(standardItem("結束 Securibit", #selector(NSApplication.terminate(_:)), key: "q"))
+    main.addItem(submenuItem("Securibit", app))
+
+    // 文字欄位的剪貼簿操作走 responder chain（同原本 xib 的 First Responder）
+    let edit = NSMenu(title: "編輯")
+    edit.addItem(standardItem("還原", Selector(("undo:")), key: "z"))
+    edit.addItem(standardItem("重做", Selector(("redo:")), key: "Z"))
+    edit.addItem(.separator())
+    edit.addItem(standardItem("剪下", #selector(NSText.cut(_:)), key: "x"))
+    edit.addItem(standardItem("拷貝", #selector(NSText.copy(_:)), key: "c"))
+    edit.addItem(standardItem("貼上", #selector(NSText.paste(_:)), key: "v"))
+    edit.addItem(standardItem("刪除", #selector(NSText.delete(_:))))
+    edit.addItem(standardItem("全選", #selector(NSText.selectAll(_:)), key: "a"))
+    main.addItem(submenuItem("編輯", edit))
+
+    let view = NSMenu(title: "顯示方式")
+    let fullScreen = standardItem("進入全螢幕", #selector(NSWindow.toggleFullScreen(_:)), key: "f")
+    fullScreen.keyEquivalentModifierMask = [.command, .control]
+    view.addItem(fullScreen)
+    main.addItem(submenuItem("顯示方式", view))
+
+    let window = NSMenu(title: "視窗")
+    window.addItem(standardItem("縮到最小", #selector(NSWindow.performMiniaturize(_:)), key: "m"))
+    window.addItem(standardItem("縮放", #selector(NSWindow.performZoom(_:))))
+    window.addItem(standardItem("關閉視窗", #selector(NSWindow.performClose(_:)), key: "w"))
+    window.addItem(.separator())
+    window.addItem(standardItem("將此 App 的所有視窗移至最前", #selector(NSApplication.arrangeInFront(_:))))
+    main.addItem(submenuItem("視窗", window))
+    NSApp.windowsMenu = window
+
+    let help = NSMenu(title: "說明")
+    help.addItem(menuItem("GitHub 開源專案", #selector(openRepo)))
+    help.addItem(menuItem("回報問題", #selector(openIssues)))
+    main.addItem(submenuItem("說明", help))
+    NSApp.helpMenu = help
+
+    NSApp.mainMenu = main
+  }
+
+  private func menuItem(_ title: String, _ action: Selector, key: String = "") -> NSMenuItem {
+    let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
+    item.target = self
+    return item
+  }
+
+  // 沒有 target：送給目前的 first responder（文字欄位、視窗、NSApp）
+  private func standardItem(_ title: String, _ action: Selector, key: String = "") -> NSMenuItem {
+    NSMenuItem(title: title, action: action, keyEquivalent: key)
+  }
+
+  private func submenuItem(_ title: String, _ submenu: NSMenu) -> NSMenuItem {
+    let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+    item.submenu = submenu
+    return item
+  }
+
+  @objc private func showAbout() {
+    let credits = NSMutableAttributedString(
+      string: "由幣友 BITYO 與靈魂之神工作室共同開發\n開發者：夏特稀、糖豆魚\n",
+      attributes: [.font: NSFont.systemFont(ofSize: 11), .foregroundColor: NSColor.secondaryLabelColor]
+    )
+    credits.append(NSAttributedString(
+      string: "GitHub 開源專案",
+      attributes: [.font: NSFont.systemFont(ofSize: 11), .link: URL(string: Self.repoURL)!]
+    ))
+    let paragraph = NSMutableParagraphStyle()
+    paragraph.alignment = .center
+    paragraph.lineSpacing = 2
+    credits.addAttribute(.paragraphStyle, value: paragraph, range: NSRange(location: 0, length: credits.length))
+    NSApp.activate(ignoringOtherApps: true)
+    NSApp.orderFrontStandardAboutPanel(options: [.applicationName: "Securibit", .credits: credits])
+  }
+
+  @objc private func checkForUpdates() {
+    showMainWindow()
+    channel?.invokeMethod("checkForUpdates", arguments: nil)
+  }
+
+  @objc private func openRepo() {
+    NSWorkspace.shared.open(URL(string: Self.repoURL)!)
+  }
+
+  @objc private func openIssues() {
+    NSWorkspace.shared.open(URL(string: Self.repoURL + "/issues")!)
   }
 }

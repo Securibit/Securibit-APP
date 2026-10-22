@@ -5,10 +5,10 @@ import '../codes/totp/otp.dart';
 import '../groups/group_models.dart';
 
 /*
- * 桌面常駐選單的內容（macOS 選單列、Linux 系統匣共用；純資料，方便測試）：
+ * 桌面常駐選單的內容（macOS 選單列、Linux 與 Windows 系統匣共用；純資料，方便測試）：
  * 依群組分段、釘選的在前，每一筆是名稱、驗證碼與剩餘秒數。
  * 原生端只拿到這裡算好的顯示文字；金鑰留在 Rust（這裡只有 SecretHandle），點了要複製時再回來用 codeFor 算當下的碼。
- * macOS 用 name、code、remaining 排成對齊的欄位；Linux 的 AppIndicator 選單只能顯示一行純文字，用 label。
+ * macOS 用 name、code、remaining 排成對齊的欄位；Linux 的 AppIndicator 選單與 Windows 的系統匣選單只能顯示一行純文字，用 label。
  */
 
 // 驗證碼加起來超過這個數量就每個群組收成一個子選單，選單才不會長到超出螢幕
@@ -137,9 +137,11 @@ class MenuBarModel {
 }
 
 /// 依登入、App 鎖定、群組與各群組的資料算出選單內容。
-/// withCodes 為 false 時只放結構（選單關著時先送給原生端），驗證碼一律是佔位文字
+/// withCodes 為 false 時只放結構（選單關著時先送給原生端），驗證碼一律是佔位文字；
+/// showCodes 為 false（設定關掉「在選單列顯示驗證碼」）時不列群組與驗證碼
 MenuBarModel buildMenuBarModel({
   required bool signedIn,
+  bool showCodes = true,
   required bool profileReady,
   required bool appLocked,
   required bool hideCodes,
@@ -151,6 +153,7 @@ MenuBarModel buildMenuBarModel({
   bool withCodes = true,
 }) {
   if (!signedIn) return const MenuBarModel._(status: MenuBarStatus.signedOut, message: '尚未登入');
+  if (!showCodes) return const MenuBarModel._(status: MenuBarStatus.ready);
   if (appLocked) return const MenuBarModel._(status: MenuBarStatus.locked, message: '已鎖定，打開 Securibit 解鎖');
   if (!profileReady) return const MenuBarModel._(status: MenuBarStatus.loading, message: '載入中');
   if (groups == null) {

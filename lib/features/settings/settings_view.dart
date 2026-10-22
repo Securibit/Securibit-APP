@@ -1,5 +1,3 @@
-import 'dart:io' show Platform;
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -240,8 +238,9 @@ class _LockSection extends StatelessWidget {
 }
 
 /*
- * 常駐圖示：macOS 的選單列、Linux 的系統匣（關視窗只是藏起來）與登入時自動開啟。
- * macOS 的登入時自動開啟用 SMAppService，macOS 13 以前沒有，開關停用並說明；Linux 寫 autostart 檔，一律可用。
+ * 常駐圖示：macOS 的選單列、Linux 與 Windows 的系統匣（關視窗只是藏起來）與登入時自動開啟。
+ * macOS 的登入時自動開啟用 SMAppService，macOS 13 以前沒有，開關停用並說明；
+ * Linux 寫 autostart 檔、Windows 寫登錄檔的 Run 值，一律可用。
  */
 class _MenuBarSection extends StatelessWidget {
   const _MenuBarSection();
@@ -250,19 +249,14 @@ class _MenuBarSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsController>();
     final launch = settings.launchAtLogin;
-    final place = DesktopTray.place;
-    final linux = Platform.isLinux;
-    final notes = [
-      if (!settings.showInMenuBar)
-        '關閉視窗就會結束 Securibit'
-      else if (linux)
-        '關閉視窗後 Securibit 會留在系統匣，點圖示就能複製驗證碼；選「結束 Securibit」才會結束。桌面沒有系統匣時關閉視窗一樣會結束'
-      else
-        '關閉視窗後 Securibit 會留在選單列，點圖示就能複製驗證碼；按 ⌘Q 才會結束',
-      if (linux) 'GNOME 要先安裝 AppIndicator 擴充功能才看得到系統匣圖示；KDE、XFCE、Cinnamon 可以直接使用',
-      if (launch == LaunchAtLoginState.unsupported) '登入時自動開啟需要 macOS 13 以上',
-      if (launch == LaunchAtLoginState.requiresApproval) '要到「系統設定 › 一般 › 登入項目」允許 Securibit 才會自動開啟',
-    ];
+    final platform = TrayPlatform.current;
+    final place = platform.place;
+    final notes = trayNotes(
+      platform,
+      showInTray: settings.showInMenuBar,
+      showCodes: settings.showCodesInMenuBar,
+      launch: launch,
+    );
     return GroupedList(
       header: place,
       footer: notes.join('\n'),
@@ -271,6 +265,11 @@ class _MenuBarSection extends StatelessWidget {
           label: '在$place顯示',
           trailing: Switch.adaptive(value: settings.showInMenuBar, onChanged: settings.setShowInMenuBar),
         ),
+        if (settings.showInMenuBar)
+          GroupedRow(
+            label: '在$place顯示驗證碼',
+            trailing: Switch.adaptive(value: settings.showCodesInMenuBar, onChanged: settings.setShowCodesInMenuBar),
+          ),
         GroupedRow(
           label: '登入時自動開啟',
           trailing: Switch.adaptive(
@@ -281,7 +280,7 @@ class _MenuBarSection extends StatelessWidget {
                     final error = await settings.setLaunchAtLogin(value);
                     if (!context.mounted) return;
                     if (error != null) {
-                      await showErrorDialog(context, linux ? '無法變更自動啟動' : '無法變更登入項目', error);
+                      await showErrorDialog(context, platform == TrayPlatform.macos ? '無法變更登入項目' : '無法變更自動啟動', error);
                     } else if (settings.launchAtLogin == LaunchAtLoginState.requiresApproval) {
                       await LaunchAtLogin.openSystemSettings();
                     }
@@ -294,57 +293,69 @@ class _MenuBarSection extends StatelessWidget {
 }
 
 /*
- * 關於與更新：目前版本、手動檢查更新、啟動時檢查更新。
+ * 關於與更新：目前版本、檢查更新（和自動檢查同一套流程，會顯示下載與安裝的狀態）、自動檢查更新。
+ * 下載好之後多一列「重新啟動並更新」（Linux .deb、Android 是「立即更新」）。
  * 沒有設定 UPDATE_REPO（自己架後端的人關掉檢查更新）時只顯示版本。
  */
 class _UpdateSection extends StatelessWidget {
   const _UpdateSection();
 
-  Future<void> _check(BuildContext context, UpdateController updates) async {
-    final release = await updates.check();
-    if (!context.mounted) return;
-    if (release != null) {
-      // 手動檢查時，略過的版本也照樣提示
-      await showUpdateDialog(context, updates, release);
-    } else if (updates.status == UpdateStatus.failed) {
-      showToast(context, '無法檢查更新，請檢查網路連線');
-    } else if (updates.status == UpdateStatus.upToDate) {
-      showToast(context, '已是最新版本');
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     final updates = context.watch<UpdateController>();
-    final checking = updates.status == UpdateStatus.checking;
+    final version = updates.latest?.version;
+    final progress = updates.progress;
+    final busy = const {UpdateStatus.checking, UpdateStatus.downloading, UpdateStatus.installing}.contains(updates.status);
     final status = switch (updates.status) {
       UpdateStatus.checking => '檢查中',
       UpdateStatus.upToDate => '已是最新版本',
-      UpdateStatus.available => '有新版本 ${updates.latest?.version}',
+      UpdateStatus.available => '有新版本 $version',
+      UpdateStatus.downloading => '正在下載 $version${progress == null ? '' : '（${(progress * 100).floor()}%）'}',
+      UpdateStatus.retrying => '下載失敗，稍後重試',
+      UpdateStatus.ready => '$version 已準備好',
+      UpdateStatus.installing => '正在安裝',
       UpdateStatus.failed => '無法檢查',
       UpdateStatus.idle => null,
     };
+    final source = updates.usesTestFeed ? '測試用的 ${updates.feedUrl}' : 'GitHub 的 ${updates.repo}';
+    final footer = switch (updates.status) {
+      UpdateStatus.available when updates.manualReason != null => updates.manualReason!,
+      _ => '從 $source 檢查新版本，有新版本時在背景下載並確認檔案完整，好了會提示重新啟動更新'
+          '${updates.checkOnLaunch ? '；開著的時候每小時再檢查一次' : ''}',
+    };
     return GroupedList(
       header: '關於與更新',
-      footer: updates.enabled
-          ? '從 GitHub 的 ${updates.repo} 檢查新版本，有新版本時提示並用瀏覽器下載，不會自動安裝'
-              '${DesktopTray.supported && updates.checkOnLaunch ? '；常駐在${DesktopTray.place}時每天再檢查一次' : ''}'
-          : null,
+      footer: updates.enabled ? footer : null,
       children: [
         GroupedRow(label: '版本', value: updates.currentVersion ?? '讀取中'),
         if (updates.enabled) ...[
+          if (updates.status == UpdateStatus.ready)
+            GroupedRow(
+              label: updates.installLabel,
+              accent: true,
+              value: '$version',
+              onTap: () => installUpdate(context, updates),
+            ),
           GroupedRow(
             label: '檢查更新',
             accent: true,
             value: status,
-            trailing: checking
-                ? SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2, color: colors.inkMuted))
+            trailing: busy
+                ? SizedBox.square(
+                    dimension: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      // 知道進度時畫出進度，不知道時轉圈
+                      value: updates.status == UpdateStatus.downloading ? progress : null,
+                      color: colors.inkMuted,
+                    ),
+                  )
                 : null,
-            onTap: checking ? null : () => _check(context, updates),
+            onTap: busy ? null : () => checkForUpdatesNow(context, updates),
           ),
           GroupedRow(
-            label: '啟動時檢查更新',
+            label: '自動檢查更新',
             trailing: Switch.adaptive(value: updates.checkOnLaunch, onChanged: updates.setCheckOnLaunch),
           ),
         ],

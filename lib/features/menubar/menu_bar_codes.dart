@@ -52,6 +52,14 @@ class MenuBarCodes extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 資料庫通知這個群組的驗證碼變了：下次選單打開時（開著的話馬上）重新讀取
+  void markStale(String gid) {
+    final entry = _entries[gid];
+    if (entry == null) return;
+    entry.loadedAt = 0;
+    notifyListeners();
+  }
+
   /// network 為 false 時只從離線快取補上還沒有的群組；為 true 時也重新讀取太舊的資料與伺服器產碼
   void refresh({required String uid, required List<GroupSummary> groups, required int? vaultKeyId, required bool network}) {
     if (_uid != uid) reset(uid);

@@ -3,6 +3,9 @@ import FlutterMacOS
 
 class MainFlutterWindow: NSWindow, NSWindowDelegate {
   override func awakeFromNib() {
+    // 關掉 App Sandbox 後第一次啟動：先把舊 container 的設定搬過來，Flutter 讀設定前就要搬好
+    SandboxMigration.runIfNeeded()
+
     let flutterViewController = FlutterViewController()
     self.contentViewController = flutterViewController
 
@@ -32,6 +35,7 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
     self.isReleasedWhenClosed = false
     self.delegate = self
     MenuBarController.shared.attach(window: self, messenger: flutterViewController.engine.binaryMessenger)
+    AppUpdate.shared.attach(messenger: flutterViewController.engine.binaryMessenger)
 
     RegisterGeneratedPlugins(registry: flutterViewController)
 

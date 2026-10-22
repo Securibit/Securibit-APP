@@ -22,6 +22,7 @@ class SettingsController extends ChangeNotifier {
   static const _hideKey = 'securibit:hideCodes';
   static const _screenshotKey = 'securibit:allowScreenshots';
   static const _menuBarKey = 'securibit:menuBar';
+  static const _menuBarCodesKey = 'securibit:menuBarCodes';
   static const _launchAtLoginKey = 'securibit:launchAtLogin';
   // 舊版只有生物辨識鎖定；現在生物辨識要搭配圖形或密碼，舊設定不再使用
   static const _legacyBiometricKey = 'securibit:biometricLock';
@@ -32,6 +33,8 @@ class SettingsController extends ChangeNotifier {
   bool hideCodes = false;
   bool allowScreenshots = ScreenPrivacy.allowByDefault;
   bool showInMenuBar = true;
+  // 常駐選單裡要不要列出驗證碼；關掉時只剩「打開 Securibit」、「設定」與「結束」
+  bool showCodesInMenuBar = true;
   // 系統裡實際的狀態（使用者也可能在系統設定的「登入項目」或桌面環境的自動啟動設定改掉）
   LaunchAtLoginState launchAtLogin = LaunchAtLoginState.unsupported;
 
@@ -49,6 +52,7 @@ class SettingsController extends ChangeNotifier {
       hideCodes = prefs.getBool(_hideKey) ?? false;
       allowScreenshots = prefs.getBool(_screenshotKey) ?? ScreenPrivacy.allowByDefault;
       showInMenuBar = prefs.getBool(_menuBarKey) ?? true;
+      showCodesInMenuBar = prefs.getBool(_menuBarCodesKey) ?? true;
       if (prefs.containsKey(_legacyBiometricKey)) await prefs.remove(_legacyBiometricKey);
     } catch (_) {
       // 讀不到就用預設值
@@ -88,6 +92,12 @@ class SettingsController extends ChangeNotifier {
     showInMenuBar = show;
     notifyListeners();
     _prefs?.setBool(_menuBarKey, show);
+  }
+
+  void setShowCodesInMenuBar(bool show) {
+    showCodesInMenuBar = show;
+    notifyListeners();
+    _prefs?.setBool(_menuBarCodesKey, show);
   }
 
   /// 登記或取消登入時自動開啟；回傳錯誤訊息，成功為 null

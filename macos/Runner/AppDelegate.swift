@@ -17,4 +17,10 @@ class AppDelegate: FlutterAppDelegate {
   override func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
     return true
   }
+
+  // 結束時有下載好的更新就啟動替換腳本（見 AppUpdate）
+  override func applicationWillTerminate(_ notification: Notification) {
+    AppUpdate.shared.launchPendingInstall()
+    super.applicationWillTerminate(notification)
+  }
 }

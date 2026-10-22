@@ -6,17 +6,22 @@ import 'package:flutter/services.dart' show PlatformException;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../menubar/desktop_tray.dart';
+
 /*
  * Google 登入（PKCE）怎麼把結果帶回 App：
- * - iOS / Android / macOS：系統瀏覽器登入後轉向 securibit://login-callback，
+ * - iOS / Android：系統瀏覽器登入後轉向 securibit://login-callback，
  *   supabase_flutter 透過 app_links 收到連結，自己換成 session（onAuthStateChange 會收到 signedIn）。
- * - Linux：自訂 scheme 不可靠，改在 127.0.0.1 開一個暫時的 HTTP 伺服器接 ?code=，再換成 session。
+ * - macOS / Linux / Windows：在 127.0.0.1 開一個暫時的 HTTP 伺服器接 ?code=，再換成 session。
+ *   瀏覽器停在「登入完成，可以關閉此頁面」，App 自己回到前景
+ *   （深層連結版的分頁會停在空白頁；Linux 的自訂 scheme 也不可靠）。
  * 兩個轉向網址都要加進 Supabase Auth → URL Configuration 的 Redirect URLs。
  */
 abstract class OAuthRedirect {
   const OAuthRedirect();
 
-  factory OAuthRedirect.forPlatform() => Platform.isLinux ? LoopbackOAuthRedirect() : const DeepLinkOAuthRedirect();
+  factory OAuthRedirect.forPlatform() =>
+      Platform.isMacOS || Platform.isLinux || Platform.isWindows ? LoopbackOAuthRedirect() : const DeepLinkOAuthRedirect();
 
   /// 開啟瀏覽器登入。深層連結版在瀏覽器開啟後就結束；本機伺服器版會等到 session 建立。
   /// 失敗時丟出 OAuthRedirectException（訊息是中文）
@@ -95,6 +100,8 @@ class LoopbackOAuthRedirect extends OAuthRedirect {
       final code = params['code'];
       if (code == null || code.isEmpty) throw const OAuthRedirectException('沒有取得登入資訊，請再試一次');
       await auth.exchangeCodeForSession(code);
+      // 使用者還在瀏覽器，把 App 叫回前景
+      await DesktopTray.showWindow();
     } on StateError {
       throw const OAuthRedirectException('已取消登入', cancelled: true);
     } finally {
@@ -115,7 +122,7 @@ class LoopbackOAuthRedirect extends OAuthRedirect {
       request.response
         ..statusCode = HttpStatus.ok
         ..headers.contentType = ContentType.html
-        ..add(utf8.encode(_page(ok ? '登入完成' : '登入沒有完成', ok ? '可以關閉這個分頁，回到 Securibit' : '回到 Securibit 再試一次')));
+        ..add(utf8.encode(_page(ok ? '登入完成' : '登入沒有完成', ok ? '可以關閉此頁面，回到 Securibit' : '可以關閉此頁面，回到 Securibit 再試一次')));
       await request.response.close();
       return params;
     }

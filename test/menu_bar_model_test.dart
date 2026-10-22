@@ -30,6 +30,7 @@ GroupAccount _account(String id, String name, {bool pinned = false}) =>
 
 MenuBarModel _build({
   bool signedIn = true,
+  bool showCodes = true,
   bool profileReady = true,
   bool appLocked = false,
   bool hideCodes = false,
@@ -41,6 +42,7 @@ MenuBarModel _build({
 }) =>
     buildMenuBarModel(
       signedIn: signedIn,
+      showCodes: showCodes,
       profileReady: profileReady,
       appLocked: appLocked,
       hideCodes: hideCodes,
@@ -55,6 +57,19 @@ void main() {
   final expected = generateOtp(secret: _secret, timestampMs: _now)!;
 
   group('分組', () {
+    test('關掉「在選單列顯示驗證碼」時不列群組與驗證碼', () {
+      final model = _build(
+        showCodes: false,
+        groups: [_group('g1', '我的驗證碼')],
+        data: {'g1': MenuGroupData(accounts: [_account('a', 'GitHub')], secrets: _secrets({'a': _secret}))},
+      );
+      expect(model.status, MenuBarStatus.ready);
+      expect(model.message, isNull);
+      expect(model.sections, isEmpty);
+      expect(model.codeFor('g1/a', _now), isNull);
+      expect(model.showSettings, isTrue);
+    });
+
     test('依群組順序分段，釘選的排在前面', () {
       final model = _build(
         groups: [_group('g2', '工作'), _group('g1', '我的驗證碼')],
