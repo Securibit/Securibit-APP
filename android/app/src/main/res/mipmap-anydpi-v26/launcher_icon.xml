@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 8 以上的圖示：系統依桌面裁成圓形或圓角方形；monochrome 給 Android 13 的主題圖示 -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@mipmap/launcher_icon_background" />
+    <foreground android:drawable="@mipmap/launcher_icon_foreground" />
+    <monochrome android:drawable="@mipmap/launcher_icon_monochrome" />
+</adaptive-icon>
