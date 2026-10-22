@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:io' show Platform;
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -11,7 +13,7 @@ import 'pattern_pad.dart';
 /*
  * 輸入圖形或密碼的區塊（鎖定畫面與設定流程共用），仿 iOS 的密碼畫面：
  * 標題、一行提示、圓點＋數字鍵盤（或九宮格）。輸入完自動送出，onSubmit 回傳 false 時抖動並清掉重來。
- * 桌面可以直接用鍵盤輸入數字、Backspace 刪除。
+ * 桌面可以直接用鍵盤輸入數字（上排數字鍵與數字小鍵盤）、Backspace 刪除。
  */
 class LockEntry extends StatefulWidget {
   const LockEntry({
@@ -51,8 +53,38 @@ class _LockEntryState extends State<LockEntry> with SingleTickerProviderStateMix
 
   bool get _enabled => widget.enabled && !_busy;
 
+  // 畫面上同時有好幾個（例如設定流程上面又蓋了鎖定畫面）時，只有最後出現的那個接鍵盤
+  static final _mounted = <_LockEntryState>[];
+
+  // Windows 的輸入法（見 windows/runner/flutter_window.cpp 的 securibit/ime）
+  static const _ime = MethodChannel('securibit/ime');
+
+  static Future<void> _setImeEnabled(bool enabled) async {
+    if (!Platform.isWindows) return;
+    try {
+      await _ime.invokeMethod<void>('setEnabled', {'enabled': enabled});
+    } on MissingPluginException {
+      // 測試環境沒有原生端
+    } on PlatformException {
+      // 關不掉就算了，Num Lock 關掉時一樣能輸入
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // 第一個密碼畫面出現時關掉輸入法（數字小鍵盤才不會被中文輸入法攔走），最後一個離開時還原
+    if (_mounted.isEmpty && widget.type.isPin) unawaited(_setImeEnabled(false));
+    _mounted.add(this);
+    // 直接接整個 App 的鍵盤事件，不靠焦點：鎖定前搜尋框之類拿著焦點、或視窗切換後焦點跑掉時也收得到
+    HardwareKeyboard.instance.addHandler(_onKey);
+  }
+
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_onKey);
+    _mounted.remove(this);
+    if (_mounted.isEmpty) unawaited(_setImeEnabled(true));
     _shake.dispose();
     super.dispose();
   }
@@ -122,18 +154,44 @@ class _LockEntryState extends State<LockEntry> with SingleTickerProviderStateMix
     await _submit(encodePattern(dots));
   }
 
-  KeyEventResult _onKey(FocusNode node, KeyEvent event) {
-    if (!widget.type.isPin || event is KeyUpEvent) return KeyEventResult.ignored;
+  // 上排數字鍵與數字小鍵盤（數字小鍵盤在部分平台沒有 character，所以看按鍵本身）
+  static final _digitKeys = {
+    for (var i = 0; i <= 9; i++) ...{
+      LogicalKeyboardKey(LogicalKeyboardKey.digit0.keyId + i): '$i',
+      LogicalKeyboardKey(LogicalKeyboardKey.numpad0.keyId + i): '$i',
+    },
+  };
+
+  // 數字小鍵盤的實體按鍵：Windows 關掉 Num Lock 時送出的是 End、↓ 之類，看實體位置才知道是哪個數字
+  static final _numpadKeys = {
+    PhysicalKeyboardKey.numpad0: '0',
+    PhysicalKeyboardKey.numpad1: '1',
+    PhysicalKeyboardKey.numpad2: '2',
+    PhysicalKeyboardKey.numpad3: '3',
+    PhysicalKeyboardKey.numpad4: '4',
+    PhysicalKeyboardKey.numpad5: '5',
+    PhysicalKeyboardKey.numpad6: '6',
+    PhysicalKeyboardKey.numpad7: '7',
+    PhysicalKeyboardKey.numpad8: '8',
+    PhysicalKeyboardKey.numpad9: '9',
+  };
+
+  bool _onKey(KeyEvent event) {
+    if (!widget.type.isPin || event is KeyUpEvent || !mounted) return false;
+    // 上面蓋著對話框（例如忘記密碼）或另一個輸入區塊時不接
+    if (_mounted.last != this || !(ModalRoute.of(context)?.isCurrent ?? true)) return false;
+    final key = event.logicalKey;
     final character = event.character;
-    if (character != null && character.length == 1 && '0123456789'.contains(character)) {
-      _digit(character);
-      return KeyEventResult.handled;
+    final digit = _digitKeys[key] ?? _numpadKeys[event.physicalKey] ?? (character != null && character.length == 1 && '0123456789'.contains(character) ? character : null);
+    if (digit != null) {
+      _digit(digit);
+      return true;
     }
-    if (event.logicalKey == LogicalKeyboardKey.backspace || event.logicalKey == LogicalKeyboardKey.delete) {
+    if (key == LogicalKeyboardKey.backspace || key == LogicalKeyboardKey.delete) {
       _delete();
-      return KeyEventResult.handled;
+      return true;
     }
-    return KeyEventResult.ignored;
+    return false;
   }
 
   @override
@@ -154,7 +212,6 @@ class _LockEntryState extends State<LockEntry> with SingleTickerProviderStateMix
 
     return Focus(
       autofocus: true,
-      onKeyEvent: _onKey,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

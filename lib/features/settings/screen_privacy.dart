@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
  * - Android：FLAG_SECURE 擋住截圖、錄影與多工畫面縮圖；Android 13 以上只隱藏多工畫面時改用 setRecentsScreenshotEnabled
  * - iOS：沒有公開的 API 能擋截圖，只能在錄影、鏡像輸出時遮住畫面，進多工畫面前蓋上隱私畫面
  * - macOS：NSWindow.sharingType = .none，視窗不出現在截圖、錄影與螢幕分享
+ * - Windows：SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE)，同 macOS（windows/runner/flutter_window.cpp）
  * - Linux：無法阻擋
  */
 class ScreenPrivacy {
@@ -15,9 +16,9 @@ class ScreenPrivacy {
   static const _channel = MethodChannel('securibit/privacy');
 
   /// 這個平台能不能（至少部分）阻擋截圖
-  static bool get canBlockCapture => Platform.isAndroid || Platform.isIOS || Platform.isMacOS;
+  static bool get canBlockCapture => Platform.isAndroid || Platform.isIOS || Platform.isMacOS || Platform.isWindows;
 
-  /// 預設是否允許截圖：手機預設不允許；macOS 預設允許，
+  /// 預設是否允許截圖：手機預設不允許；桌面（macOS、Windows、Linux）預設允許，
   /// 因為擋住後視窗在 Parsec、AnyDesk 等遠端桌面上也會看不到
   static bool get allowByDefault => !(Platform.isAndroid || Platform.isIOS);
 
@@ -26,6 +27,9 @@ class ScreenPrivacy {
     if (Platform.isAndroid) return '關閉時無法截圖或錄影，多工畫面也不會顯示驗證碼';
     if (Platform.isIOS) return 'iPhone 和 iPad 無法阻擋截圖；關閉時，錄影或鏡像輸出會遮住畫面，多工畫面也不會顯示驗證碼';
     if (Platform.isMacOS) return '關閉時視窗不會出現在系統截圖、錄影與螢幕分享中，但部分第三方錄影軟體可能仍拍得到；用 Parsec、AnyDesk 等遠端桌面連線時，也會看不到這個視窗';
+    if (Platform.isWindows) {
+      return '關閉時視窗不會出現在截圖、錄影與螢幕分享中（舊版 Windows 10 會拍到一塊黑色），但部分第三方錄影軟體可能仍拍得到；用 Parsec、AnyDesk 等遠端桌面連線時，也會看不到這個視窗';
+    }
     return 'Linux 無法阻擋截圖或錄影，請留意畫面上的驗證碼';
   }
 

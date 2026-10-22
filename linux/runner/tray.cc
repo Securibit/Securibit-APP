@@ -478,6 +478,9 @@ void on_method_call(FlMethodChannel* channel, FlMethodCall* call,
     if (args != nullptr && fl_value_get_type(args) == FL_VALUE_TYPE_MAP)
       apply(args);
     fl_method_call_respond_success(call, nullptr, nullptr);
+  } else if (g_strcmp0(method, "showWindow") == 0) {
+    tray_show_main_window();
+    fl_method_call_respond_success(call, nullptr, nullptr);
   } else {
     // 登入時自動開啟在 Linux 由 Dart 直接寫 autostart 檔
     fl_method_call_respond_not_implemented(call, nullptr);
