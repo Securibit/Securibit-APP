@@ -9,3 +9,27 @@ lto = true
 codegen-units = 1
 panic = "unwind"
 strip = "symbols"
+
+# 圖片解碼與 QR Code 辨識在 debug 版（flutter run）也要夠快，不然大圖會辨識逾時
+[profile.dev.package.image]
+opt-level = 3
+[profile.dev.package.zune-jpeg]
+opt-level = 3
+[profile.dev.package.png]
+opt-level = 3
+[profile.dev.package.fdeflate]
+opt-level = 3
+[profile.dev.package.image-webp]
+opt-level = 3
+[profile.dev.package.gif]
+opt-level = 3
+[profile.dev.package.rqrr]
+opt-level = 3
+[profile.dev.package.miniz_oxide]
+opt-level = 3
+[profile.dev.package.crc32fast]
+opt-level = 3
+[profile.dev.package.moxcms]
+opt-level = 3
+[profile.dev.package.securibit-core]
+opt-level = 3

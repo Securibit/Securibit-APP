@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 670765980;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -235302380;
 
 // Section: executor
 
@@ -165,6 +165,39 @@ fn wire__crate__api__lock__constant_time_equals_impl(
                 let output_ok = Ok::<_, ()>(crate::api::lock::constant_time_equals(api_a, api_b))?;
                 std::result::Result::Ok(output_ok)
             })())
+        },
+    )
+}
+fn wire__crate__api__qr__decode_qr_image_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "decode_qr_image",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_bytes = <Vec<u8>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let output_ok = crate::api::qr::decode_qr_image(api_bytes)?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
         },
     )
 }
@@ -1381,6 +1414,18 @@ impl SseDecode for i64 {
     }
 }
 
+impl SseDecode for Vec<String> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<String>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<u8> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -1674,19 +1719,20 @@ fn pde_ffi_dispatcher_primary_impl(
 ) {
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
-        7 => wire__crate__api__init_app_impl(port, ptr, rust_vec_len, data_len),
-        9 => wire__crate__api__lock__lock_hash_impl(port, ptr, rust_vec_len, data_len),
-        10 => wire__crate__api__lock__lock_verify_impl(port, ptr, rust_vec_len, data_len),
-        16 => wire__crate__api__secrets__secrets_fetch_impl(port, ptr, rust_vec_len, data_len),
-        29 => wire__crate__api__vault__vault_create_impl(port, ptr, rust_vec_len, data_len),
-        36 => wire__crate__api__vault__vault_rewrite_all_impl(port, ptr, rust_vec_len, data_len),
-        37 => wire__crate__api__vault__vault_set_group_encrypted_impl(
+        5 => wire__crate__api__qr__decode_qr_image_impl(port, ptr, rust_vec_len, data_len),
+        8 => wire__crate__api__init_app_impl(port, ptr, rust_vec_len, data_len),
+        10 => wire__crate__api__lock__lock_hash_impl(port, ptr, rust_vec_len, data_len),
+        11 => wire__crate__api__lock__lock_verify_impl(port, ptr, rust_vec_len, data_len),
+        17 => wire__crate__api__secrets__secrets_fetch_impl(port, ptr, rust_vec_len, data_len),
+        30 => wire__crate__api__vault__vault_create_impl(port, ptr, rust_vec_len, data_len),
+        37 => wire__crate__api__vault__vault_rewrite_all_impl(port, ptr, rust_vec_len, data_len),
+        38 => wire__crate__api__vault__vault_set_group_encrypted_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        38 => wire__crate__api__vault__vault_unlock_impl(port, ptr, rust_vec_len, data_len),
+        39 => wire__crate__api__vault__vault_unlock_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -1703,32 +1749,32 @@ fn pde_ffi_dispatcher_sync_impl(
         2 => wire__crate__api__totp__base32_encode_impl(ptr, rust_vec_len, data_len),
         3 => wire__crate__api__totp__build_otpauth_impl(ptr, rust_vec_len, data_len),
         4 => wire__crate__api__lock__constant_time_equals_impl(ptr, rust_vec_len, data_len),
-        5 => wire__crate__api__secrets__device_key_generate_impl(ptr, rust_vec_len, data_len),
-        6 => wire__crate__api__secrets__device_key_install_impl(ptr, rust_vec_len, data_len),
-        8 => wire__crate__api__totp__is_valid_secret_impl(ptr, rust_vec_len, data_len),
-        11 => wire__crate__api__totp__normalize_secret_impl(ptr, rust_vec_len, data_len),
-        12 => wire__crate__api__totp__parse_otpauth_impl(ptr, rust_vec_len, data_len),
-        13 => wire__crate__api__totp__secret_format_message_impl(ptr, rust_vec_len, data_len),
-        14 => wire__crate__api__secrets__secrets_clear_all_impl(ptr, rust_vec_len, data_len),
-        15 => wire__crate__api__secrets__secrets_clear_scope_impl(ptr, rust_vec_len, data_len),
-        17 => wire__crate__api__secrets__secrets_is_sealed_impl(ptr, rust_vec_len, data_len),
-        18 => wire__crate__api__secrets__secrets_otp_impl(ptr, rust_vec_len, data_len),
-        19 => wire__crate__api__secrets__secrets_put_impl(ptr, rust_vec_len, data_len),
-        20 => wire__crate__api__secrets__secrets_remove_impl(ptr, rust_vec_len, data_len),
-        21 => wire__crate__api__secrets__secrets_restore_impl(ptr, rust_vec_len, data_len),
-        22 => wire__crate__api__secrets__secrets_reveal_impl(ptr, rust_vec_len, data_len),
-        23 => wire__crate__api__secrets__secrets_seal_impl(ptr, rust_vec_len, data_len),
-        24 => wire__crate__api__secrets__secrets_seal_legacy_impl(ptr, rust_vec_len, data_len),
-        25 => wire__crate__api__secrets__secrets_unseal_impl(ptr, rust_vec_len, data_len),
-        26 => wire__crate__api__totp__totp_generate_impl(ptr, rust_vec_len, data_len),
-        27 => wire__crate__api__totp__validate_totp_edit_impl(ptr, rust_vec_len, data_len),
-        28 => wire__crate__api__totp__validate_totp_input_impl(ptr, rust_vec_len, data_len),
-        30 => wire__crate__api__vault__vault_encrypt_impl(ptr, rust_vec_len, data_len),
-        31 => wire__crate__api__vault__vault_export_wrapped_impl(ptr, rust_vec_len, data_len),
-        32 => wire__crate__api__vault__vault_is_unlocked_impl(ptr, rust_vec_len, data_len),
-        33 => wire__crate__api__vault__vault_lock_impl(ptr, rust_vec_len, data_len),
-        34 => wire__crate__api__vault__vault_restore_legacy_impl(ptr, rust_vec_len, data_len),
-        35 => wire__crate__api__vault__vault_restore_wrapped_impl(ptr, rust_vec_len, data_len),
+        6 => wire__crate__api__secrets__device_key_generate_impl(ptr, rust_vec_len, data_len),
+        7 => wire__crate__api__secrets__device_key_install_impl(ptr, rust_vec_len, data_len),
+        9 => wire__crate__api__totp__is_valid_secret_impl(ptr, rust_vec_len, data_len),
+        12 => wire__crate__api__totp__normalize_secret_impl(ptr, rust_vec_len, data_len),
+        13 => wire__crate__api__totp__parse_otpauth_impl(ptr, rust_vec_len, data_len),
+        14 => wire__crate__api__totp__secret_format_message_impl(ptr, rust_vec_len, data_len),
+        15 => wire__crate__api__secrets__secrets_clear_all_impl(ptr, rust_vec_len, data_len),
+        16 => wire__crate__api__secrets__secrets_clear_scope_impl(ptr, rust_vec_len, data_len),
+        18 => wire__crate__api__secrets__secrets_is_sealed_impl(ptr, rust_vec_len, data_len),
+        19 => wire__crate__api__secrets__secrets_otp_impl(ptr, rust_vec_len, data_len),
+        20 => wire__crate__api__secrets__secrets_put_impl(ptr, rust_vec_len, data_len),
+        21 => wire__crate__api__secrets__secrets_remove_impl(ptr, rust_vec_len, data_len),
+        22 => wire__crate__api__secrets__secrets_restore_impl(ptr, rust_vec_len, data_len),
+        23 => wire__crate__api__secrets__secrets_reveal_impl(ptr, rust_vec_len, data_len),
+        24 => wire__crate__api__secrets__secrets_seal_impl(ptr, rust_vec_len, data_len),
+        25 => wire__crate__api__secrets__secrets_seal_legacy_impl(ptr, rust_vec_len, data_len),
+        26 => wire__crate__api__secrets__secrets_unseal_impl(ptr, rust_vec_len, data_len),
+        27 => wire__crate__api__totp__totp_generate_impl(ptr, rust_vec_len, data_len),
+        28 => wire__crate__api__totp__validate_totp_edit_impl(ptr, rust_vec_len, data_len),
+        29 => wire__crate__api__totp__validate_totp_input_impl(ptr, rust_vec_len, data_len),
+        31 => wire__crate__api__vault__vault_encrypt_impl(ptr, rust_vec_len, data_len),
+        32 => wire__crate__api__vault__vault_export_wrapped_impl(ptr, rust_vec_len, data_len),
+        33 => wire__crate__api__vault__vault_is_unlocked_impl(ptr, rust_vec_len, data_len),
+        34 => wire__crate__api__vault__vault_lock_impl(ptr, rust_vec_len, data_len),
+        35 => wire__crate__api__vault__vault_restore_legacy_impl(ptr, rust_vec_len, data_len),
+        36 => wire__crate__api__vault__vault_restore_wrapped_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -2056,6 +2102,16 @@ impl SseEncode for i64 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         serializer.cursor.write_i64::<NativeEndian>(self).unwrap();
+    }
+}
+
+impl SseEncode for Vec<String> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <String>::sse_encode(item, serializer);
+        }
     }
 }
 

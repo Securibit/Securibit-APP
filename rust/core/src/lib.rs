@@ -10,11 +10,13 @@
  * - sealed：用這台裝置的金鑰把離線快取的金鑰封起來
  * - rpc_body：送給伺服器、含金鑰的 JSON（寫在會歸零的緩衝區）
  * - store：記憶體裡的金鑰保管（依群組、驗證碼 id），只回傳驗證碼
+ * - qr_image：從圖片讀 QR Code（Linux 沒有系統內建的辨識時用）
  */
 
 pub mod base32;
 pub mod lock;
 pub mod otpauth;
+pub mod qr_image;
 pub mod rpc_body;
 pub mod sealed;
 pub mod secret;

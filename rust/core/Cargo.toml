@@ -2,7 +2,7 @@
 name = "securibit-core"
 version = "0.1.0"
 edition = "2021"
-description = "Securibit 的安全核心：TOTP、Base32、otpauth、加密群組（enc:v1）、App 鎖定雜湊、記憶體裡的金鑰保管"
+description = "Securibit 的安全核心：TOTP、Base32、otpauth、加密群組（enc:v1）、App 鎖定雜湊、記憶體裡的金鑰保管、從圖片讀 QR Code"
 publish = false
 
 [lib]
@@ -13,8 +13,12 @@ aes-gcm = { version = "0.10", default-features = false, features = ["aes", "allo
 base64 = "0.22"
 getrandom = "0.2"
 hmac = "0.12"
+# 從圖片讀 QR Code（Linux 沒有系統內建的辨識）：只開截圖常見的格式，不要 rayon 與 AVIF、TIFF、EXR 等用不到的解碼器
+image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "webp", "gif", "bmp"] }
 pbkdf2 = { version = "0.12", default-features = false, features = ["hmac"] }
 percent-encoding = "2.3"
+# 純 Rust 的 QR Code 辨識；不開 img（自己把灰階像素交給它，不用它綁的 image 版本）
+rqrr = { version = "0.11.0", default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha1 = "0.10"
@@ -22,3 +26,7 @@ sha2 = "0.10"
 subtle = "2.6"
 url = "2.5"
 zeroize = { version = "1.8", features = ["zeroize_derive"] }
+
+[dev-dependencies]
+# 測試裡產生 QR Code 圖片（只用來產生模組矩陣，自己畫成圖片）
+qrcode = { version = "0.14.1", default-features = false }

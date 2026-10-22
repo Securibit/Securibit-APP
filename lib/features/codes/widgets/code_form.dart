@@ -17,9 +17,9 @@ import '../transfer/import_sources.dart';
 import 'category_input.dart';
 import 'qr_scan_page.dart';
 
-/// 新增或編輯驗證碼：寬視窗用對話框，窄螢幕用整頁
-Future<void> showCodeForm(BuildContext context, CodesController controller, {GroupAccount? account}) {
-  final form = CodeForm(controller: controller, account: account);
+/// 新增或編輯驗證碼：寬視窗用對話框，窄螢幕用整頁；initialText 是點連結帶進來的 otpauth 連結（同貼上）
+Future<void> showCodeForm(BuildContext context, CodesController controller, {GroupAccount? account, String? initialText}) {
+  final form = CodeForm(controller: controller, account: account, initialText: initialText);
   if (MediaQuery.sizeOf(context).width >= 720) {
     return showDialog<void>(
       context: context,
@@ -40,10 +40,12 @@ Future<void> showCodeForm(BuildContext context, CodesController controller, {Gro
  * 編輯時沒有「查看金鑰」權限看不到原本的金鑰：金鑰欄位留空代表不修改。
  */
 class CodeForm extends StatefulWidget {
-  const CodeForm({super.key, required this.controller, this.account});
+  const CodeForm({super.key, required this.controller, this.account, this.initialText});
 
   final CodesController controller;
   final GroupAccount? account;
+  // 點 otpauth:// 或 otpauth-migration:// 連結打開時帶進來的連結，開啟後當作貼上處理
+  final String? initialText;
 
   @override
   State<CodeForm> createState() => _CodeFormState();
@@ -81,6 +83,18 @@ class _CodeFormState extends State<CodeForm> {
   bool get _isEdit => _account != null;
 
   @override
+  void initState() {
+    super.initState();
+    final text = widget.initialText?.trim() ?? '';
+    if (_isEdit || text.isEmpty) return;
+    // 同貼上：一筆就填好欄位，多筆開整批匯入（畫面出來後才開，整批匯入要疊在表單上面）
+    if (!text.contains('\n')) _link.text = text;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _importText(text);
+    });
+  }
+
+  @override
   void dispose() {
     _name.dispose();
     _secret.dispose();
@@ -104,8 +118,8 @@ class _CodeFormState extends State<CodeForm> {
 
   /// 匯入貼上、掃描或檔案的內容：一筆就填好欄位（類別沒填時才用連結裡的），多筆開整批匯入。
   /// inline 時錯誤顯示在連結欄位下面，否則跳出錯誤對話框
-  Future<bool> _importText(String text, {bool inline = true, String source = '連結'}) async {
-    final result = parseImportText(text);
+  Future<bool> _importText(String text, {bool inline = true, String source = '連結', List<String> extraErrors = const []}) async {
+    final result = parseImportText(text)..errors.addAll(extraErrors);
     if (result.items.isEmpty) {
       final message = result.errors.join('\n');
       if (inline) {
@@ -165,16 +179,22 @@ class _CodeFormState extends State<CodeForm> {
   Future<void> _pickFile(ImportFileKind kind) async {
     if (_reading) return;
     setState(() => _reading = true);
-    final picked = await pickImportFile(kind);
+    final picked = await pickImportFiles(kind);
     if (!mounted) return;
     setState(() => _reading = false);
     if (picked == null) return;
-    final text = picked.text;
-    if (text == null) {
-      await showErrorDialog(context, picked.errorTitle ?? '無法匯入', picked.errorMessage ?? '');
+    final texts = [for (final file in picked) ?file.result.text];
+    // 選了好幾個時，讀不出來的那幾個標上檔名，跟讀得到的一起列在整批匯入裡
+    final failures = [
+      for (final file in picked)
+        if (file.result.text == null) picked.length > 1 ? '${file.name}：${file.result.errorMessage}' : file.result.errorMessage ?? '',
+    ];
+    if (texts.isEmpty) {
+      final single = picked.length == 1 ? picked.single.result : null;
+      await showErrorDialog(context, single?.errorTitle ?? '無法匯入', failures.join('\n'));
       return;
     }
-    await _importText(text, inline: false, source: '檔案');
+    await _importText(texts.join('\n'), inline: false, source: '檔案', extraErrors: failures);
   }
 
   Future<void> _submit() async {

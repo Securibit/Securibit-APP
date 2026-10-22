@@ -1,4 +1,4 @@
-import 'dart:io' show Platform;
+import 'dart:io' show File, Platform;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart' show ExternalLibrary;
@@ -26,6 +26,8 @@ Future<void> initSecurityCore() async {
 ExternalLibrary? _bundledLibrary() {
   if (Platform.isIOS || Platform.isMacOS) return ExternalLibrary.open('securibit_api.framework/securibit_api');
   if (Platform.isAndroid || Platform.isLinux) return ExternalLibrary.open('libsecuribit_api.so');
+  // Windows：用完整路徑，只找 securibit.exe 旁邊的那份（cargokit 放在同一個資料夾）
+  if (Platform.isWindows) return ExternalLibrary.open('${File(Platform.resolvedExecutable).parent.path}\\securibit_api.dll');
   return null;
 }
 
