@@ -17,7 +17,7 @@ typedef DeviceInfo = ({String name, String platform, String appVersion});
 /*
  * 回報「這個 session 是哪台裝置」：auth.sessions 的 user_agent 是 Dart 預設值，認不出是哪台，
  * 所以開 App（還原 session）、登入、換 token 時把裝置名稱、平台與 App 版本寫進 session_devices，
- * 網站與 App 的「已登入的裝置」才看得出來。失敗（離線、資料庫還沒執行 0019）就算了，下次再寫。
+ * 網站與 App 的「已登入的裝置」才看得出來。失敗（離線、資料庫還沒有這個功能）就算了，下次再寫。
  *
  * 裝置名稱：Android 是系統設定裡的裝置名稱或「廠牌 型號」（原生端，channel：securibit/device）；
  * iPhone / iPad 拿不到使用者取的名稱，用 iPhone 或 iPad 代替；桌面用電腦的主機名稱。

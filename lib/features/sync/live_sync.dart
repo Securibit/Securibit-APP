@@ -5,7 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/rpc.dart';
 
 /*
- * 跟資料庫即時同步（網站 supabase/migrations/0018_realtime.sql）：用 Realtime 訂閱自己在 sync_signals 的列。
+ * 跟資料庫即時同步（網站 database/init.sql 的 sync_signals）：用 Realtime 訂閱自己在 sync_signals 的列。
  * 群組、驗證碼的資料表不開放直接讀取（一律走 RPC），所以由資料庫的觸發器把「哪裡變了」寫成訊號，
  * 訊號只有 topic 與時間、沒有任何內容；收到後照原本的 RPC 重新讀取，解密、權限與排序都照舊。
  * 短時間內連續的訊號合成一次通知（SyncDebouncer）。斷線重連後補一次全部（斷線期間的訊號收不到）。
@@ -74,7 +74,7 @@ class LiveSync {
   }
 }
 
-/// 累積起來的訊號（topic 見 0018_realtime.sql）
+/// 累積起來的訊號（topic 見網站 database/init.sql 的 sync_signals）
 class SyncBatch {
   bool groups = false;
   bool invitations = false;

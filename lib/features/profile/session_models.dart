@@ -4,7 +4,7 @@ import '../../core/json.dart';
 
 /*
  * 已登入的裝置用到的資料格式與顯示（同網站 src/lib/users/sessions.ts、src/lib/users/userAgent.ts、
- * src/types/Activity/Session.ts；資料庫是 0019_sessions.sql）
+ * src/types/Activity/Session.ts；資料庫是 list_my_sessions）
  */
 
 /// list_my_sessions() 的一筆：一個登入中的 session

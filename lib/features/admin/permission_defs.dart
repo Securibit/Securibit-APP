@@ -1,4 +1,4 @@
-// 全站與群組的權限定義（同網站 src/lib/permissions/bits.ts、migration 0009）
+// 全站與群組的權限定義（同網站 src/lib/permissions/bits.ts、database/init.sql）
 // 資料庫是 bigint，App 用 int；目前只用到 bit 0～9
 
 /// 一個權限位元的顯示資料

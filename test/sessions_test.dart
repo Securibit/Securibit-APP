@@ -7,7 +7,7 @@ import 'package:securibit/features/profile/devices_page.dart';
 import 'package:securibit/features/profile/session_models.dart';
 
 /*
- * 已登入的裝置：list_my_sessions（0019）的解析、user-agent 的判斷（同網站 parseUserAgent）、
+ * 已登入的裝置：list_my_sessions 的解析、user-agent 的判斷（同網站 parseUserAgent）、
  * 裝置名稱的組法，以及手機寬度下一列排得下（不連網路）
  */
 

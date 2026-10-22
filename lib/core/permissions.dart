@@ -1,4 +1,4 @@
-// 群組權限位元（與網站 src/lib/permissions/bits.ts、migration 0009 一致）
+// 群組權限位元（與網站 src/lib/permissions/bits.ts、database/init.sql 一致）
 class GroupPermission {
   GroupPermission._();
 

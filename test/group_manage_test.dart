@@ -5,7 +5,7 @@ import 'package:securibit/features/groups/group_models.dart';
 import 'package:securibit/features/groups/manage/group_rules.dart';
 
 /*
- * 群組管理：group_detail 的邀請、group_invite_info 的解析（照 migration 0011 / 0010 的 jsonb_build_object），
+ * 群組管理：group_detail 的邀請、group_invite_info 的解析（照網站 database/init.sql 的 jsonb_build_object），
  * 以及分頁、刪除、轉移、邀請連結、排序的規則（同網站 GroupView、GroupSettings、GroupInvites、InviteClient）
  */
 

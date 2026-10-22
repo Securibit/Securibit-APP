@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:securibit/features/sync/live_sync.dart';
 
-// 即時同步的訊號（0018_realtime.sql 的 sync_signals.topic）：解析與合併、debounce
+// 即時同步的訊號（網站 database/init.sql 的 sync_signals.topic）：解析與合併、debounce
 void main() {
   group('SyncBatch', () {
     test('認得群組、邀請、驗證碼與金鑰的 topic', () {

@@ -10,7 +10,7 @@ import 'permission_defs.dart';
 /*
  * 自己的全站權限（同網站 AuthProvider 的 me_permissions）：決定要不要顯示「後台」與後台裡的每個區塊。
  * 全 App 共用一份；登入的使用者換了就重新讀，進後台、改了身分組後也會重新讀。
- * 讀取失敗（離線、還沒執行 0009）時保留原本的值，第一次就失敗就當作沒有任何全站權限。
+ * 讀取失敗（離線、資料庫還沒有全站權限功能）時保留原本的值，第一次就失敗就當作沒有任何全站權限。
  */
 class SiteAccessController extends ChangeNotifier {
   SiteAccessController();

@@ -56,7 +56,7 @@ Future<Result<String?>> setUsername(String username) =>
 Future<Result<bool>> usernameAvailable(String username) =>
     rpc('username_available', (data) => data == true, {'name': normalizeUsername(username)});
 
-// ---------- 活動紀錄（0014） ----------
+// ---------- 活動紀錄 ----------
 
 Future<Result<List<LoginRecord>>> loadMyLoginHistory(int? beforeId, int pageSize) => rpc(
       'my_login_history',
@@ -70,7 +70,7 @@ Future<Result<List<AccountActivity>>> loadMyAccountActivity(int? beforeId, int p
       {'before_id': beforeId, 'page_size': pageSize},
     );
 
-// ---------- 已登入的裝置（0019） ----------
+// ---------- 已登入的裝置 ----------
 
 /// 自己所有登入中的 session（這台排第一）
 Future<Result<List<SessionRecord>>> loadMySessions() => rpc(

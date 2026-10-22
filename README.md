@@ -176,7 +176,7 @@ Linux 版只有兩種產出：`.tar.gz`（release bundle）和 `.deb`（Debian /
 2. **準備自己的 Supabase 專案與 `env.json`**。repo 裡沒有任何正式環境的網址或金鑰，自己編譯的版本要接自己的 Supabase 專案：
 
    1. 到 [Supabase](https://supabase.com) 建一個專案
-   2. 到專案的 **SQL Editor**，依序執行 [Securibit-Web](https://github.com/mmm25002500/Securibit-Web) 的 `supabase/migrations/0001_*.sql` 到 `0017_*.sql`（照編號順序，一個跑完再跑下一個）
+   2. 到專案的 **SQL Editor**，貼上並執行 [Securibit-Web](https://github.com/Securibit/Securibit-Web) 的 `database/init.sql`，一次建好所有資料表與函式
    3. App 目前只有 Google 登入（沒有 Email 密碼登入）：到 **Authentication → Sign In / Providers → Google** 打開 Google，填入自己在 [Google Cloud Console](https://console.cloud.google.com/) 建的「網頁應用程式」OAuth 用戶端 ID 與密鑰（Google 那邊的已授權重新導向 URI 填 Supabase 頁面上顯示的 Callback URL）；再到 **Authentication → URL Configuration → Redirect URLs** 加入 `http://127.0.0.1:*/login-callback`（Linux 版登入完成後轉回 App 用，見上面「2. Supabase 登入轉址」）
    4. 複製範例並填入自己專案的值（**Project Settings → API** 裡的 Project URL 與 anon public key）：
 
