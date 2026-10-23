@@ -2,11 +2,13 @@ import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app.dart';
 import 'core/env.dart';
+import 'core/platform.dart';
 import 'core/security_core.dart';
 import 'core/window_visibility.dart';
 import 'features/auth/auth_controller.dart';
@@ -37,6 +39,11 @@ Future<void> main(List<String> args) async {
     return;
   }
 
+  try {
+    AppPlatform.version = (await PackageInfo.fromPlatform()).version;
+  } catch (_) {
+    // 讀不到就不帶版本，登入紀錄只顯示 Securibit App
+  }
   await Supabase.initialize(
     url: Env.supabaseUrl,
     publishableKey: Env.supabaseAnonKey,

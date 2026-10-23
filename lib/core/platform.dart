@@ -32,12 +32,16 @@ class AppPlatform {
     'Noto Sans CJK JP',
   ];
 
-  // 給網站登入紀錄解析的裝置名稱（網站用 user-agent 判斷系統）
+  // App 版本（main 啟動時從 PackageInfo 讀進來），放進 user-agent，網站的登入紀錄才看得出是哪一版
+  static String version = '';
+
+  // 給網站登入紀錄解析的裝置名稱（網站用 user-agent 判斷系統）：SecuribitApp/1.3.2 (Macintosh; Mac OS X)
   static String get userAgent {
-    if (Platform.isIOS) return 'SecuribitApp (iPhone; iOS)';
-    if (Platform.isAndroid) return 'SecuribitApp (Linux; Android)';
-    if (Platform.isMacOS) return 'SecuribitApp (Macintosh; Mac OS X)';
-    if (Platform.isWindows) return 'SecuribitApp (Windows)';
-    return 'SecuribitApp (X11; Linux)';
+    final app = version.isEmpty ? 'SecuribitApp' : 'SecuribitApp/$version';
+    if (Platform.isIOS) return '$app (iPhone; iOS)';
+    if (Platform.isAndroid) return '$app (Linux; Android)';
+    if (Platform.isMacOS) return '$app (Macintosh; Mac OS X)';
+    if (Platform.isWindows) return '$app (Windows)';
+    return '$app (X11; Linux)';
   }
 }

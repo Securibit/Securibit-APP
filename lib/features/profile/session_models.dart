@@ -58,6 +58,8 @@ typedef UserAgentInfo = ({String os, String browser, String device});
 
 // Securibit App：呼叫網站 API 時是 SecuribitApp (…)，直接打 Supabase 時是 Dart 預設的 Dart/3.x (dart:io)
 final _app = RegExp(r'SecuribitApp|^Dart/', caseSensitive: false);
+// 1.3.2 起帶版本：SecuribitApp/1.3.2 (…)
+final _appVersion = RegExp(r'SecuribitApp/([0-9][0-9A-Za-z.+-]*)', caseSensitive: false);
 
 bool _has(String ua, String pattern) => RegExp(pattern, caseSensitive: false).hasMatch(ua);
 
@@ -81,7 +83,8 @@ UserAgentInfo parseUserAgent(String ua) {
 
   var browser = '未知瀏覽器';
   if (_app.hasMatch(ua)) {
-    browser = 'Securibit App';
+    final version = _appVersion.firstMatch(ua)?.group(1);
+    browser = version == null ? 'Securibit App' : 'Securibit App $version';
   } else if (_has(ua, r'Edg/')) {
     browser = 'Edge';
   } else if (_has(ua, r'OPR/|Opera')) {

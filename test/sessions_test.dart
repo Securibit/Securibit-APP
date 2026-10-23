@@ -62,6 +62,7 @@ void main() {
     expect(parseUserAgent(edge), (os: 'Windows', browser: 'Edge', device: 'Windows 電腦'));
     expect(parseUserAgent('Dart/3.9 (dart:io)').browser, 'Securibit App');
     expect(parseUserAgent('SecuribitApp (Linux; Android)'), (os: 'Android', browser: 'Securibit App', device: 'Android 裝置'));
+    expect(parseUserAgent('SecuribitApp/1.3.2 (Macintosh; Mac OS X)'), (os: 'macOS', browser: 'Securibit App 1.3.2', device: 'Mac'));
     expect(parseUserAgent(''), (os: '未知系統', browser: '未知瀏覽器', device: '未知裝置'));
   });
 
