@@ -98,6 +98,8 @@ Future<Result<void>> saveSessionDevice({
   required String deviceName,
   required String platform,
   required String appVersion,
+  // 一併更新最後使用時間（last_seen_at）；不更新時新的一列用資料庫預設的現在時間
+  bool used = true,
 }) async {
   try {
     await supabase.from('session_devices').upsert({
@@ -106,7 +108,7 @@ Future<Result<void>> saveSessionDevice({
       'device_name': deviceName,
       'platform': platform,
       'app_version': appVersion,
-      'last_seen_at': DateTime.now().toUtc().toIso8601String(),
+      if (used) 'last_seen_at': DateTime.now().toUtc().toIso8601String(),
     }, onConflict: 'session_id').timeout(const Duration(seconds: 20));
     return const Ok(null);
   } catch (error) {
