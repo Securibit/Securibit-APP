@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/platform.dart';
 import '../../core/theme/tokens.dart';
+import '../../core/web_pages.dart';
 import '../../core/widgets/feedback.dart';
 import '../../core/widgets/grouped_list.dart';
 import '../auth/auth_controller.dart';
@@ -118,6 +119,17 @@ class SettingsView extends StatelessWidget {
             const SizedBox(height: 24),
             const _UpdateSection(),
           ],
+          const SizedBox(height: 24),
+          GroupedList(
+            children: [
+              for (final (label, path) in const [('隱私權政策', '/privacy'), ('免責聲明', '/disclaimer')])
+                GroupedRow(
+                  label: label,
+                  trailing: Icon(Icons.open_in_new_rounded, size: 20, color: colors.inkMuted),
+                  onTap: () => openWebPage(path),
+                ),
+            ],
+          ),
           const SizedBox(height: 24),
           GroupedList(
             footer: profile == null ? null : '刪除帳戶會一併永久刪除所有驗證碼金鑰，刪除前請確認已在各服務關閉兩步驟驗證或改用其他驗證器',

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/theme/tokens.dart';
+import '../../core/web_pages.dart';
 import '../../core/widgets/feedback.dart';
 import '../../core/widgets/logo.dart';
 import '../onboarding/live_demo.dart';
@@ -186,7 +187,43 @@ class _SignInActions extends StatelessWidget {
             textAlign: center ? TextAlign.center : TextAlign.start,
             style: TextStyle(fontSize: AppText.caption, fontWeight: FontWeight.w500, color: colors.inkMuted),
           ),
+          const SizedBox(height: 4),
+          _Consent(center: center),
         ],
+      ],
+    );
+  }
+}
+
+// 「登入即表示你同意免責聲明與隱私權政策」，兩個名稱點了用瀏覽器打開網站上的頁面
+class _Consent extends StatelessWidget {
+  const _Consent({required this.center});
+
+  final bool center;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final style = TextStyle(fontSize: AppText.caption, fontWeight: FontWeight.w500, color: colors.inkMuted);
+    Widget link(String label, String path) => TextButton(
+          onPressed: () => openWebPage(path),
+          style: TextButton.styleFrom(
+            foregroundColor: colors.accent,
+            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 8),
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            textStyle: style,
+          ),
+          child: Text(label),
+        );
+    return Wrap(
+      alignment: center ? WrapAlignment.center : WrapAlignment.start,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        Text('登入即表示你同意', style: style),
+        link('免責聲明', '/disclaimer'),
+        Text('與', style: style),
+        link('隱私權政策', '/privacy'),
       ],
     );
   }
