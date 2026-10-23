@@ -85,6 +85,15 @@ class GroupsController extends ChangeNotifier with WidgetsBindingObserver {
     } catch (_) {
       _remembered = '';
     }
+    // 先顯示離線快取的群組（開 App 馬上看得到驗證碼），再在背景向伺服器讀；沒有快取才顯示讀取中
+    final cached = await cache.loadGroups(userId);
+    if (uid != userId) return;
+    if (cached != null && groups == null) {
+      groups = repo.parseGroups(cached);
+      notifyListeners();
+      await reload(quiet: true);
+      return;
+    }
     await reload();
   }
 

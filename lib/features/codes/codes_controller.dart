@@ -154,11 +154,13 @@ class CodesController extends ChangeNotifier {
 
   SecretHandle? secretOf(GroupAccount account) => secrets[account.id];
 
-  /// 讀取清單與金鑰；連不上時改用離線快取
+  /// 讀取清單與金鑰：先顯示離線快取（開 App、換群組時馬上有驗證碼），再向伺服器讀；連不上時繼續顯示快取
   Future<void> load() => _serial(_load);
 
   Future<void> _load() async {
     error = null;
+    if (accounts == null) await _showCache();
+    if (_disposed) return;
     _notify();
 
     final orderSeq = _categoryOrderSeq;
@@ -171,23 +173,24 @@ class CodesController extends ChangeNotifier {
         if (_disposed) return;
         await _applyWithSecrets(data, quiet: false);
       case Err(:final message, offline: final isOffline):
-        final cached = isOffline ? await cache.loadGroupData(uid, group.id) : null;
-        if (_disposed) return;
-        if (cached != null) {
-          accounts = cached.accounts.map(GroupAccount.fromJson).toList();
-          secrets = repo.restoreGroupSecrets(_scope, cached.sealedSecrets, encrypted: group.encrypted) ?? const {};
-          categoryOrder = cached.categoryOrder;
-          offline = true;
-          _fromCache = true;
-          _accountsRaw = null;
-          _accountsData = null;
-        } else {
-          error = message;
-          offline = isOffline;
-          accounts ??= const [];
-        }
+        offline = isOffline;
+        // 畫面上已經有驗證碼（快取或上次讀到的）：照舊顯示，離線只標成離線；沒有東西可顯示才是錯誤
+        if (accounts == null || !isOffline) error = message;
+        accounts ??= const [];
     }
     _notify();
+  }
+
+  // 把離線快取放上畫面（金鑰交給 Rust 從密文放回來）；沒有快取就什麼都不做，畫面維持讀取中
+  Future<void> _showCache() async {
+    final cached = await cache.loadGroupData(uid, group.id);
+    if (_disposed || cached == null) return;
+    accounts = cached.accounts.map(GroupAccount.fromJson).toList();
+    secrets = repo.restoreGroupSecrets(_scope, cached.sealedSecrets, encrypted: group.encrypted) ?? const {};
+    categoryOrder = cached.categoryOrder;
+    _fromCache = true;
+    _accountsRaw = null;
+    _accountsData = null;
   }
 
   /// 套用讀到的清單並重新讀金鑰（有「查看金鑰」的才讀，會記一筆「查看金鑰」）。
