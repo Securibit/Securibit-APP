@@ -38,7 +38,9 @@ android {
         // cryptography_flutter and local_auth_android need API 24.
         minSdk = 24
         targetSdk = flutter.targetSdkVersion
-        versionCode = flutter.versionCode
+        // GitHub 的 APK 依處理器是 1000／2000／4000 加 build 號（flutter build apk --split-per-abi）；
+        // play 版加 5000，比同一版的 APK 都大，裝過 GitHub 版的手機才能從 Play 直接覆蓋安裝
+        versionCode = if (distribution == "play") 5000 + flutter.versionCode else flutter.versionCode
         versionName = flutter.versionName
     }
 
