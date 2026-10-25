@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/result.dart';
 import '../../core/rpc.dart';
+import '../../core/widgets/avatar_cache.dart';
 import '../cache/offline_cache.dart';
 import 'auth_repository.dart' as repo;
 import 'native_google_sign_in.dart';
@@ -190,6 +191,7 @@ class AuthController extends ChangeNotifier {
       if (!result.offline) return result.message;
     }
     if (uid != null) await cache.clear(uid);
+    await AvatarCache.clear();
     await NativeGoogleSignIn.signOut();
     if (status != AuthStatus.signedOut) _handleSignedOut();
     return null;
@@ -244,6 +246,7 @@ class AuthController extends ChangeNotifier {
       // 忽略
     }
     if (uid != null) await cache.clear(uid);
+    await AvatarCache.clear();
     await NativeGoogleSignIn.signOut();
     if (status != AuthStatus.signedOut) _handleSignedOut();
     return const Ok(null);

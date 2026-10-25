@@ -205,18 +205,29 @@ class _UserRow extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            user.name.isNotEmpty ? user.name : '（未命名）',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: AppText.body, fontWeight: FontWeight.w600),
-                          ),
-                        ),
-                        if (isOwner) ...[const SizedBox(width: 6), const Tag('擁有者', accent: true)],
-                      ],
+                    // 名稱一定要看得到：欄位窄時「擁有者」縮成一個圖示，名稱太長就截成「…」
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final compact = constraints.maxWidth < 160;
+                        return Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                user.name.isNotEmpty ? user.name : '（未命名）',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: AppText.body, fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                            if (isOwner) ...[
+                              const SizedBox(width: 6),
+                              compact
+                                  ? Tooltip(message: '擁有者', child: Icon(Icons.workspace_premium_rounded, size: 16, color: colors.accent))
+                                  : const Tag('擁有者', accent: true),
+                            ],
+                          ],
+                        );
+                      },
                     ),
                     Text(
                       user.email.isNotEmpty ? user.email : (user.username != null ? '@${user.username}' : '沒有電子郵件'),

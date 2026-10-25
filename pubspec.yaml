@@ -22,6 +22,8 @@ dependencies:
   http_parser: ^4.1.2
   # 檢查下載的更新檔（SHA-256）；本來就是 http、supabase 的相依套件，沒有多帶新的程式碼
   crypto: ^3.0.6
+  # 頭像的暫存資料夾（getApplicationCacheDirectory）；本來就是其他套件的相依套件，沒有多帶新的程式碼
+  path_provider: ^2.1.5
   provider: ^6.1.2
   flutter_secure_storage: ^9.2.2
   shared_preferences: ^2.3.0

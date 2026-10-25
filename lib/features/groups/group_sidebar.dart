@@ -7,6 +7,8 @@ import '../../core/widgets/avatar.dart';
 import '../../core/widgets/feedback.dart';
 import '../../core/widgets/logo.dart';
 import '../../core/widgets/sliding_selection.dart';
+import '../admin/site_access.dart';
+import '../admin/widgets/admin_widgets.dart';
 import '../auth/auth_controller.dart';
 import '../auth/profile.dart';
 import 'group_actions.dart';
@@ -325,7 +327,32 @@ class _AccountTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(profile.displayName, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: AppText.body, fontWeight: FontWeight.w600)),
+                  // 名稱後面接最高的全站身分組（同網站導覽列），名稱太長就截成「…」，身分組照樣看得到
+                  ListenableBuilder(
+                    listenable: SiteAccessController.shared,
+                    builder: (context, _) {
+                      final access = SiteAccessController.shared;
+                      final role = access.uid == profile.uid && access.access.roles.isNotEmpty ? access.access.roles.first : null;
+                      return Row(
+                        children: [
+                          // 名稱占 2/3、身分組占 1/3：兩個都可能截成「…」，名稱永遠看得到
+                          Flexible(
+                            flex: 2,
+                            child: Text(
+                              profile.displayName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: AppText.body, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                          if (role != null) ...[
+                            const SizedBox(width: 6),
+                            Flexible(child: RoleChip(name: role.name, color: role.color)),
+                          ],
+                        ],
+                      );
+                    },
+                  ),
                   if (subtitle.isNotEmpty)
                     Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: AppText.caption, color: colors.inkMuted)),
                 ],

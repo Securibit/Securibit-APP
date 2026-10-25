@@ -55,6 +55,8 @@ class CodesController extends ChangeNotifier {
   bool offline = false;
   // 顯示的金鑰來自離線快取（連回來時要重新讀）；只是同步時斷線則還是記憶體裡原本的金鑰
   bool _fromCache = false;
+  // 讀金鑰時 App 還鎖著（冷啟動要先解鎖）：沒讀到金鑰，解鎖後要重新讀
+  bool _secretsAfterUnseal = false;
 
   String keyword = '';
   String? category;
@@ -94,6 +96,11 @@ class CodesController extends ChangeNotifier {
   static const _refreshStep = 30000;
   // 過了邊界再稍等一下才打，避免伺服器時間還沒跨過去
   static const _refreshDelay = 500;
+
+  /// 同步狀態（標題列通知鈴鐺左邊的圖示）：已經和伺服器同步、還在用離線快取等伺服器、離線
+  bool get synced => accounts != null && !_fromCache && !offline;
+
+  bool get syncing => accounts != null && _fromCache && !offline;
 
   // 加密群組：只有擁有者解鎖後才能看（其他人例如全站管理員解不開）
   bool get locked => group.encrypted && (!group.isOwner || vaultKeyId == null);
@@ -188,6 +195,8 @@ class CodesController extends ChangeNotifier {
     accounts = cached.accounts.map(GroupAccount.fromJson).toList();
     secrets = repo.restoreGroupSecrets(_scope, cached.sealedSecrets, encrypted: group.encrypted) ?? const {};
     categoryOrder = cached.categoryOrder;
+    // 存回快取時保留原本的金鑰密文（App 鎖著時讀不到新的，不能用空的蓋掉）
+    _sealedCache = cached.sealedSecrets;
     _fromCache = true;
     _accountsRaw = null;
     _accountsData = null;
@@ -206,8 +215,16 @@ class CodesController extends ChangeNotifier {
         case Ok(data: final value):
           // App 剛好鎖定：金鑰沒放進記憶體，解鎖後從離線快取放回來
           if (quiet && value.sealed) return;
-          handles = value.handles;
-          sealedCache = value.sealedCache;
+          if (value.sealed) {
+            // 第一次讀取時 App 還鎖著：清單照常套用，金鑰與快取裡的密文都保留原本的，解鎖後再重新讀
+            handles = secrets;
+            sealedCache = _sealedCache;
+            _secretsAfterUnseal = true;
+          } else {
+            handles = value.handles;
+            sealedCache = value.sealedCache;
+            _secretsAfterUnseal = false;
+          }
         case Err(:final message):
           if (quiet) return;
           clearSecretScope(_scope);
@@ -225,7 +242,9 @@ class CodesController extends ChangeNotifier {
     _accountsRaw = jsonEncode(data);
     _accountsData = data;
     _sealedCache = sealedCache;
-    _unresolved = {for (final a in list) if (hasPermission(a.permissions, GroupPermission.viewSecrets) && !handles.containsKey(a.id)) a.id};
+    _unresolved = _secretsAfterUnseal
+        ? const {}
+        : {for (final a in list) if (hasPermission(a.permissions, GroupPermission.viewSecrets) && !handles.containsKey(a.id)) a.id};
     _saveCache();
     _restartServerCodes();
     _notify();
@@ -352,12 +371,18 @@ class CodesController extends ChangeNotifier {
     final restored = cached == null ? null : repo.restoreGroupSecrets(_scope, cached.sealedSecrets, encrypted: group.encrypted);
     if (restored == null) {
       // 沒有快取（例如 Linux 沒有安全儲存）就重新讀取
+      _secretsAfterUnseal = false;
       await load();
       return;
     }
     secrets = restored;
     _restartServerCodes();
     _notify();
+    // 鎖著時讀的那次沒拿到金鑰：現在重新讀（快取裡的可能是舊的或不完整）
+    if (_secretsAfterUnseal) {
+      _secretsAfterUnseal = false;
+      sync(secretsChanged: true);
+    }
   }
 
   // 沒有金鑰的（只有「查看驗證碼」）才需要伺服器產碼；加密群組伺服器不產碼

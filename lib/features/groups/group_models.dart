@@ -15,12 +15,18 @@ class GroupSummary {
     required this.memberCount,
     required this.accountCount,
     required this.permissions,
+    this.owner,
+    this.membersPreview = const [],
   });
 
   final String id;
   final String name;
   final String description;
   final String ownerId;
+  // 擁有者的名稱與頭像（舊的資料庫或離線快取沒有時是 null）
+  final UserBrief? owner;
+  // 擁有者以外的成員，依身分組位置由高到低取前 3 位（擁有者頭像右下角的小頭像）
+  final List<UserBrief> membersPreview;
   final bool isOwner;
   // 是不是我的預設群組（「我的驗證碼」）
   final bool isDefault;
@@ -46,6 +52,10 @@ class GroupSummary {
         memberCount: asInt(json['member_count'], 1),
         accountCount: asInt(json['account_count']),
         permissions: asInt(json['permissions']),
+        owner: UserBrief.fromJson(json['owner']),
+        membersPreview: [
+          for (final item in json['members_preview'] is List ? json['members_preview'] as List : const []) ?UserBrief.fromJson(item),
+        ],
       );
 
   Map<String, dynamic> toJson() => {
@@ -60,6 +70,8 @@ class GroupSummary {
         'member_count': memberCount,
         'account_count': accountCount,
         'permissions': permissions,
+        if (owner != null) 'owner': owner!.toJson(),
+        'members_preview': [for (final m in membersPreview) m.toJson()],
       };
 }
 
@@ -84,6 +96,8 @@ class UserBrief {
   }
 
   String get displayName => name.isNotEmpty ? name : (username != null ? '@$username' : '某位使用者');
+
+  Map<String, dynamic> toJson() => {'id': id, 'name': name, 'username': username, 'photo_url': photoUrl};
 }
 
 // my_invitations() 的一筆

@@ -336,6 +336,7 @@ class AuditLog {
     required this.targetId,
     required this.detail,
     required this.createdAt,
+    this.groupName,
   });
 
   final int id;
@@ -346,16 +347,22 @@ class AuditLog {
   final String? targetId;
   final Map<String, dynamic> detail;
   final String createdAt;
+  // 全站操作紀錄裡，網站管理員在某個群組查看金鑰的紀錄附上那個群組的名稱
+  final String? groupName;
 
-  factory AuditLog.fromJson(Map<String, dynamic> json) => AuditLog(
-        id: asInt(json['id']),
-        actor: PersonBrief.fromJson(json['actor']),
-        action: asString(json['action']),
-        targetType: asNullableString(json['target_type']),
-        targetId: asNullableString(json['target_id']),
-        detail: asMap(json['detail']),
-        createdAt: asString(json['created_at']),
-      );
+  factory AuditLog.fromJson(Map<String, dynamic> json) {
+    final group = json['group'];
+    return AuditLog(
+      id: asInt(json['id']),
+      actor: PersonBrief.fromJson(json['actor']),
+      action: asString(json['action']),
+      targetType: asNullableString(json['target_type']),
+      targetId: asNullableString(json['target_id']),
+      detail: asMap(json['detail']),
+      createdAt: asString(json['created_at']),
+      groupName: group is Map ? asNullableString(asMap(group)['name']) : null,
+    );
+  }
 }
 
 /// 一筆帳號操作紀錄（admin_user_activity / user_activity_page）：操作紀錄再加上所屬群組

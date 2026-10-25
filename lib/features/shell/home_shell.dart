@@ -63,9 +63,12 @@ class _HomeShellState extends State<HomeShell> {
     super.dispose();
   }
 
-  // 斷線或連回來時提示一次（每分鐘的同步與回到前景時發現）
+  // 斷線或連回來時提示一次（每分鐘的同步與回到前景時發現）。
+  // 連回來時重新讀全站權限：離線時讀失敗的話「後台」入口會一直不見
   void _onGroupsChanged() {
     final offline = _groups.offline;
+    final access = SiteAccessController.shared;
+    if (!offline && (offline != _offline || !access.loaded)) unawaited(access.reload());
     if (offline == _offline) return;
     _offline = offline;
     if (!mounted) return;

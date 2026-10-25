@@ -5,7 +5,6 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/security_core.dart';
-import '../../core/theme/tokens.dart';
 import '../settings/settings_controller.dart';
 import 'notification_inbox.dart';
 import 'notification_link_queue.dart';
@@ -14,7 +13,7 @@ import 'push/android_push.dart';
 /*
  * 包在登入後的主畫面外面（見 RootView）：
  * - 點了推播或系統通知（NotificationLinkQueue）：App 沒有鎖定時打開對應的畫面，鎖著就等解鎖
- * - Android 13 以上：登入後第一次進主畫面時，先用 App 自己的說明對話框，再要系統的通知權限；
+ * - Android 13 以上：登入後第一次進主畫面時直接要系統的通知權限（不先跳 App 自己的說明）；
  *   拒絕了就算，設定的「通知」顯示「系統通知權限已關閉」與前往設定的按鈕。問過一次就不再問（記在這台裝置）
  */
 class NotificationHost extends StatefulWidget {
@@ -95,23 +94,7 @@ class _NotificationHostState extends State<NotificationHost> {
     }
     if (!mounted) return;
     await prefs.setBool(NotificationHost.askedKey, true);
-    if (!mounted) return;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('開啟通知'),
-        content: const Text('群組邀請、新的登入與重要公告會用通知告訴你。之後可以在設定的「通知」調整要收哪些通知'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            style: TextButton.styleFrom(foregroundColor: context.colors.ink),
-            child: const Text('稍後'),
-          ),
-          FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('開啟')),
-        ],
-      ),
-    );
-    if (ok == true) await AndroidPush.requestPermission();
+    await AndroidPush.requestPermission();
   }
 
   @override

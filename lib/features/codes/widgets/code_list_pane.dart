@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/result.dart';
+import '../../../core/widgets/avatar.dart';
 import '../../../core/theme/tokens.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/feedback.dart';
@@ -87,6 +88,28 @@ class _CodeListPaneState extends State<CodeListPane> {
     return controller.locked ? LockBackdrop(child: pane) : pane;
   }
 
+  Widget _searchField(CodesController controller, AppColors colors) => TextField(
+      controller: _search,
+      onChanged: controller.setKeyword,
+      textInputAction: TextInputAction.search,
+      decoration: InputDecoration(
+        hintText: '搜尋',
+        prefixIcon: Icon(Icons.search_rounded, color: colors.inkMuted),
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+        suffixIcon: controller.keyword.isEmpty
+            ? null
+            : IconButton(
+                tooltip: '清除',
+                icon: Icon(Icons.close_rounded, size: 18, color: colors.inkMuted),
+                onPressed: () {
+                  _search.clear();
+                  controller.setKeyword('');
+                },
+              ),
+      ),
+    );
+
   Widget _body(BuildContext context, CodesController controller, GroupSummary group, bool hidden, AppColors colors) {
     if (controller.locked) {
       return VaultUnlockView(group: group);
@@ -143,27 +166,20 @@ class _CodeListPaneState extends State<CodeListPane> {
                   style: TextStyle(fontSize: AppText.secondary, color: colors.inkMuted),
                 )
               else
-                TextField(
-                  controller: _search,
-                  onChanged: controller.setKeyword,
-                  textInputAction: TextInputAction.search,
-                  decoration: InputDecoration(
-                    hintText: '搜尋',
-                    prefixIcon: Icon(Icons.search_rounded, color: colors.inkMuted),
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-                    suffixIcon: controller.keyword.isEmpty
-                        ? null
-                        : IconButton(
-                            tooltip: '清除',
-                            icon: Icon(Icons.close_rounded, size: 18, color: colors.inkMuted),
-                            onPressed: () {
-                              _search.clear();
-                              controller.setKeyword('');
-                            },
-                          ),
-                  ),
-                ),
+                // 窄視窗（手機、縮窄的電腦視窗）：搜尋框右邊是同步狀態的雲與群組擁有者的頭像；寬視窗放在標題列
+                _roomy(context)
+                    ? _searchField(controller, colors)
+                    : Row(
+                        children: [
+                          Expanded(child: _searchField(controller, colors)),
+                          const SizedBox(width: 10),
+                          _SyncStatus(controller: controller),
+                          if (group.owner != null) ...[
+                            const SizedBox(width: 10),
+                            _OwnerAvatar(group: group, size: 32),
+                          ],
+                        ],
+                      ),
             ],
           ),
         ),
@@ -254,6 +270,21 @@ class _Header extends StatelessWidget {
         ? IconButton(tooltip: '群組', onPressed: onMenu, icon: Icon(Icons.menu_rounded, color: colors.ink))
         : leading;
 
+    // 寬視窗：群組擁有者的頭像放在群組名稱與成員數的左邊（一樣高），同步狀態的雲放在通知鈴鐺左邊；說明照樣在下面靠左。
+    // 窄視窗（手機、縮窄的電腦視窗）兩個都放在搜尋框右邊
+    final desktop = _roomy(context);
+    final description = group.description.isEmpty
+        ? null
+        : Tooltip(
+            message: group.description,
+            child: Text(
+              '說明：${group.description}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: AppText.secondary, color: colors.inkMuted),
+            ),
+          );
+
     return Padding(
       padding: EdgeInsets.fromLTRB(lead == null ? 20 : 4, 12, 8, 12),
       child: Column(
@@ -263,8 +294,8 @@ class _Header extends StatelessWidget {
             children: [
               ?lead,
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: _titleBlock(
+                  group: desktop && group.owner != null ? group : null,
                   children: [
                     Row(
                       children: [
@@ -293,6 +324,7 @@ class _Header extends StatelessWidget {
                   child: const Text('完成', style: TextStyle(fontSize: AppText.body, fontWeight: FontWeight.w700)),
                 )
               else ...[
+                if (desktop) Padding(padding: const EdgeInsets.symmetric(horizontal: 6), child: _SyncStatus(controller: controller)),
                 const NotificationBell(),
                 if (controller.canAdd && !controller.locked)
                   IconButton(
@@ -304,19 +336,24 @@ class _Header extends StatelessWidget {
               ],
             ],
           ),
-          if (group.description.isNotEmpty)
-            Padding(
-              padding: EdgeInsets.only(left: lead == null ? 0 : 16, top: 6),
-              child: Tooltip(
-                message: group.description,
-                child: Text(
-                  '說明：${group.description}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: AppText.secondary, color: colors.inkMuted),
-                ),
-              ),
-            ),
+          if (description != null)
+            Padding(padding: EdgeInsets.only(left: lead == null ? 0 : 16, top: 6), child: description),
+        ],
+      ),
+    );
+  }
+
+  // 名稱與成員數；寬視窗時左邊多一個和這一欄一樣高的擁有者頭像
+  Widget _titleBlock({required GroupSummary? group, required List<Widget> children}) {
+    final column = Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: children);
+    if (group == null) return column;
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AspectRatio(aspectRatio: 1, child: FittedBox(child: _OwnerAvatar(group: group, size: 40))),
+          const SizedBox(width: 10),
+          Expanded(child: column),
         ],
       ),
     );
@@ -457,5 +494,103 @@ class _Banner extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+// 視窗夠寬（同 HomeShell.mediumBreakpoint）：雲與擁有者頭像放在標題列；不夠寬時放在搜尋框右邊
+bool _roomy(BuildContext context) => MediaQuery.sizeOf(context).width >= 720;
+
+/// 擁有者頭像右下角的小頭像：其他成員超過 3 位時 2 個頭像加「…」，否則全部（最多 3 個，以拿到的預覽數為上限）
+@visibleForTesting
+({int avatars, bool more}) memberBubbles(int others, int previewCount) {
+  final more = others > 3;
+  final avatars = (more ? 2 : others).clamp(0, previewCount);
+  return (avatars: avatars, more: more);
+}
+
+/// 群組擁有者的頭像，右下角疊其他成員的小頭像（依身分組位置排好，最多 3 個）：
+/// 其他成員超過 3 位時前兩個是頭像、第三個是「…」；剛好 3 位或更少就全部顯示。滑過顯示擁有者與成員數
+class _OwnerAvatar extends StatelessWidget {
+  const _OwnerAvatar({required this.group, required this.size});
+
+  final GroupSummary group;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final owner = group.owner!;
+    final others = group.memberCount - 1;
+    final (:avatars, :more) = memberBubbles(others, group.membersPreview.length);
+    final shown = group.membersPreview.take(avatars).toList();
+    final small = size * 0.45;
+    final step = small * 0.65;
+    final count = shown.length + (more ? 1 : 0);
+
+    Widget ring(Widget child) => Container(
+          width: small,
+          height: small,
+          decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: colors.surface1, width: 1.5)),
+          child: ClipOval(child: child),
+        );
+
+    final bubbles = [
+      for (final m in shown) ring(UserAvatar(name: m.displayName, photoUrl: m.photoUrl, size: small)),
+      if (more)
+        ring(Container(
+          color: colors.surface2,
+          alignment: Alignment.center,
+          child: Text('…', style: TextStyle(fontSize: small * 0.5, fontWeight: FontWeight.w700, color: colors.ink, height: 1)),
+        )),
+    ];
+    final extent = size + small * 0.3;
+    final tip = others > 0 ? '擁有者：${owner.displayName}，另外 $others 位成員' : '擁有者：${owner.displayName}';
+
+    return Tooltip(
+      message: tip,
+      child: SizedBox(
+        width: extent,
+        height: extent,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Positioned(left: 0, top: 0, child: UserAvatar(name: owner.displayName, photoUrl: owner.photoUrl, size: size)),
+            if (count > 0)
+              Positioned(
+                right: 0,
+                bottom: 0,
+                width: small + step * (count - 1),
+                height: small,
+                child: Stack(
+                  children: [
+                    for (var k = 0; k < bubbles.length; k++) Positioned(left: step * k, top: 0, child: bubbles[k]),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 同步狀態的雲：已同步（打勾、薄荷綠）、正在同步（灰）、離線（劃掉、灰）、還沒讀到（空心、灰）。
+/// 寬視窗放在通知鈴鐺左邊，窄視窗（手機、縮窄的電腦視窗）放在搜尋框右邊
+class _SyncStatus extends StatelessWidget {
+  const _SyncStatus({required this.controller});
+
+  final CodesController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final (icon, color, message) = controller.synced
+        ? (Icons.cloud_done_rounded, colors.accent, '已同步')
+        : controller.syncing
+            ? (Icons.cloud_sync_rounded, colors.inkMuted, '同步中')
+            : controller.offline
+                ? (Icons.cloud_off_rounded, colors.inkMuted, '沒有網路，無法同步')
+                : (Icons.cloud_queue_rounded, colors.inkMuted, '尚未同步');
+    return Tooltip(message: message, child: Icon(icon, size: 24, color: color));
   }
 }

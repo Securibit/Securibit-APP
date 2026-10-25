@@ -111,6 +111,8 @@ class AuditLogRow extends StatelessWidget {
               children: [
                 TextSpan(text: auditActionText(log.action), style: const TextStyle(fontWeight: FontWeight.w700)),
                 if (target != null && target.isNotEmpty) TextSpan(text: '  $target'),
+                if (log.groupName != null && log.targetType != 'group')
+                  TextSpan(text: '  在「${log.groupName}」', style: TextStyle(color: colors.inkMuted)),
                 if (change != null) TextSpan(text: '  $change', style: TextStyle(color: colors.inkMuted)),
               ],
             ),

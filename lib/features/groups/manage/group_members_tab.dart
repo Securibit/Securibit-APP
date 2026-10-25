@@ -17,7 +17,7 @@ import 'group_bans_tab.dart';
 import 'group_rules.dart';
 import 'group_tab_context.dart';
 
-enum _MemberAction { roles, transfer, kick, ban }
+enum _MemberAction { roles, transfer, kick, ban, leave }
 
 /*
  * 成員分頁（同網站 GroupMembers）：清單、指派身分組、轉移擁有權、移出群組、封鎖；
@@ -94,6 +94,29 @@ class _GroupMembersTabState extends State<GroupMembersTab> {
         }
         showToast(context, '已將 $name 移出群組');
         await widget.tab.onChanged();
+      case _MemberAction.leave:
+        final group = _detail.group;
+        final ok = await confirmDialog(
+          context,
+          title: '離開群組',
+          message: '確定要離開「${group.name}」嗎？離開後就看不到群組的驗證碼，要重新受邀才能再加入',
+          confirmLabel: '離開',
+          danger: true,
+        );
+        if (!ok || !mounted) return;
+        final result = await repo.leaveGroup(group.id);
+        if (!mounted) return;
+        if (result case Err(:final message)) {
+          await showErrorDialog(context, '離開群組失敗', message);
+          return;
+        }
+        showToast(context, '已離開「${group.name}」');
+        // 後台還管得到這個群組，留在原頁重新整理；一般的群組管理就關掉
+        if (widget.tab.adminMode) {
+          await widget.tab.onChanged();
+        } else {
+          widget.tab.onExit();
+        }
       case _MemberAction.ban:
         final saved = await showAdminForm<bool>(context, BanForm(groupId: _detail.group.id, member: member));
         if (saved == true && mounted) await widget.tab.onChanged();
@@ -146,6 +169,8 @@ class _GroupMembersTabState extends State<GroupMembersTab> {
         if (_detail.isOwner && !member.isOwner) const MenuAction(_MemberAction.transfer, '轉移擁有權', Icons.swap_horiz_rounded),
         if (canKick && manageable && !isSelf) const MenuAction(_MemberAction.kick, '移出群組', Icons.person_remove_rounded, danger: true),
         if (canBan && manageable && !isSelf && !member.isOwner) const MenuAction(_MemberAction.ban, '封鎖', Icons.block_rounded, danger: true),
+        // 自己（不是擁有者）可以直接在這裡離開群組，例如全站管理員加入後要退出
+        if (isSelf && !member.isOwner) const MenuAction(_MemberAction.leave, '離開群組', Icons.logout_rounded, danger: true),
       ];
       if (i > 0) rows.add(Divider(indent: 64, height: 0.5, color: colors.line.withValues(alpha: 0.6)));
       rows.add(InkWell(
