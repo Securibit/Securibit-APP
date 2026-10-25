@@ -172,7 +172,17 @@ LRESULT Tray::HandleMessage(UINT message, WPARAM wparam, LPARAM lparam) {
       case NIN_SELECT:
       case NIN_KEYSELECT:
       case WM_CONTEXTMENU:
-        RequestMenu({GET_X_LPARAM(wparam), GET_Y_LPARAM(wparam)});
+        // 暫時加上的圖示只用來顯示通知，沒有選單
+        if (enabled_) {
+          RequestMenu({GET_X_LPARAM(wparam), GET_Y_LPARAM(wparam)});
+        }
+        break;
+      case NIN_BALLOONUSERCLICK:
+        OnNotificationClicked();
+        break;
+      case NIN_BALLOONTIMEOUT:
+      case NIN_BALLOONHIDE:
+        OnNotificationGone();
         break;
     }
     return 0;
@@ -245,6 +255,14 @@ void Tray::HandleMethodCall(const flutter::MethodCall<EncodableValue>& call,
   } else if (method == "openLoginItemsSettings") {
     OpenStartupAppsSettings();
     result->Success();
+  } else if (method == "notify") {
+    if (args != nullptr) {
+      ShowNotification(LookupString(*args, "title"), LookupString(*args, "body"), LookupString(*args, "link"));
+    }
+    result->Success();
+  } else if (method == "notifyPermission") {
+    // Windows 不用先問（使用者可以在系統的通知設定關掉）
+    result->Success(EncodableValue(true));
   } else {
     result->NotImplemented();
   }
@@ -256,6 +274,8 @@ void Tray::SetEnabled(bool enabled) {
   }
   enabled_ = enabled;
   if (enabled) {
+    // 本來為了通知暫時加上的圖示，現在留著當系統匣圖示
+    temporary_icon_ = false;
     if (!AddIcon()) {
       icon_retries_ = 0;
       ::SetTimer(tray_window_, kIconRetryTimer, kIconRetryMs, nullptr);
@@ -306,6 +326,8 @@ bool Tray::AddIcon() {
 
 void Tray::RemoveIcon() {
   ::KillTimer(tray_window_, kCopiedTimer);
+  temporary_icon_ = false;
+  notification_shown_ = false;
   if (!icon_added_) {
     return;
   }
@@ -336,6 +358,7 @@ void Tray::ShowCopied() {
   if (!icon_added_) {
     return;
   }
+  notification_shown_ = false;
   NOTIFYICONDATAW data = {sizeof(NOTIFYICONDATAW)};
   data.hWnd = tray_window_;
   data.uID = kIconId;
@@ -358,6 +381,54 @@ void Tray::HideCopied() {
   data.uID = kIconId;
   data.uFlags = NIF_INFO;
   ::Shell_NotifyIconW(NIM_MODIFY, &data);
+}
+
+// MARK: - 系統通知
+
+// 通知的標題最多 63 字、內文最多 255 字（NOTIFYICONDATA 的長度），太長就截掉
+void Tray::ShowNotification(const std::string& title, const std::string& body, const std::string& link) {
+  if (title.empty() || tray_window_ == nullptr) {
+    return;
+  }
+  if (!icon_added_) {
+    if (!AddIcon()) {
+      return;
+    }
+    temporary_icon_ = !enabled_;
+  }
+  ::KillTimer(tray_window_, kCopiedTimer);
+  notification_shown_ = true;
+  notification_link_ = link;
+  NOTIFYICONDATAW data = {sizeof(NOTIFYICONDATAW)};
+  data.hWnd = tray_window_;
+  data.uID = kIconId;
+  data.uFlags = NIF_INFO;
+  data.dwInfoFlags = NIIF_NONE | NIIF_RESPECT_QUIET_TIME;
+  wcsncpy_s(data.szInfoTitle, Utf16FromUtf8(title).c_str(), _TRUNCATE);
+  // 內文空的話通知不會出現，至少放一個空白
+  const std::wstring text = body.empty() ? L" " : Utf16FromUtf8(body);
+  wcsncpy_s(data.szInfo, text.c_str(), _TRUNCATE);
+  ::Shell_NotifyIconW(NIM_MODIFY, &data);
+}
+
+void Tray::OnNotificationClicked() {
+  if (!notification_shown_) {
+    return;
+  }
+  notification_shown_ = false;
+  const std::string link = notification_link_;
+  ShowMainWindow();
+  EncodableMap args = {{EncodableValue("link"), EncodableValue(link)}};
+  channel_->InvokeMethod("notificationClicked", std::make_unique<EncodableValue>(args));
+  OnNotificationGone();
+}
+
+// 通知收掉了：暫時加上的圖示拿掉
+void Tray::OnNotificationGone() {
+  notification_shown_ = false;
+  if (temporary_icon_ && !enabled_) {
+    RemoveIcon();
+  }
 }
 
 // MARK: - 選單

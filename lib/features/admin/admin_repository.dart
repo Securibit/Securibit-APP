@@ -34,6 +34,9 @@ export '../groups/groups_repository.dart'
 
 Future<Result<SiteAccess>> loadSiteAccess() => rpc('me_permissions', SiteAccess.fromJson);
 
+/// 全站擁有者的使用者 id（要「進入後台」；還沒有擁有者時是 null）
+Future<Result<String?>> loadSiteOwner() => rpc('site_owner', asNullableString);
+
 // ---------- 使用者 ----------
 
 Future<Result<AdminUserPage>> loadAdminUsers(String search, int offset, int pageSize) => rpc(
@@ -49,12 +52,13 @@ Future<Result<AdminUserDetail?>> loadAdminUser(String userId) =>
 Future<Result<void>> updateAdminUser(String userId, {String? name, String? username}) =>
     rpcVoid('admin_update_user', {'user_id': userId, 'name': name, 'username': username});
 
-/// 刪除使用者走網站的 API（要用 service role 刪 auth 使用者），權限由網站先以我的身分檢查
+/// 刪除使用者走網站的 API（要用 service role 刪 auth 使用者），權限由網站先以我的身分檢查；
+/// 我 10 分鐘內沒登入過時 code 是 reauth_required（見 auth/reauth.dart）
 Future<Result<void>> deleteAdminUser(String userId) async {
   final result = await callWebApi('/api/admin/delete-user', {'userId': userId});
   return switch (result) {
     Ok() => const Ok(null),
-    Err(:final message, :final offline) => Err(message, offline: offline),
+    Err(:final message, :final offline, :final code) => Err(message, offline: offline, code: code),
   };
 }
 

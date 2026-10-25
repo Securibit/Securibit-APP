@@ -197,7 +197,7 @@ void main() {
   });
 
   group('畫面', () {
-    testWidgets('整批匯入：可以取消勾選，按鈕跟著顯示筆數，也列出無法匯入的', (tester) async {
+    testWidgets('整批匯入：可以取消勾選，按鈕跟著顯示筆數，也列出無法讀取的行', (tester) async {
       final controller = offlineController();
       addTearDown(controller.dispose);
       final result = ImportTextResult(
@@ -205,15 +205,17 @@ void main() {
           TotpInput(name: 'GitHub - me', secret: 'JBSWY3DPEHPK3PXP'),
           TotpInput(name: 'Acme', secret: 'MZXW6YTBOI', digits: 8),
         ],
-        errors: ['略過 1 筆 HOTP（計數型）驗證碼'],
+        errors: [const ImportLineError(3, '不是有效的 otpauth:// 連結')],
+        notes: ['第 4 行略過 1 筆 HOTP（計數型）驗證碼'],
       );
       await tester.pumpWidget(app(BulkImportPage(controller: controller, result: result)));
 
       expect(find.text('匯入 2 筆驗證碼'), findsOneWidget);
       expect(find.text('匯入 2 筆'), findsOneWidget);
       expect(find.text('8 位數'), findsOneWidget);
-      expect(find.text('以下內容無法匯入'), findsOneWidget);
-      expect(find.text('・略過 1 筆 HOTP（計數型）驗證碼'), findsOneWidget);
+      expect(find.text('有 1 行無法讀取，其他的照常匯入'), findsOneWidget);
+      expect(find.text('・第 3 行：不是有效的 otpauth:// 連結'), findsOneWidget);
+      expect(find.text('・第 4 行略過 1 筆 HOTP（計數型）驗證碼'), findsOneWidget);
 
       await tester.tap(find.text('Acme'));
       await tester.pump();

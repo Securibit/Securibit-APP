@@ -1,4 +1,5 @@
 import '../../core/env.dart';
+import '../../core/json.dart';
 import '../../core/platform.dart';
 import '../../core/result.dart';
 import '../../core/rpc.dart';
@@ -25,3 +26,11 @@ Future<Result<SupabaseConnection>> vaultConnection() async {
 
 /// 忘記加密密碼：清空我擁有且已加密的群組裡的驗證碼，那些群組改成沒加密，並停用加密（同網站 resetVault）
 Future<Result<void>> resetVault() => rpcVoid('vault_reset');
+
+// ---------- 密碼備援（escrow） ----------
+
+/// 伺服器還沒有目前這組密碼的備援密文（解鎖成功後問，缺少就補）
+Future<Result<bool>> escrowNeeded() => rpc('vault_escrow_needed', (data) => asBool(data));
+
+/// 補存備援密文（綁定目前的加密設定）
+Future<Result<void>> escrowPut(String escrow) => rpcVoid('vault_escrow_put', {'escrow': escrow});

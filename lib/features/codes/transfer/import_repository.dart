@@ -42,7 +42,11 @@ Result<List<Map<String, dynamic>>> buildImportItems(
   return Ok(items);
 }
 
-/// 把多筆驗證碼加到群組，回傳新的 id（順序同 inputs）
+/// 資料庫一次最多收幾筆（totp_import_items / group_account_add 的上限）
+const importBatchSize = 500;
+
+/// 把多筆驗證碼加到群組，回傳新的 id（順序同 inputs）；超過上限時分批送出，
+/// 中途失敗時前面的批次已經存好，訊息會說明匯入了幾筆
 Future<Result<List<String>>> importGroupAccounts(
   String gid,
   List<TotpInput> inputs, {
@@ -54,9 +58,20 @@ Future<Result<List<String>>> importGroupAccounts(
     case Err(:final message):
       return Err(message);
     case Ok(data: final items):
-      return rpc('group_account_add', (data) => data is List ? data.map((e) => '$e').toList() : <String>[], {
-        'gid': gid,
-        'items': items,
-      });
+      final ids = <String>[];
+      for (var start = 0; start < items.length; start += importBatchSize) {
+        final batch = items.sublist(start, (start + importBatchSize).clamp(0, items.length));
+        final result = await rpc('group_account_add', (data) => data is List ? data.map((e) => '$e').toList() : <String>[], {
+          'gid': gid,
+          'items': batch,
+        });
+        switch (result) {
+          case Ok(:final data):
+            ids.addAll(data);
+          case Err(:final message, :final offline):
+            return Err(ids.isEmpty ? message : '已匯入 ${ids.length} 筆，其餘失敗：$message', offline: offline);
+        }
+      }
+      return Ok(ids);
   }
 }

@@ -13,13 +13,14 @@ import '../../admin/roles/role_assign_form.dart';
 import '../../admin/site_access.dart';
 import '../../admin/widgets/admin_widgets.dart';
 import '../groups_repository.dart' as repo;
+import 'group_bans_tab.dart';
 import 'group_rules.dart';
 import 'group_tab_context.dart';
 
-enum _MemberAction { roles, transfer, kick }
+enum _MemberAction { roles, transfer, kick, ban }
 
 /*
- * 成員分頁（同網站 GroupMembers）：清單、指派身分組、轉移擁有權、移出群組；
+ * 成員分頁（同網站 GroupMembers）：清單、指派身分組、轉移擁有權、移出群組、封鎖；
  * 能不能管理照身分組階層（hierarchy.dart）。全站管理員在後台可以直接新增成員，前台一律走邀請
  */
 class GroupMembersTab extends StatefulWidget {
@@ -93,6 +94,9 @@ class _GroupMembersTabState extends State<GroupMembersTab> {
         }
         showToast(context, '已將 $name 移出群組');
         await widget.tab.onChanged();
+      case _MemberAction.ban:
+        final saved = await showAdminForm<bool>(context, BanForm(groupId: _detail.group.id, member: member));
+        if (saved == true && mounted) await widget.tab.onChanged();
       case _MemberAction.transfer:
         final blocked = transferBlockedReason(_detail);
         if (blocked != null) {
@@ -124,6 +128,7 @@ class _GroupMembersTabState extends State<GroupMembersTab> {
     final access = SiteAccessController.shared;
     final canAssign = hasPermission(_detail.permissions, GroupPermission.manageRoles);
     final canKick = hasPermission(_detail.permissions, GroupPermission.kickMembers);
+    final canBan = canManageBans(_detail.permissions);
     // 直接加入只在後台：全站「管理所有群組」；加密的群組只能有擁有者一人
     final canAdd = widget.tab.adminMode && access.can(SitePermission.manageGroups) && !_detail.group.encrypted;
     final openUser = widget.tab.onOpenUser;
@@ -140,6 +145,7 @@ class _GroupMembersTabState extends State<GroupMembersTab> {
         if (canAssign && manageable) const MenuAction(_MemberAction.roles, '指派身分組', Icons.sell_rounded),
         if (_detail.isOwner && !member.isOwner) const MenuAction(_MemberAction.transfer, '轉移擁有權', Icons.swap_horiz_rounded),
         if (canKick && manageable && !isSelf) const MenuAction(_MemberAction.kick, '移出群組', Icons.person_remove_rounded, danger: true),
+        if (canBan && manageable && !isSelf && !member.isOwner) const MenuAction(_MemberAction.ban, '封鎖', Icons.block_rounded, danger: true),
       ];
       if (i > 0) rows.add(Divider(indent: 64, height: 0.5, color: colors.line.withValues(alpha: 0.6)));
       rows.add(InkWell(

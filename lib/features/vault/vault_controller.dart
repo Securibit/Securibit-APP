@@ -10,6 +10,7 @@ import '../../src/rust/api/vault.dart' as core;
 import '../auth/profile.dart';
 import '../groups/group_models.dart';
 import '../groups/groups_repository.dart' as groups_repo;
+import 'escrow_key.dart';
 import 'vault_info.dart';
 import 'vault_repository.dart' as repo;
 
@@ -34,6 +35,8 @@ class VaultResult {
  * 存的時候連同 vault.check 一起存，別的裝置改過密碼就不再使用。
  * 設定、更改、停用時要重新加密的金鑰由 Rust 直接連 Supabase 取得、轉換、寫回（rust/api/src/api/vault.rs），也不經過 Dart。
  * 這些操作成功後，呼叫端要重新讀取 profile 與群組；這裡先換上新的設定，重新讀到 profile 時就不會被當成別的裝置改過而鎖住。
+ * 設定或更改密碼時，連同用團隊公鑰封起來的備援密文（escrow_key.dart）一起存；用密碼解鎖成功後，伺服器說缺少就補存（失敗不影響解鎖）。
+ * 從伺服器讀回的設定版本不是 1、或 PBKDF2 次數不在 600,000～5,000,000 時不推導金鑰。
  */
 class VaultController extends ChangeNotifier {
   VaultStatus status = VaultStatus.off;
@@ -130,6 +133,7 @@ class VaultController extends ChangeNotifier {
     final uid = _uid;
     final info = _info;
     if (uid == null || info == null) return '尚未啟用加密';
+    if (!isSupportedVault(info)) return unsupportedVaultMessage;
     final generation = _generation;
     final result = await core.vaultUnlock(salt: info.salt, iterations: info.iterations, check: info.check, passphrase: passphrase);
     if (generation != _generation) {
@@ -140,6 +144,8 @@ class VaultController extends ChangeNotifier {
     switch (result) {
       case core.VaultUnlockResult.badInfo:
         return '加密設定的格式不正確，請用「忘記密碼」重設';
+      case core.VaultUnlockResult.unsupported:
+        return unsupportedVaultMessage;
       case core.VaultUnlockResult.wrongPassphrase:
         return '密碼錯誤';
       case core.VaultUnlockResult.unlocked:
@@ -153,7 +159,21 @@ class VaultController extends ChangeNotifier {
     }
     _adoptKey();
     notifyListeners();
+    unawaited(_backfillEscrow(uid, info, passphrase, generation));
     return null;
+  }
+
+  // 解鎖成功後：伺服器還沒有這組密碼的備援就補上；任何失敗都安靜略過，不影響解鎖
+  Future<void> _backfillEscrow(String uid, VaultInfo info, String passphrase, int generation) async {
+    try {
+      final needed = await repo.escrowNeeded();
+      if (needed.dataOrNull != true || generation != _generation || _info?.check != info.check) return;
+      final escrow = sealEscrow(uid, passphrase);
+      if (escrow == null) return;
+      await repo.escrowPut(escrow);
+    } catch (error) {
+      debugPrint('補存加密密碼備援失敗：$error');
+    }
   }
 
   // 存的是用這台裝置的金鑰包過的密文，不是金鑰本身
@@ -218,8 +238,13 @@ class VaultController extends ChangeNotifier {
     }
 
     final setup = await core.vaultCreate(passphrase: passphrase);
-    // 還沒有加密的群組，只需要存加密設定
-    final error = await core.vaultRewriteAll(connection: conn, usePending: true, expectedCheck: expected);
+    // 還沒有加密的群組，只需要存加密設定（連同備援密文）
+    final error = await core.vaultRewriteAll(
+      connection: conn,
+      usePending: true,
+      expectedCheck: expected,
+      escrow: sealEscrow(uid, passphrase),
+    );
     if (generation != _generation) return _superseded();
     if (error != null) return VaultResult.fail(error);
 
@@ -263,6 +288,7 @@ class VaultController extends ChangeNotifier {
       current: _current(info, currentPassphrase),
       usePending: true,
       expectedCheck: info.check,
+      escrow: sealEscrow(uid, nextPassphrase),
     );
     if (generation != _generation) return _superseded();
     if (error != null) return VaultResult.fail(error);
@@ -349,5 +375,21 @@ class VaultController extends ChangeNotifier {
     } catch (_) {
       return false;
     }
+  }
+}
+
+/// 讀回的加密設定異常（版本不對、次數不在範圍）時的訊息
+const unsupportedVaultMessage = '加密設定異常，請聯絡我們';
+
+/// 只接受 v = 1、PBKDF2 次數 600,000～5,000,000（同資料庫 totp_set_vault 的檢查）；不合就不推導金鑰
+bool isSupportedVault(VaultInfo info) => info.v == 1 && info.iterations >= 600000 && info.iterations <= 5000000;
+
+/// 用團隊公鑰把加密密碼封成備援密文（esc:v1）；設定有問題時回傳 null（不擋住設定密碼，之後解鎖時再補）
+String? sealEscrow(String uid, String passphrase) {
+  try {
+    return core.escrowSeal(publicKey: EscrowKey.publicKey, keyId: EscrowKey.keyId, userId: uid, passphrase: passphrase);
+  } catch (error) {
+    debugPrint('產生加密密碼備援失敗：$error');
+    return null;
   }
 }

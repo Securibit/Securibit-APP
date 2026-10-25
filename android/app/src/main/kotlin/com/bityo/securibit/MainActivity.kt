@@ -20,6 +20,26 @@ class MainActivity : FlutterFragmentActivity() {
         // 預設不允許截圖：在 Flutter 讀到設定之前就先擋住，冷啟動時的多工畫面也不會露出內容
         window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
         super.onCreate(savedInstanceState)
+        // 點推播通知打開 App（見 Push.kt）；畫面重建（旋轉等）時不是新的點擊
+        if (savedInstanceState == null) Push.handleIntent(intent, coldStart = true)
+    }
+
+    // App 開著時點了推播通知（launchMode 是 singleTop）
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        Push.handleIntent(intent, coldStart = false)
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == Push.REQUEST_PERMISSION) {
+            Push.onPermissionResult(grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED)
+        }
+    }
+
+    override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        Push.detach()
+        super.cleanUpFlutterEngine(flutterEngine)
     }
 
     /*
@@ -79,6 +99,9 @@ class MainActivity : FlutterFragmentActivity() {
                 else -> result.notImplemented()
             }
         }
+
+        // 推播（Firebase Cloud Messaging，見 Push.kt）
+        Push.attach(this, flutterEngine.dartExecutor.binaryMessenger)
 
         // 已登入的裝置要顯示的裝置名稱（lib/features/profile/session_device.dart）
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "securibit/device").setMethodCallHandler { call, result ->

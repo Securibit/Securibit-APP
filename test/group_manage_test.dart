@@ -13,7 +13,7 @@ Map<String, dynamic> detailJson({
   bool isOwner = true,
   bool isDefault = false,
   int ownedCount = 2,
-  int permissions = 511,
+  int permissions = GroupPermission.all,
   bool encrypted = false,
   List<Map<String, dynamic>>? members,
 }) =>
@@ -63,7 +63,7 @@ AdminGroupDetail detail({
   bool isOwner = true,
   bool isDefault = false,
   int ownedCount = 2,
-  int permissions = 511,
+  int permissions = GroupPermission.all,
   bool encrypted = false,
 }) =>
     AdminGroupDetail.fromJson(detailJson(
@@ -131,7 +131,7 @@ void main() {
   });
 
   group('分頁', () {
-    test('全部權限：成員、身分組、邀請、設定、紀錄', () {
+    test('全部權限：成員、身分組、邀請、封鎖名單、設定、紀錄', () {
       expect(visibleTabs(detail()), GroupManageTab.values);
     });
 
@@ -194,6 +194,50 @@ void main() {
         member('u1', 'Zed', owner: true),
       ]));
       expect(sortMembers(d.members).map((m) => m.id), ['u1', 'u2', 'u4', 'u3']);
+    });
+  });
+
+  group('封鎖名單', () {
+    test('group_bans 的一筆', () {
+      final ban = GroupBan.fromJson({
+        'user_id': 'u9',
+        'name': '',
+        'username': 'bad',
+        'photo_url': null,
+        'email': 'bad@example.com',
+        'reason': '離職',
+        'created_at': '2026-10-01T00:00:00Z',
+        'updated_at': '2026-10-02T00:00:00Z',
+        'banned_by': {'id': 'u1', 'name': null},
+      });
+      expect(ban.userId, 'u9');
+      expect(ban.person.displayName, '@bad');
+      expect(ban.person.email, 'bad@example.com');
+      expect(ban.bannedBy?.id, 'u1');
+      expect(banMeta(ban), startsWith('由 成員 封鎖・'));
+      expect(banMeta(ban), endsWith('修改'));
+
+      final orphan = GroupBan.fromJson({'user_id': 'u8', 'name': 'X', 'reason': '', 'banned_by': null, 'created_at': 'a', 'updated_at': 'a'});
+      expect(orphan.bannedBy, isNull);
+      expect(banMeta(orphan), '由 已刪除的使用者 封鎖・a');
+    });
+
+    test('要有「封鎖成員」才看得到封鎖名單', () {
+      expect(GroupPermission.banMembers, 512);
+      expect(canManageBans(GroupPermission.banMembers), isTrue);
+      expect(canManageBans(GroupPermission.kickMembers), isFalse);
+      expect(visibleTabs(detail(isOwner: false, permissions: GroupPermission.banMembers)), contains(GroupManageTab.bans));
+      expect(visibleTabs(detail(isOwner: false, permissions: GroupPermission.viewCodes)), isNot(contains(GroupManageTab.bans)));
+    });
+
+    test('被封鎖的人不能用邀請加入', () {
+      final banned = InviteInfo.fromJson({
+        'valid': true,
+        'group': {'id': 'g1', 'name': '工程部', 'description': '', 'member_count': 3},
+        'already_member': false,
+        'banned': true,
+      });
+      expect(banned.usable, isFalse);
     });
   });
 

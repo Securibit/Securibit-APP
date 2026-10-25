@@ -7,7 +7,8 @@
 
 use flutter_rust_bridge::frb;
 use securibit_core::sealed::RawSecrets;
-use securibit_core::vault::{self, VaultKey};
+use securibit_core::escrow;
+use securibit_core::vault::{self, VaultError, VaultKey};
 use zeroize::Zeroizing;
 
 use crate::api::secrets::SupabaseConnection;
@@ -18,6 +19,7 @@ use crate::state::state;
 const WRONG_PASSPHRASE: &str = "密碼錯誤";
 const UNDECRYPTABLE: &str = "有金鑰無法解密，可能是在其他裝置用舊密碼新增的。請先刪除顯示「金鑰錯誤」的項目再試一次。";
 const CHANGED_ELSEWHERE: &str = "加密設定已在其他裝置變更，請重新整理";
+const UNSUPPORTED: &str = "加密設定異常，請聯絡我們";
 
 const WRAP_PREFIX: &str = "dev:v1:";
 
@@ -26,6 +28,8 @@ pub enum VaultUnlockResult {
     WrongPassphrase,
     // 加密設定（salt）格式不對
     BadInfo,
+    // PBKDF2 次數不在允許範圍（600,000～5,000,000），不推導金鑰
+    Unsupported,
 }
 
 /// 用密碼解鎖（PBKDF2 60 萬次，在背景執行緒計算）；成功時金鑰留在 Rust
@@ -37,6 +41,7 @@ pub fn vault_unlock(salt: String, iterations: u32, check: String, passphrase: St
             VaultUnlockResult::Unlocked
         }
         Ok(None) => VaultUnlockResult::WrongPassphrase,
+        Err(VaultError::Unsupported) => VaultUnlockResult::Unsupported,
         Err(_) => VaultUnlockResult::BadInfo,
     }
 }
@@ -101,6 +106,16 @@ pub fn vault_encrypt(text: String) -> Option<String> {
     Some(vault::encrypt_text(key, &text))
 }
 
+// ---------- 密碼備援（escrow） ----------
+
+/// 用團隊的公鑰把加密密碼封成 esc:v1 備援密文（設定、更改密碼時與解鎖後補存用）。
+/// public_key、key_id 來自 Dart 的備援金鑰設定；兩者不一致或格式不對時回傳錯誤訊息
+#[frb(sync)]
+pub fn escrow_seal(public_key: String, key_id: String, user_id: String, passphrase: String) -> Result<String, String> {
+    let passphrase = Zeroizing::new(passphrase);
+    escrow::seal(&public_key, &key_id, &user_id, &passphrase).map_err(|error| error.to_string())
+}
+
 // ---------- 設定、更改、停用加密密碼 ----------
 
 /// 新的加密設定裡可以公開的部分（存進 profiles.vault）
@@ -133,12 +148,14 @@ pub fn vault_create(passphrase: String) -> VaultSetup {
 /// - 更改密碼：current 有值、use_pending 是 true；用舊金鑰解開，新金鑰加密
 /// - 停用加密：current 有值、use_pending 是 false；解開後寫回明文，群組改成沒加密
 /// expected_check 是目前 profile 的 vault.check（未啟用是 null），別的裝置先改過時資料庫會拒絕。
+/// escrow 是用 escrow_seal 把新密碼封起來的備援密文（停用時不用給），和新的設定一起存進資料庫。
 /// 成功回傳 null；失敗回傳給使用者看的訊息。成功後新金鑰（停用時是沒有金鑰）立即生效，加密群組的驗證碼金鑰要重新讀取
 pub async fn vault_rewrite_all(
     connection: SupabaseConnection,
     current: Option<VaultCurrent>,
     use_pending: bool,
     expected_check: Option<String>,
+    escrow: Option<String>,
 ) -> Option<String> {
     let next = if use_pending {
         match state().pending.take() {
@@ -159,6 +176,7 @@ pub async fn vault_rewrite_all(
             match vault::unlock(&current.salt, current.iterations, &current.check, &passphrase) {
                 Ok(Some(key)) => Some(key),
                 Ok(None) => return Some(WRONG_PASSPHRASE.into()),
+                Err(VaultError::Unsupported) => return Some(UNSUPPORTED.into()),
                 Err(_) => return Some("加密設定的格式不正確".into()),
             }
         }
@@ -183,7 +201,11 @@ pub async fn vault_rewrite_all(
     let new_vault = next.as_ref().map(|n| {
         serde_json::json!({ "v": 1, "salt": n.salt, "iterations": n.iterations, "check": n.check }).to_string()
     });
-    if let Err(error) = net::totp_set_vault(&connection, new_vault.as_deref(), &secrets, expected_check.as_deref()).await {
+    // 停用時沒有新密碼，不送備援
+    let escrow = if next.is_some() { escrow } else { None };
+    if let Err(error) =
+        net::totp_set_vault(&connection, new_vault.as_deref(), &secrets, expected_check.as_deref(), escrow.as_deref()).await
+    {
         return Some(error.message);
     }
 
@@ -291,6 +313,8 @@ mod tests {
         secrets: BTreeMap<String, BTreeMap<String, String>>,
         check: Option<String>,
         requests: Vec<(String, Value)>,
+        // 還沒有 escrow 參數的舊資料庫
+        legacy: bool,
     }
 
     fn fake_supabase(db: Arc<Mutex<FakeDb>>) -> SupabaseConnection {
@@ -349,6 +373,9 @@ mod tests {
                 (200, json!(db.secrets.get(gid).cloned().unwrap_or_default()).to_string())
             }
             "totp_set_vault" => {
+                if db.legacy && params.get("escrow").is_some() {
+                    return (404, json!({ "code": "PGRST202", "message": "no" }).to_string());
+                }
                 if params["expected_check"].as_str() != db.check.as_deref() {
                     return error(CHANGED_ELSEWHERE);
                 }
@@ -426,22 +453,29 @@ mod tests {
 
         // 目前的密碼錯誤：不送出任何東西
         vault_create("新的密碼 abcdefgh".into());
-        let wrong = block_on(vault_rewrite_all(connection(), current(SALT, CHECK, "wrong"), true, Some(CHECK.into())));
+        let wrong = block_on(vault_rewrite_all(connection(), current(SALT, CHECK, "wrong"), true, Some(CHECK.into()), None));
         assert_eq!(wrong.as_deref(), Some(WRONG_PASSPHRASE));
         assert_eq!(calls(&db, "totp_set_vault"), 0);
         // 用過的新設定就丟掉了
-        let again = block_on(vault_rewrite_all(connection(), current(SALT, CHECK, PASSPHRASE), true, Some(CHECK.into())));
+        let again = block_on(vault_rewrite_all(connection(), current(SALT, CHECK, PASSPHRASE), true, Some(CHECK.into()), None));
         assert_eq!(again.as_deref(), Some("新的加密設定已失效，請再試一次"));
 
         // 更改密碼
         let setup = vault_create("新的密碼 abcdefgh".into());
         assert!(!vault_is_unlocked(), "存到伺服器前新金鑰還沒生效");
-        let changed = block_on(vault_rewrite_all(connection(), current(SALT, CHECK, PASSPHRASE), true, Some(CHECK.into())));
+        let changed = block_on(vault_rewrite_all(
+            connection(),
+            current(SALT, CHECK, PASSPHRASE),
+            true,
+            Some(CHECK.into()),
+            Some("esc:v1:kid:epk:iv:ct".into()),
+        ));
         assert_eq!(changed, None);
         assert!(vault_is_unlocked());
         let sent = db.lock().unwrap().requests.iter().rev().find(|(f, _)| f == "totp_set_vault").unwrap().1.clone();
         assert_eq!(sent["new_vault"], json!({ "v": 1, "salt": setup.salt, "iterations": setup.iterations, "check": setup.check }));
         assert_eq!(sent["expected_check"], json!(CHECK));
+        assert_eq!(sent["escrow"], json!("esc:v1:kid:epk:iv:ct"));
         // 只送我擁有且已加密的群組
         assert_eq!(sent["secrets"].as_object().unwrap().keys().collect::<Vec<_>>(), ["a", "b"]);
         assert_eq!(calls(&db, "group_account_secrets"), 1);
@@ -458,13 +492,15 @@ mod tests {
 
         // 別的裝置先改過：資料庫拒絕，訊息照原樣
         vault_create("第三組密碼 12345678".into());
-        let stale = block_on(vault_rewrite_all(connection(), current(&setup.salt, &setup.check, "新的密碼 abcdefgh"), true, Some(CHECK.into())));
+        let stale = block_on(vault_rewrite_all(connection(), current(&setup.salt, &setup.check, "新的密碼 abcdefgh"), true, Some(CHECK.into()), None));
         assert_eq!(stale.as_deref(), Some(CHANGED_ELSEWHERE));
 
         // 停用：寫回明文，群組改成沒加密，Rust 裡沒有金鑰
-        let disabled = block_on(vault_rewrite_all(connection(), current(&setup.salt, &setup.check, "新的密碼 abcdefgh"), false, Some(setup.check.clone())));
+        let disabled = block_on(vault_rewrite_all(connection(), current(&setup.salt, &setup.check, "新的密碼 abcdefgh"), false, Some(setup.check.clone()), Some("esc:v1:ignored".into())));
         assert_eq!(disabled, None);
         assert!(!vault_is_unlocked());
+        let sent = db.lock().unwrap().requests.iter().rev().find(|(f, _)| f == "totp_set_vault").unwrap().1.clone();
+        assert!(sent.get("escrow").is_none(), "停用時不送備援");
         let mine = secrets_of(&db, "mine");
         assert_eq!(mine["a"], SECRET);
         assert_eq!(mine["b"], "PLAINTEXT234567");
@@ -488,8 +524,12 @@ mod tests {
             Some("請先輸入加密密碼解鎖")
         );
 
+        // 舊的資料庫沒有 escrow 參數：改用舊的呼叫方式，設定照樣存好
+        db.lock().unwrap().legacy = true;
         let setup = vault_create("新的密碼 abcdefgh".into());
-        assert_eq!(block_on(vault_rewrite_all(connection(), None, true, None)), None);
+        assert_eq!(block_on(vault_rewrite_all(connection(), None, true, None, Some("esc:v1:kid:epk:iv:ct".into()))), None);
+        assert_eq!(calls(&db, "totp_set_vault"), 2);
+        db.lock().unwrap().legacy = false;
         assert!(vault_is_unlocked());
         assert_eq!(calls(&db, "group_account_secrets"), 0, "設定密碼時不用讀金鑰");
         assert_eq!(db.lock().unwrap().check.as_deref(), Some(setup.check.as_str()));

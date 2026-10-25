@@ -695,10 +695,21 @@
      }
     ],
     "errors": [
-     "otpauth://hotp/Old?secret=JBSWY3DP：目前只支援 TOTP（時間型）驗證碼，不支援 HOTP（計數型）",
-     "this is a very long line that is definit…：不是有效的 otpauth:// 連結",
-     "short：不是有效的 otpauth:// 連結",
-     "略過 3 筆 HOTP（計數型）驗證碼"
+     {
+      "line": 5,
+      "reason": "目前只支援 TOTP（時間型）驗證碼，不支援 HOTP（計數型）"
+     },
+     {
+      "line": 6,
+      "reason": "不是有效的 otpauth:// 連結"
+     },
+     {
+      "line": 7,
+      "reason": "不是有效的 otpauth:// 連結"
+     }
+    ],
+    "notes": [
+     "第 8 行略過 3 筆 HOTP（計數型）驗證碼"
     ],
     "batch": {
      "index": 2,
@@ -711,17 +722,20 @@
    "output": {
     "items": [],
     "errors": [
-     "連結裡的金鑰不是 Base32 格式"
-    ]
+     {
+      "line": 1,
+      "reason": "連結裡的金鑰不是 Base32 格式"
+     }
+    ],
+    "notes": []
    }
   },
   "empty": {
    "input": "\n  \n# only comment\n",
    "output": {
     "items": [],
-    "errors": [
-     "沒有可匯入的內容"
-    ]
+    "errors": [],
+    "notes": []
    }
   },
   "single": {
@@ -737,7 +751,8 @@
       "algorithm": "SHA-1"
      }
     ],
-    "errors": []
+    "errors": [],
+    "notes": []
    }
   },
   "onlyHotpMigration": {
@@ -745,8 +760,12 @@
    "output": {
     "items": [],
     "errors": [
-     "裡面只有 HOTP（計數型）驗證碼，目前不支援"
-    ]
+     {
+      "line": 1,
+      "reason": "裡面只有 HOTP（計數型）驗證碼，目前不支援"
+     }
+    ],
+    "notes": []
    }
   }
  },

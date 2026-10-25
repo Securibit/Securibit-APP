@@ -13,25 +13,47 @@ import '../admin/hierarchy.dart';
 
 // ---------- 編輯個人資料 ----------
 
-/// 大頭照、背景圖的網址：空的可以，否則要是 http(s)://
-bool isHttpUrl(String value) {
-  final text = value.trim();
-  if (text.isEmpty) return true;
-  final uri = Uri.tryParse(text);
-  return uri != null && (uri.scheme == 'http' || uri.scheme == 'https') && uri.host.isNotEmpty;
+/// 上傳的圖片：大頭照或背景圖（網站 /api/profile/photo 的 kind）
+enum PhotoKind {
+  avatar('大頭照'),
+  background('背景圖');
+
+  const PhotoKind(this.label);
+
+  final String label;
 }
 
-/// 0001 migration 給每個人塞的預設背景圖；等於「沒有設定」，不顯示
-const defaultBgPhoto =
-    'https://img.freepik.com/free-photo/abstract-luxury-plain-blur-grey-black-gradient-used-as-background-studio-wall-display-your-products_1258-63747.jpg?w=2000';
+/// 名稱的長度上限（資料庫超過會截掉）
+const profileNameMax = 64;
 
-/// 要顯示的背景圖（沒有設定或是預設圖時是 null）
-String? visibleBgPhoto(String url) => url.isEmpty || url == defaultBgPhoto ? null : url;
+/// 上傳圖片的大小上限（同網站，8 MB）
+const photoMaxBytes = 8 * 1024 * 1024;
+
+const _imageTypes = {
+  'jpg': 'image/jpeg',
+  'jpeg': 'image/jpeg',
+  'png': 'image/png',
+  'webp': 'image/webp',
+  'gif': 'image/gif',
+  'heic': 'image/heic',
+  'heif': 'image/heif',
+  'avif': 'image/avif',
+  'bmp': 'image/bmp',
+};
+
+/// 依副檔名判斷圖片的類型；不是圖片時回傳 null
+String? imageContentType(String filename) {
+  final dot = filename.lastIndexOf('.');
+  if (dot < 0) return null;
+  return _imageTypes[filename.substring(dot + 1).toLowerCase()];
+}
+
 
 /// 同步 Google 資料時寫進 profiles 的欄位（同網站 syncGoogleUserData + toAppUser）：
 /// 名稱、大頭照用 Google 的；Google 帳號沒有電話時保留使用者自己填的；email 由 ensure_profile 同步，這裡不寫。
-/// Google 沒給名稱或大頭照時也保留原本的（網站會寫成 null）
-Map<String, dynamic> googleProfilePatch(User user, DateTime now) {
+/// Google 沒給名稱或大頭照時也保留原本的（網站會寫成 null）；自己上傳過大頭照（photoCustom）時不蓋掉大頭照。
+/// 建立與最後登入時間由伺服器決定，不送
+Map<String, dynamic> googleProfilePatch(User user, DateTime now, {bool photoCustom = false}) {
   final meta = user.userMetadata ?? const <String, dynamic>{};
   String? pick(List<String> keys) {
     for (final key in keys) {
@@ -42,14 +64,12 @@ Map<String, dynamic> googleProfilePatch(User user, DateTime now) {
   }
 
   final name = pick(const ['full_name', 'name']);
-  final photo = pick(const ['avatar_url', 'picture']);
+  final photo = photoCustom ? null : pick(const ['avatar_url', 'picture']);
   final phone = user.phone;
   return {
     'name': ?name,
     'photo_url': ?photo,
     if (phone != null && phone.isNotEmpty) 'phone_number': phone,
-    'creation_time': user.createdAt,
-    'last_sign_in_time': user.lastSignInAt ?? '',
     'updated_at': now.toUtc().toIso8601String(),
   };
 }

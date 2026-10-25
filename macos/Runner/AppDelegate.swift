@@ -18,9 +18,9 @@ class AppDelegate: FlutterAppDelegate {
     return true
   }
 
-  // 結束時有下載好的更新就啟動替換腳本（見 AppUpdate）
+  // 結束時有下載好的更新就啟動替換腳本（見 AppUpdate）。
+  // 不呼叫 super：FlutterAppDelegate 實際上沒有實作這個方法，呼叫會丟出 unrecognized selector
   override func applicationWillTerminate(_ notification: Notification) {
     AppUpdate.shared.launchPendingInstall()
-    super.applicationWillTerminate(notification)
   }
 }

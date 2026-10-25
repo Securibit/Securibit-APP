@@ -7,6 +7,7 @@
 // ignore_for_file: argument_type_not_assignable
 
 import 'api/lock.dart';
+import 'api/photo.dart';
 import 'api/qr.dart';
 import 'api/secrets.dart';
 import 'api/totp.dart';

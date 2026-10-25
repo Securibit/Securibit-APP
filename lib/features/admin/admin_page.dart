@@ -10,6 +10,8 @@ import '../auth/auth_controller.dart';
 import 'admin_repository.dart' as repo;
 import 'audit_section.dart';
 import 'groups/groups_section.dart';
+import 'notifications/broadcast_section.dart';
+import 'notifications/notify_settings_section.dart';
 import 'permission_defs.dart';
 import 'roles/site_roles_section.dart';
 import 'site_access.dart';
@@ -23,6 +25,9 @@ enum AdminSection {
   // 有進入後台就能看（唯讀），有「管理身分組」才能修改
   roles('身分組', Icons.shield_rounded, SitePermission.viewAdmin),
   groups('群組', Icons.workspaces_rounded, SitePermission.manageGroups),
+  broadcast('發送通知', Icons.send_rounded, SitePermission.sendNotifications),
+  // 有進入後台就能看（唯讀），有「管理使用者」才能修改
+  notifySettings('通知設定', Icons.notifications_rounded, SitePermission.viewAdmin),
   audit('操作紀錄', Icons.history_rounded, SitePermission.viewAuditLog);
 
   const AdminSection(this.title, this.icon, this.permission);
@@ -132,6 +137,8 @@ Widget _sectionBody(AdminSection section) => switch (section) {
       AdminSection.users => const UsersSection(),
       AdminSection.roles => const SiteRolesSection(),
       AdminSection.groups => const GroupsSection(),
+      AdminSection.broadcast => const BroadcastSection(),
+      AdminSection.notifySettings => const NotifySettingsSection(),
       AdminSection.audit => const AuditSection(),
     };
 

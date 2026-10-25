@@ -11,6 +11,10 @@ class GroupPermission {
   static const manageRoles = 64;
   static const manageGroup = 128;
   static const viewAuditLog = 256;
+  static const banMembers = 512;
+
+  // 全部群組權限（資料庫 group_permissions 給擁有者的值）
+  static const all = 1023;
 }
 
 /// 是否擁有某個權限（ADMINISTRATOR 一律通過）

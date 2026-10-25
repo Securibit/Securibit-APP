@@ -11,7 +11,7 @@ import 'vault_settings_section.dart' show confirmVaultReset;
 
 /*
  * 加密群組還沒解鎖時顯示（同網站 GroupCodes 的鎖定畫面 + VaultUnlock）。
- * 不是擁有者的人解不開；忘記密碼只能清空加密群組重來（confirmVaultReset）。
+ * 不是擁有者的人解不開；忘記密碼時可以寫信請團隊用備援金鑰協助還原，或清空加密群組重來（confirmVaultReset）。
  * 版面照設計稿：置中的「解鎖＋盾牌＋Securibit」標題、藥丸輸入框與按鈕、底部幣友署名；
  * 漸層底由外層 CodeListPane 的 LockBackdrop 提供（連同上面的群組標題一起蓋）。
  */

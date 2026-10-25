@@ -78,10 +78,12 @@ class LiveSync {
 class SyncBatch {
   bool groups = false;
   bool invitations = false;
+  // 有新的通知或通知有變（notifications）
+  bool notifications = false;
   // { 群組 id: 金鑰也變了 }
   final Map<String, bool> codes = {};
 
-  bool get isEmpty => !groups && !invitations && codes.isEmpty;
+  bool get isEmpty => !groups && !invitations && !notifications && codes.isEmpty;
 
   /// 加入一個 topic；不認得的回傳 false
   bool add(String topic) {
@@ -91,6 +93,9 @@ class SyncBatch {
         return true;
       case 'invitations':
         invitations = true;
+        return true;
+      case 'notifications':
+        notifications = true;
         return true;
     }
     final split = topic.indexOf(':');

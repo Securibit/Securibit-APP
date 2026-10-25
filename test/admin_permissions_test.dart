@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:securibit/core/permissions.dart';
 import 'package:securibit/features/admin/admin_format.dart';
 import 'package:securibit/features/admin/admin_models.dart';
 import 'package:securibit/features/admin/hierarchy.dart';
@@ -27,8 +28,12 @@ void main() {
       expect(SitePermission.viewAuditLog, 128);
       expect(SitePermission.createGroups, 256);
       expect(SitePermission.manageGroups, 512);
+      expect(SitePermission.sendNotifications, 1024);
+      expect(SitePermission.all, 2047);
       expect(sitePermissionDefs.fold<int>(0, (m, d) => m | d.bit), SitePermission.all);
-      expect(groupPermissionDefs.fold<int>(0, (m, d) => m | d.bit), 511);
+      expect(groupPermissionDefs.fold<int>(0, (m, d) => m | d.bit), GroupPermission.all);
+      expect(GroupPermission.all, 1023);
+      expect(GroupPermission.banMembers, 512);
     });
 
     test('hasBit：ADMINISTRATOR 一律通過', () {

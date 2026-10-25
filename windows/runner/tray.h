@@ -22,6 +22,9 @@
  * - 打開系統匣、而且圖示真的加上去時，關掉主視窗（X、Alt+F4）只是藏起來，「結束 Securibit」才真的結束；
  *   圖示加不上去（例如檔案總管還沒啟動）時照常結束，免得視窗藏起來卻叫不回來
  * - 主視窗藏起來或重新顯示時通知 Dart（windowWillHide／windowDidShow），App 鎖定把它當成離開與回來
+ * - 系統通知（notify，Dart 端見 lib/features/notifications/desktop_notifier.dart）：用系統匣圖示的通知（NIF_INFO，
+ *   Windows 10 以上顯示成系統的通知），不多帶套件；沒打開系統匣時暫時加上圖示，通知收掉後拿掉。
+ *   點了通知叫回主視窗並送 notificationClicked（帶站內路徑 link）
  * - 登入時自動開啟見 launch_at_login.h
  */
 class Tray {
@@ -63,6 +66,9 @@ class Tray {
   void OnIconRetry();
   void ShowCopied();
   void HideCopied();
+  void ShowNotification(const std::string& title, const std::string& body, const std::string& link);
+  void OnNotificationClicked();
+  void OnNotificationGone();
 
   // 選單
   void RequestMenu(POINT anchor);
@@ -83,6 +89,11 @@ class Tray {
 
   bool enabled_ = false;
   bool icon_added_ = false;
+  // 沒打開系統匣時為了顯示通知暫時加上的圖示
+  bool temporary_icon_ = false;
+  // 目前顯示的是通知（不是「已複製」）；點了要打開的站內路徑
+  bool notification_shown_ = false;
+  std::string notification_link_;
   int icon_retries_ = 0;
   bool window_hidden_ = false;
   bool quitting_ = false;

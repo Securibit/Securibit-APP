@@ -20,6 +20,8 @@ const MISSING_FUNCTION: &str = "PGRST202";
 pub(crate) struct NetError {
     pub message: String,
     pub offline: bool,
+    // 資料庫沒有這個函式（或沒有這種參數組合）：還沒執行對應的 migration
+    pub missing_function: bool,
 }
 
 static CLIENT: LazyLock<Option<reqwest::Client>> = LazyLock::new(|| {
@@ -32,11 +34,11 @@ static CLIENT: LazyLock<Option<reqwest::Client>> = LazyLock::new(|| {
 });
 
 fn offline() -> NetError {
-    NetError { message: OFFLINE_MESSAGE.to_string(), offline: true }
+    NetError { message: OFFLINE_MESSAGE.to_string(), offline: true, missing_function: false }
 }
 
 fn other(message: String) -> NetError {
-    NetError { message, offline: false }
+    NetError { message, offline: false, missing_function: false }
 }
 
 /// group_account_secrets(gid)：{ 驗證碼 id: 資料庫裡的原始金鑰 }（加密群組是 enc:v1 密文）
@@ -59,20 +61,31 @@ pub(crate) async fn my_encrypted_groups(connection: &SupabaseConnection) -> Resu
         .collect())
 }
 
-/// totp_set_vault(new_vault, secrets, expected_check)：存新的加密設定（null 是停用），並把加密群組的金鑰整批換掉。
-/// expected_check 和資料庫目前的不同（別的裝置先改過）時資料庫會拒絕
+/// totp_set_vault(new_vault, secrets, expected_check, escrow)：存新的加密設定（null 是停用），並把加密群組的金鑰整批換掉。
+/// expected_check 和資料庫目前的不同（別的裝置先改過）時資料庫會拒絕。
+/// escrow 是新密碼的備援密文（esc:v1），和設定一起存；還沒更新的資料庫沒有這個參數，就改用舊的呼叫方式（之後解鎖時再補存）
 pub(crate) async fn totp_set_vault(
     connection: &SupabaseConnection,
     new_vault: Option<&str>,
     secrets: &RawSecrets,
     expected_check: Option<&str>,
+    escrow: Option<&str>,
 ) -> Result<(), NetError> {
-    let body = rpc_body::object(&[
-        ("new_vault", new_vault.map_or(Field::Null, Field::Json)),
-        ("secrets", Field::Secrets(secrets)),
-        ("expected_check", Field::opt_str(expected_check)),
-    ]);
-    let response = send(connection, "totp_set_vault", body).await?;
+    let body = |escrow: Option<&str>| {
+        let mut fields = vec![
+            ("new_vault", new_vault.map_or(Field::Null, Field::Json)),
+            ("secrets", Field::Secrets(secrets)),
+            ("expected_check", Field::opt_str(expected_check)),
+        ];
+        if let Some(escrow) = escrow {
+            fields.push(("escrow", Field::Str(escrow)));
+        }
+        rpc_body::object(&fields)
+    };
+    let response = match send(connection, "totp_set_vault", body(escrow)).await {
+        Err(error) if error.missing_function && escrow.is_some() => send(connection, "totp_set_vault", body(None)).await?,
+        result => result?,
+    };
     // 回傳 null 代表找不到 profile（同網站 saveVault）
     if response.trim_ascii() == b"null" {
         return Err(other("找不到使用者資料".into()));
@@ -139,7 +152,7 @@ async fn send(connection: &SupabaseConnection, function: &str, body: Zeroizing<V
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap_or_default();
     let code = json.get("code").and_then(|v| v.as_str()).unwrap_or("");
     if code == MISSING_FUNCTION {
-        return Err(other(format!("資料庫還沒有「{function}」功能，請先更新網站的資料庫")));
+        return Err(NetError { missing_function: true, ..other(format!("資料庫還沒有「{function}」功能，請先更新網站的資料庫")) });
     }
     let message = json
         .get("message")

@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import '../../core/window_visibility.dart';
 import '../auth/auth_controller.dart';
 import '../groups/groups_controller.dart';
+import '../settings/app_lock.dart';
 import '../settings/settings_controller.dart';
 import '../settings/settings_view.dart';
 import '../shell/collapsible_sidebar.dart';
@@ -26,6 +27,7 @@ import 'menu_bar_model.dart';
  * - 點了某一筆（copy）：在這裡（由 Rust）算當下的碼並複製，原生端與 Dart 都不會拿到金鑰
  * - 主視窗藏起來或重新顯示時通知 App 鎖定（見 WindowVisibility）
  * - Mac 上方「顯示方式」選單的「顯示／隱藏側邊欄」：側欄狀態有變就告訴原生端（標題、能不能按），點了由這裡切換
+ * - 系統通知（notify）也走這個 channel，點了通知時原生端送 notificationClicked（見 desktop_notifier.dart）
  */
 class MenuBarService {
   MenuBarService({
@@ -43,6 +45,9 @@ class MenuBarService {
   final VaultController vault;
   final MenuBarCodes codes;
   final GlobalKey<NavigatorState> navigatorKey;
+
+  /// 點了系統通知（原生端已經叫回主視窗）：link 是站內路徑，空字串打開收件匣
+  static void Function(String link)? onNotificationClicked;
 
   bool? _enabled;
   bool _open = false;
@@ -174,6 +179,10 @@ class MenuBarService {
         // 等鎖定畫面畫好再藏視窗，下次顯示時不會先閃過驗證碼
         await WidgetsBinding.instance.endOfFrame.timeout(const Duration(milliseconds: 300), onTimeout: () {});
         return null;
+      case 'notificationClicked':
+        final link = (call.arguments as Map?)?['link'];
+        onNotificationClicked?.call(link is String ? link : '');
+        return null;
       case 'windowDidShow':
         WindowVisibility.visible.value = true;
         if (!_live) unawaited(_push(_model(withCodes: false)));
@@ -184,7 +193,7 @@ class MenuBarService {
 
   // Mac 上方選單的「檢查更新…」：原生端已經把視窗叫出來
   void _checkForUpdates() {
-    final context = navigatorKey.currentContext;
+    final context = promptContext(navigatorKey);
     if (context == null) return;
     unawaited(checkForUpdatesNow(context, context.read<UpdateController>()));
   }

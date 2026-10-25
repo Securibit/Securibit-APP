@@ -209,7 +209,7 @@ class _VaultFormPageState extends State<VaultFormPage> {
         _check(
           value: _understood,
           onChanged: (value) => setState(() => _understood = value),
-          text: '我了解忘記密碼就無法救回金鑰，只能清空重新綁定',
+          text: '我了解密碼會另外用團隊離線保管的備援金鑰加密保存，忘記時可以寫信請團隊協助還原',
           danger: true,
         ),
       if (_pending) ...[

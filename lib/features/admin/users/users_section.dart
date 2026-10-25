@@ -34,6 +34,8 @@ class _UsersSectionState extends State<UsersSection> {
   int _seq = 0;
 
   List<AdminUser>? _users;
+  // 全站擁有者的 id（清單上標「擁有者」）
+  String? _ownerId;
   int _total = 0;
   bool _loading = false;
   bool _loadingMore = false;
@@ -74,6 +76,7 @@ class _UsersSectionState extends State<UsersSection> {
         setState(() {
           _users = data.users;
           _total = data.total;
+          _ownerId = data.siteOwnerId;
           _loading = false;
         });
       case Err(:final message):
@@ -150,7 +153,7 @@ class _UsersSectionState extends State<UsersSection> {
       final rows = <Widget>[];
       for (var i = 0; i < users.length; i++) {
         if (i > 0) rows.add(Divider(indent: 64, height: 0.5, color: colors.line.withValues(alpha: 0.6)));
-        rows.add(_UserRow(user: users[i], selected: split && users[i].id == _selectedId, onTap: () => _open(users[i].id, split)));
+        rows.add(_UserRow(user: users[i], isOwner: users[i].isOwner ?? (_ownerId != null && _ownerId == users[i].id), selected: split && users[i].id == _selectedId, onTap: () => _open(users[i].id, split)));
       }
       children
         ..add(AnimatedOpacity(
@@ -176,9 +179,11 @@ class _UsersSectionState extends State<UsersSection> {
 }
 
 class _UserRow extends StatelessWidget {
-  const _UserRow({required this.user, required this.selected, required this.onTap});
+  const _UserRow({required this.user, required this.isOwner, required this.selected, required this.onTap});
 
   final AdminUser user;
+  // 全站擁有者
+  final bool isOwner;
   final bool selected;
   final VoidCallback onTap;
 
@@ -200,11 +205,18 @@ class _UserRow extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      user.name.isNotEmpty ? user.name : '（未命名）',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: AppText.body, fontWeight: FontWeight.w600),
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            user.name.isNotEmpty ? user.name : '（未命名）',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: AppText.body, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        if (isOwner) ...[const SizedBox(width: 6), const Tag('擁有者', accent: true)],
+                      ],
                     ),
                     Text(
                       user.email.isNotEmpty ? user.email : (user.username != null ? '@${user.username}' : '沒有電子郵件'),

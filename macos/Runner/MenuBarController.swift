@@ -1,6 +1,7 @@
 import Cocoa
 import FlutterMacOS
 import ServiceManagement
+import UserNotifications
 
 /*
  * 選單列常駐（channel：securibit/menubar，Dart 端見 lib/features/menubar/）：
@@ -10,6 +11,8 @@ import ServiceManagement
  * - 原生端只拿到顯示用的文字，金鑰一直在 Dart；複製也是請 Dart 算當下的碼
  * - 打開選單列時，關掉主視窗只是藏起來並收起 Dock 圖示（.accessory），⌘Q 或「結束 Securibit」才真的結束
  * - 登入時自動開啟：macOS 13 以上用 SMAppService.mainApp
+ * - 系統通知（notify，Dart 端見 lib/features/notifications/desktop_notifier.dart）：UNUserNotificationCenter，
+ *   App 在前景時也顯示；點了叫回主視窗並送 notificationClicked（帶站內路徑 link）
  */
 final class MenuBarController: NSObject, NSMenuDelegate {
   static let shared = MenuBarController()
@@ -44,6 +47,8 @@ final class MenuBarController: NSObject, NSMenuDelegate {
       self?.handle(call, result: result)
     }
     self.channel = channel
+    // 點系統通知要在 App 啟動完成前就設好 delegate，冷啟動時點的那一則才收得到
+    UNUserNotificationCenter.current().delegate = self
     // MainMenu.xib 的選單是英文範本，App 啟動完成後換成自己的中文選單
     NotificationCenter.default.addObserver(
       forName: NSApplication.didFinishLaunchingNotification, object: nil, queue: .main
@@ -75,6 +80,16 @@ final class MenuBarController: NSObject, NSMenuDelegate {
       result(nil)
     case "openLoginItemsSettings":
       if #available(macOS 13.0, *) { SMAppService.openSystemSettingsLoginItems() }
+      result(nil)
+    case "notifyPermission":
+      requestNotificationPermission(result: result)
+    case "notify":
+      showNotification(
+        id: args?["id"] as? String ?? UUID().uuidString,
+        title: args?["title"] as? String ?? "",
+        body: args?["body"] as? String ?? "",
+        link: args?["link"] as? String ?? ""
+      )
       result(nil)
     default:
       result(FlutterMethodNotImplemented)
@@ -537,5 +552,52 @@ extension MenuBarController: NSMenuItemValidation {
   func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
     if menuItem.action == #selector(toggleSidebar) { return sidebarAvailable }
     return true
+  }
+}
+
+// MARK: - 系統通知
+
+extension MenuBarController: UNUserNotificationCenterDelegate {
+  /// 第一次跳通知前問使用者；已經問過就直接回傳目前是否允許
+  fileprivate func requestNotificationPermission(result: @escaping FlutterResult) {
+    UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, _ in
+      DispatchQueue.main.async { result(granted) }
+    }
+  }
+
+  /// id 相同的會取代前一則（例如「你有 N 則新通知」）
+  fileprivate func showNotification(id: String, title: String, body: String, link: String) {
+    let content = UNMutableNotificationContent()
+    content.title = title
+    content.body = body
+    content.sound = .default
+    content.userInfo = ["link": link]
+    let request = UNNotificationRequest(identifier: "securibit.\(id)", content: content, trigger: nil)
+    UNUserNotificationCenter.current().add(request) { _ in }
+  }
+
+  // App 在前景時也顯示
+  func userNotificationCenter(
+    _ center: UNUserNotificationCenter, willPresent notification: UNNotification,
+    withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+  ) {
+    if #available(macOS 11.0, *) {
+      completionHandler([.banner, .list, .sound])
+    } else {
+      completionHandler([.alert, .sound])
+    }
+  }
+
+  // 點了通知：叫回主視窗，Dart 打開對應的畫面
+  func userNotificationCenter(
+    _ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
+    withCompletionHandler completionHandler: @escaping () -> Void
+  ) {
+    let link = response.notification.request.content.userInfo["link"] as? String ?? ""
+    DispatchQueue.main.async { [weak self] in
+      self?.showMainWindow()
+      self?.channel?.invokeMethod("notificationClicked", arguments: ["link": link])
+    }
+    completionHandler()
   }
 }

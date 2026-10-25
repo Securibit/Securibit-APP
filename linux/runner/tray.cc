@@ -15,6 +15,9 @@
  * - 打開系統匣、而且桌面真的有系統匣（連上 StatusNotifierWatcher）時，關掉主視窗只是藏起來，「結束 Securibit」才真的結束；
  *   桌面沒有系統匣（例如沒裝 AppIndicator 擴充功能的 GNOME）時照常結束，免得視窗藏起來卻叫不回來
  * - 主視窗藏起來或重新顯示時通知 Dart（windowWillHide／windowDidShow），App 鎖定把它當成離開與回來
+ * - 系統通知（notify，Dart 端見 lib/features/notifications/desktop_notifier.dart）：GNotification
+ *   （GLib 依桌面挑 portal 或 org.freedesktop.Notifications，不多帶套件）；點了通知觸發 app.open-notification，
+ *   叫回主視窗並送 notificationClicked（帶站內路徑 link）
  */
 
 namespace {
@@ -28,6 +31,8 @@ constexpr gint64 kMenuOpenTimeoutUs = 60 * G_USEC_PER_SEC;
 constexpr guint kHideTimeoutMs = 500;
 constexpr guint kCopiedMs = 1500;
 constexpr char kIdKey[] = "securibit-id";
+// 點系統通知時觸發的 GAction（app.open-notification，參數是 link）
+constexpr char kOpenNotificationAction[] = "open-notification";
 
 struct Tray {
   GtkApplication* app = nullptr;
@@ -465,6 +470,39 @@ void set_enabled(bool enabled) {
   }
 }
 
+// MARK: - 系統通知
+
+void on_open_notification(GSimpleAction* action, GVariant* parameter,
+                          gpointer user_data) {
+  const gchar* link =
+      parameter != nullptr ? g_variant_get_string(parameter, nullptr) : "";
+  tray_show_main_window();
+  g_autoptr(FlValue) args = fl_value_new_map();
+  fl_value_set_string_take(args, "link", fl_value_new_string(link));
+  invoke("notificationClicked", args, nullptr, nullptr);
+}
+
+// id 相同的會取代前一則（例如「你有 N 則新通知」）
+void show_notification(FlValue* args) {
+  const gchar* title = lookup_string(args, "title");
+  if (title == nullptr || *title == '\0') return;
+  const gchar* id = lookup_string(args, "id");
+  const gchar* body = lookup_string(args, "body");
+  const gchar* link = lookup_string(args, "link");
+  g_autoptr(GNotification) notification = g_notification_new(title);
+  if (body != nullptr && *body != '\0') g_notification_set_body(notification, body);
+  g_autoptr(GIcon) icon = g_themed_icon_new(APPLICATION_ID);
+  g_notification_set_icon(notification, icon);
+  g_autofree gchar* action =
+      g_strconcat("app.", kOpenNotificationAction, nullptr);
+  g_notification_set_default_action_and_target(notification, action, "s",
+                                               link == nullptr ? "" : link);
+  g_autofree gchar* notification_id =
+      g_strconcat("securibit.", id == nullptr ? "notice" : id, nullptr);
+  g_application_send_notification(G_APPLICATION(tray->app), notification_id,
+                                  notification);
+}
+
 // MARK: - channel
 
 void on_method_call(FlMethodChannel* channel, FlMethodCall* call,
@@ -481,6 +519,13 @@ void on_method_call(FlMethodChannel* channel, FlMethodCall* call,
   } else if (g_strcmp0(method, "showWindow") == 0) {
     tray_show_main_window();
     fl_method_call_respond_success(call, nullptr, nullptr);
+  } else if (g_strcmp0(method, "notify") == 0) {
+    show_notification(args);
+    fl_method_call_respond_success(call, nullptr, nullptr);
+  } else if (g_strcmp0(method, "notifyPermission") == 0) {
+    // Linux 不用先問
+    g_autoptr(FlValue) granted = fl_value_new_bool(TRUE);
+    fl_method_call_respond_success(call, granted, nullptr);
   } else {
     // 登入時自動開啟在 Linux 由 Dart 直接寫 autostart 檔
     fl_method_call_respond_not_implemented(call, nullptr);
@@ -544,6 +589,13 @@ void tray_attach(GtkApplication* app, GtkWindow* window,
                                         FL_METHOD_CODEC(codec));
   fl_method_channel_set_method_call_handler(tray->channel, on_method_call,
                                             nullptr, nullptr);
+
+  // 點系統通知（見 show_notification）
+  GSimpleAction* open = g_simple_action_new(kOpenNotificationAction,
+                                            G_VARIANT_TYPE_STRING);
+  g_signal_connect(open, "activate", G_CALLBACK(on_open_notification), nullptr);
+  g_action_map_add_action(G_ACTION_MAP(app), G_ACTION(open));
+  g_object_unref(open);
 }
 
 gboolean tray_handle_close() {

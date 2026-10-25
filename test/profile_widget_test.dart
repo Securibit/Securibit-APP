@@ -53,15 +53,19 @@ void main() {
     expect(find.text('未設定'), findsOneWidget);
   });
 
-  testWidgets('編輯個人資料：名稱必填、網址要 http(s)', (tester) async {
+  testWidgets('編輯個人資料：名稱必填；圖片只能上傳，沒有網址欄位', (tester) async {
     await _pump(tester, const ProfileEditForm(profile: _profile));
     expect(find.text(_profile.email), findsOneWidget);
     await tester.enterText(find.byType(TextField).at(0), '  ');
     await tester.pump();
     expect(find.text('請輸入名稱'), findsOneWidget);
-    await tester.enterText(find.byType(TextField).at(1), 'example.com/a.png');
-    await tester.pump();
-    expect(find.text('請輸入 http(s):// 開頭的網址'), findsOneWidget);
+    // 只剩名稱與電話兩個輸入欄
+    expect(find.byType(TextField), findsNWidgets(2));
+    await tester.scrollUntilVisible(find.text('上傳圖片'), 200, scrollable: find.byType(Scrollable).first);
+    expect(find.text('上傳照片'), findsOneWidget);
+    // 沒有自己上傳的大頭照、沒有背景圖：不用「使用 Google 頭像」「移除背景」
+    expect(find.text('使用 Google 頭像'), findsNothing);
+    expect(find.text('移除背景'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 

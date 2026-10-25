@@ -39,6 +39,12 @@ Future<bool> biometricIsFace() async {
   }
 }
 
+/// 鎖定畫面自己的 Navigator：鎖著時要跳出的提示（例如新版本）開在這裡，才不會被鎖定畫面蓋住
+final lockNavigatorKey = GlobalKey<NavigatorState>();
+
+/// 跳出提示用的 context：鎖著時是鎖定畫面，否則是 App 的畫面
+BuildContext? promptContext(GlobalKey<NavigatorState> appNavigator) => lockNavigatorKey.currentContext ?? appNavigator.currentContext;
+
 // 使用者取消或沒有通過時的訊息（鎖定畫面不顯示）
 const biometricRejected = '沒有通過驗證';
 
@@ -180,6 +186,7 @@ class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
           // 鎖定畫面有自己的 Navigator，「忘記密碼」的確認對話框才跳得出來（不和 App 的 Navigator 共用 HeroController）
           HeroControllerScope.none(
             child: Navigator(
+              key: lockNavigatorKey,
               onGenerateRoute: (_) => PageRouteBuilder<void>(
                 pageBuilder: (_, _, _) => LockScreen(lock: _lock, onUnlocked: () => setState(() => _setLocked(false))),
               ),

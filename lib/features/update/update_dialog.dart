@@ -60,12 +60,25 @@ String _percent(UpdateController updates) {
   return progress == null ? '' : '（${(progress * 100).floor()}%）';
 }
 
-/// 有新版本的提示：下載好了是「新版本已準備好」（稍後／重新啟動並更新），不能自動安裝時是用瀏覽器下載
-Future<void> showUpdatePrompt(BuildContext context, UpdateController updates, AppRelease release) async {
-  if (_open) return;
+/// 有新版本的提示：下載好了是「新版本已準備好」（稍後／重新啟動並更新），不能自動安裝時是用瀏覽器下載。
+/// 使用者關掉提示時回傳 true；開在鎖定畫面上、還沒回應就解鎖（提示跟著鎖定畫面一起消失）時回傳 false
+Future<bool> showUpdatePrompt(BuildContext context, UpdateController updates, AppRelease release) async {
+  if (_open) return true;
   _open = true;
+  // 所在的 Navigator 被拿掉時 showDialog 不會結束，改看對話框本身什麼時候不見
+  final gone = Completer<bool>();
   try {
-    await showDialog<void>(context: context, builder: (_) => _UpdateDialog(updates: updates, release: release));
+    final answered = showDialog<void>(
+      context: context,
+      builder: (_) => _UpdateDialog(
+        updates: updates,
+        release: release,
+        onDispose: () {
+          if (!gone.isCompleted) gone.complete(false);
+        },
+      ),
+    ).then((_) => true);
+    return await Future.any([answered, gone.future]);
   } finally {
     _open = false;
   }
@@ -151,10 +164,11 @@ Future<bool> _openInBrowser(String url) async {
 }
 
 class _UpdateDialog extends StatefulWidget {
-  const _UpdateDialog({required this.updates, required this.release});
+  const _UpdateDialog({required this.updates, required this.release, required this.onDispose});
 
   final UpdateController updates;
   final AppRelease release;
+  final VoidCallback onDispose;
 
   @override
   State<_UpdateDialog> createState() => _UpdateDialogState();
@@ -164,6 +178,12 @@ class _UpdateDialogState extends State<_UpdateDialog> {
   UpdateController get updates => widget.updates;
   AppRelease get release => widget.release;
   bool get _ready => updates.status == UpdateStatus.ready || updates.status == UpdateStatus.installing;
+
+  @override
+  void dispose() {
+    widget.onDispose();
+    super.dispose();
+  }
 
   // 先關掉提示，失敗與 Android 的權限說明用另外的對話框（開在 Navigator 底下，不跟著這個提示關掉）
   Future<void> _install() async {

@@ -78,7 +78,7 @@ class _SiteRolesSectionState extends State<SiteRolesSection> {
         final canManage = access.can(SitePermission.manageRoles);
         final config = RoleEditorConfig(
           definitions: sitePermissionDefs,
-          actor: Actor(unrestricted: isSiteRoot(access.topPosition, roles), topPosition: access.topPosition),
+          actor: Actor(unrestricted: access.unrestricted(roles), topPosition: access.topPosition),
           actorPermissions: access.permissions,
           canManage: canManage,
           onUpdate: repo.updateSiteRole,
@@ -89,7 +89,7 @@ class _SiteRolesSectionState extends State<SiteRolesSection> {
           padding: const EdgeInsets.fromLTRB(4, 0, 4, 12),
           child: MutedText(
             canManage
-                ? '身分組越上面越高，權限會合併計算。除了最高位身分組的持有者，只能編輯、指派比自己最高身分組還低的身分組，而且只能開啟自己也有的權限'
+                ? '身分組越上面越高，權限會合併計算。除了全站擁有者，只能編輯、指派比自己最高身分組還低的身分組，而且只能開啟自己也有的權限'
                 : '你只能查看，需要「管理身分組」權限才能修改',
           ),
         );

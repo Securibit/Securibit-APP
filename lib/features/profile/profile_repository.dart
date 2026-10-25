@@ -14,27 +14,49 @@ import 'session_models.dart';
 
 // ---------- 個人資料 ----------
 
-/// 更新名稱、大頭照、背景圖、電話（RLS 只開放這幾個欄位給本人直接改；email 以登入帳號為準）
-Future<Result<void>> updateProfile(
-  String uid, {
-  required String name,
-  required String photoUrl,
-  required String bgPhotoUrl,
-  required String phoneNumber,
-}) =>
-    _updateRow(uid, {
+/// 更新名稱、電話（RLS 只開放這幾個欄位給本人直接改；email 以登入帳號為準）。
+/// 大頭照與背景圖只能上傳（uploadProfilePhoto），不送網址
+Future<Result<void>> updateProfile(String uid, {required String name, required String phoneNumber}) => _updateRow(uid, {
       'name': name,
-      'photo_url': photoUrl,
-      'bg_photo_url': bgPhotoUrl,
       'phone_number': phoneNumber,
       'updated_at': DateTime.now().toUtc().toIso8601String(),
     });
 
-/// 用登入帳號（Google）的名稱與大頭照蓋掉目前的資料；背景圖與電話保留
-Future<Result<void>> syncGoogleProfile() async {
+/// 用登入帳號（Google）的名稱與大頭照蓋掉目前的資料；背景圖與電話保留，自己上傳的大頭照也保留
+Future<Result<void>> syncGoogleProfile({required bool photoCustom}) async {
   final user = supabase.auth.currentUser;
   if (user == null) return const Err('尚未登入');
-  return _updateRow(user.id, googleProfilePatch(user, DateTime.now()));
+  return _updateRow(user.id, googleProfilePatch(user, DateTime.now(), photoCustom: photoCustom));
+}
+
+// ---------- 大頭照、背景圖（網站 /api/profile/photo） ----------
+
+/// 上傳大頭照或背景圖（太大的要先用 shrinkForUpload 縮小）：網站轉成 WebP、去掉中繼資料後存起來並更新 profile，回傳新的圖片網址
+Future<Result<String>> uploadProfilePhoto(PhotoKind kind, List<int> bytes, String filename) async {
+  final type = imageContentType(filename);
+  if (type == null) return const Err('請選擇圖片檔（JPG、PNG、WebP、GIF、HEIC）');
+  if (bytes.length > photoMaxBytes) return const Err('圖片太大，請選擇 8 MB 以下的檔案');
+  final result = await uploadWebApi(
+    '/api/profile/photo',
+    field: 'file',
+    bytes: bytes,
+    filename: filename,
+    contentType: type,
+    fields: {'kind': kind.name},
+  );
+  return switch (result) {
+    Ok(:final data) => Ok(asString(data['url'])),
+    Err(:final message, :final offline) => Err(message, offline: offline),
+  };
+}
+
+/// 大頭照改回 Google 頭像（kind = avatar）、移除背景圖（kind = background）
+Future<Result<void>> removeProfilePhoto(PhotoKind kind) async {
+  final result = await deleteWebApi('/api/profile/photo', {'kind': kind.name});
+  return switch (result) {
+    Ok() => const Ok(null),
+    Err(:final message, :final offline) => Err(message, offline: offline),
+  };
 }
 
 Future<Result<void>> _updateRow(String uid, Map<String, dynamic> patch) async {

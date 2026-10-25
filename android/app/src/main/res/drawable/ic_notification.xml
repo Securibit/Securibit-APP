@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 推播通知在狀態列的小圖示：盾牌加驗證碼倒數圓餅（同 linux/runner/resources/securibit-tray-symbolic.svg），單色，系統會自己上色 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="740"
+    android:viewportHeight="740">
+    <group
+        android:translateX="-142"
+        android:translateY="-154">
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:fillType="evenOdd"
+            android:pathData="M470,188 Q512,166 554,188 C630,222 712,244 778,254 Q800,257 800,280 L800,492 C800,676 680,806 532,862 Q512,870 492,862 C344,806 224,676 224,492 L224,280 Q224,257 246,254 C312,244 394,222 470,188 Z M512,340 A160,160 0 1 1 512,660 A160,160 0 1 1 512,340 Z M512,500 L512.0,386.0 A114,114 0 1 1 404.9,539.0 Z" />
+    </group>
+</vector>

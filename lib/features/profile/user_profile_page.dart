@@ -453,7 +453,8 @@ class _AdminActionsState extends State<_AdminActions> {
     ]);
   }
 
-  Actor get _actor => Actor(unrestricted: _rolesLoaded && isSiteRoot(_access.topPosition, _roles), topPosition: _access.topPosition);
+  // 只有全站擁有者不受階層限制（還沒有擁有者時是最高位身分組的持有者）；資料載入前先當作受限
+  Actor get _actor => Actor(unrestricted: _access.unrestricted(_rolesLoaded ? _roles : null), topPosition: _access.topPosition);
 
   AdminUser? get _editUser => _adminUser ?? (_needAdminUser ? null : widget.target.toAdminUser());
 
@@ -504,7 +505,8 @@ class _AdminActionsState extends State<_AdminActions> {
     if (_needRoles && !_rolesDone) return const SizedBox.shrink();
 
     // 對方的位置比自己高或同位：不能管理（看後台詳情不受階層限制）
-    final manageable = canManageMember(_actor, topPosition: widget.target.topPosition);
+    // 全站擁有者只有自己能管理
+    final manageable = canManageMember(_actor, topPosition: widget.target.topPosition, isOwner: _access.isOwnerId(widget.target.id));
     final editUser = _editUser;
     final showEdit = _canEdit && manageable;
     final showAssign = _canAssign && manageable;

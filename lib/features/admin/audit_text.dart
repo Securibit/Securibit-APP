@@ -28,6 +28,9 @@ const auditActionTexts = <String, String>{
   'group.member.join': '加入群組',
   'group.member.add': '直接加入成員',
   'group.member.leave': '離開群組',
+  'group.member.ban': '封鎖使用者',
+  'group.member.ban.update': '修改封鎖原因',
+  'group.member.unban': '解除封鎖',
   'group.invite.create': '建立邀請連結',
   'group.invite.revoke': '撤銷邀請連結',
   'group.invite.email': '邀請使用者',
@@ -51,14 +54,57 @@ const auditActionTexts = <String, String>{
   'user.vault.disable': '停用金鑰加密',
   'user.vault.reset': '重設加密密碼',
   'user.default_group': '變更預設群組',
+  // 通知與網站設定（target_type 'broadcast' / 'setting'）
+  'notification.broadcast': '發送通知',
+  'site.settings.update': '修改網站設定',
 };
+
+/// 網站設定的 key（site.settings.update 的 target_id / detail.name）對應的中文
+const siteSettingTexts = <String, String>{
+  'notify_admin_changes': '管理員修改帳號時通知本人',
+  'min_app_version': '強制更新的最低 App 版本',
+};
+
+const _adminChangeTexts = <String, String>{'role': '變更網站身分組', 'username': '修改 @ID', 'codes': '修改驗證碼'};
+
+// 網站設定的值，給操作紀錄顯示；看不懂的回傳 null
+String? _settingValueText(Object? key, Object? value) {
+  if (key == 'min_app_version') {
+    if (value is! Map) return '未設定';
+    final version = value['version'];
+    return version is String && version.isNotEmpty ? version : '未設定';
+  }
+  if (key == 'notify_admin_changes' && value is Map) {
+    return [
+      for (final e in value.entries)
+        if (_adminChangeTexts[e.key] case final label?) '$label${e.value == false ? '關' : '開'}',
+    ].join('、');
+  }
+  return null;
+}
 
 String auditActionText(String action) => auditActionTexts[action] ?? action;
 
 // 帳號變更（user.*）的「舊值 → 新值」；圖片網址太長不顯示
 const _changeActions = {'user.username', 'user.name', 'user.phone', 'user.email', 'user.default_group'};
 
+// 封鎖、修改封鎖原因：顯示原因（同網站）
+const _banActions = {'group.member.ban', 'group.member.ban.update'};
+
 String? auditChangeText(String action, Map<String, dynamic> detail) {
+  if (action == 'notification.broadcast') {
+    final users = detail['user_count'];
+    return users is num ? '${users.toInt()} 位使用者' : null;
+  }
+  if (action == 'site.settings.update') {
+    final before = _settingValueText(detail['name'], detail['old_value']);
+    final after = _settingValueText(detail['name'], detail['value']);
+    return after == null ? null : '${before ?? '（無）'} → $after';
+  }
+  if (_banActions.contains(action)) {
+    final reason = detail['reason'];
+    return reason is String && reason.isNotEmpty ? '原因：$reason' : null;
+  }
   if (!_changeActions.contains(action) || detail.isEmpty) return null;
   String show(Object? value) => value is String && value.isNotEmpty ? value : '（無）';
   return '${show(detail['old'])} → ${show(detail['new'])}';
@@ -71,6 +117,8 @@ const _targetTypeTexts = <String, String>{
   'account': '驗證碼',
   'invite': '邀請',
   'group': '群組',
+  'broadcast': '通知',
+  'setting': '網站設定',
 };
 
 /// 目標的簡短說明：類型 +（detail.name 或縮短的 id）
@@ -78,7 +126,9 @@ String? auditTargetText(AuditLog log) {
   if (log.targetType == null && log.targetId == null) return null;
   final type = log.targetType == null ? '' : (_targetTypeTexts[log.targetType] ?? log.targetType!);
   final rawName = log.detail['name'];
-  final name = rawName is String && rawName.isNotEmpty ? '「$rawName」' : '';
+  // 網站設定的 name 是 key，換成中文
+  final displayName = rawName is String && log.targetType == 'setting' ? (siteSettingTexts[rawName] ?? rawName) : rawName;
+  final name = displayName is String && displayName.isNotEmpty ? '「$displayName」' : '';
   final id = log.targetId;
   final shortId = name.isEmpty && id != null ? (id.length > 12 ? '${id.substring(0, 8)}…' : id) : '';
   return [type, name.isNotEmpty ? name : shortId].where((s) => s.isNotEmpty).join(' ');
@@ -191,6 +241,10 @@ String describeActivity(AccountActivity activity, String subjectId, {bool self =
       return '離開群組「$group」';
     case 'group.member.kick':
       return '被 $name 移出群組「$group」';
+    case 'group.member.ban':
+      return '被 $name 封鎖，不能再加入群組「$group」';
+    case 'group.member.unban':
+      return '$name 解除了$you在群組「$group」的封鎖';
     case 'group.encryption.enable':
       return '開啟群組「$group」的加密';
     case 'group.encryption.disable':

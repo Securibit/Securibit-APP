@@ -5,6 +5,7 @@ import 'package:securibit/features/admin/admin_format.dart';
 import 'package:securibit/features/admin/admin_models.dart';
 import 'package:securibit/features/admin/audit_text.dart';
 import 'package:securibit/features/auth/profile.dart';
+import 'package:securibit/features/profile/photo_shrink.dart';
 import 'package:securibit/features/profile/profile_models.dart';
 import 'package:securibit/features/profile/profile_repository.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show User;
@@ -167,20 +168,21 @@ void main() {
   });
 
   group('個人資料', () {
-    test('圖片網址：空的可以，否則要 http(s)', () {
-      expect(isHttpUrl(''), isTrue);
-      expect(isHttpUrl('  '), isTrue);
-      expect(isHttpUrl('https://example.com/a.png'), isTrue);
-      expect(isHttpUrl('http://example.com'), isTrue);
-      expect(isHttpUrl('ftp://example.com/a.png'), isFalse);
-      expect(isHttpUrl('example.com/a.png'), isFalse);
-      expect(isHttpUrl('https://'), isFalse);
+    test('上傳的圖片：依副檔名判斷類型，不是圖片時不上傳', () {
+      expect(imageContentType('me.JPG'), 'image/jpeg');
+      expect(imageContentType('a.b.png'), 'image/png');
+      expect(imageContentType('IMG_0001.HEIC'), 'image/heic');
+      expect(imageContentType('notes.txt'), isNull);
+      expect(imageContentType('noext'), isNull);
+      expect(PhotoKind.avatar.name, 'avatar');
+      expect(PhotoKind.background.name, 'background');
     });
 
-    test('預設背景圖等於沒有設定', () {
-      expect(visibleBgPhoto(''), isNull);
-      expect(visibleBgPhoto(defaultBgPhoto), isNull);
-      expect(visibleBgPhoto('https://example.com/bg.jpg'), 'https://example.com/bg.jpg');
+    test('上傳前縮小：等比例縮到最長邊', () {
+      expect(fitWithin(4000, 3000, 2048), (2048, 1536));
+      expect(fitWithin(1000, 3000, 2048), (683, 2048));
+      // 本來就比較小時不放大
+      expect(fitWithin(800, 600, 2048), (800, 600));
     });
 
     test('profiles 資料列與離線快取', () {
@@ -227,8 +229,9 @@ void main() {
       expect(patch['name'], 'Andy Chen');
       expect(patch['photo_url'], 'https://g/a.png');
       expect(patch.containsKey('phone_number'), isFalse);
-      expect(patch['creation_time'], '2024-05-01T08:00:00Z');
-      expect(patch['last_sign_in_time'], '2026-10-21T11:00:00Z');
+      // 建立與最後登入時間由伺服器決定，不送
+      expect(patch.containsKey('creation_time'), isFalse);
+      expect(patch.containsKey('last_sign_in_time'), isFalse);
       expect(patch['updated_at'], '2026-10-21T12:00:00.000Z');
       // email 由 ensure_profile 同步，不寫
       expect(patch.containsKey('email'), isFalse);
@@ -244,7 +247,17 @@ void main() {
       expect(fallback['name'], 'Andy');
       expect(fallback['photo_url'], 'https://g/p.png');
       expect(fallback['phone_number'], '+886912345678');
-      expect(fallback['last_sign_in_time'], '');
+
+      // 自己上傳過大頭照：不蓋掉
+      final custom = googleProfilePatch(
+        _user({
+          'user_metadata': {'name': 'Andy', 'picture': 'https://g/p.png'},
+        }),
+        now,
+        photoCustom: true,
+      );
+      expect(custom['name'], 'Andy');
+      expect(custom.containsKey('photo_url'), isFalse);
 
       // Google 沒給名稱與大頭照：保留原本的
       final empty = googleProfilePatch(_user({'user_metadata': <String, dynamic>{}}), now);

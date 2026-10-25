@@ -12,7 +12,7 @@ Securibit 的兩步驟驗證器 App，支援 iOS、Android、macOS、Linux、Win
 | Framework | Flutter 3.35（Dart 3.9） |
 | 後端 | Supabase（Auth + Postgres RPC），網站的 `/api/groups/codes`、`/api/record-login` |
 | 狀態管理 | provider + ChangeNotifier |
-| 安全核心 | Rust（`rust/core`，RustCrypto：PBKDF2-SHA256、HMAC、AES-GCM），透過 flutter_rust_bridge v2 給 Flutter 呼叫；TOTP、加密群組（與網站相容）、App 鎖定雜湊、記憶體裡的金鑰都在這裡 |
+| 安全核心 | Rust（`rust/core`，RustCrypto：PBKDF2-SHA256、HMAC、AES-GCM、P-256 ECDH、HKDF），透過 flutter_rust_bridge v2 給 Flutter 呼叫；TOTP、加密群組（與網站相容）、加密密碼的備援（esc:v1）、App 鎖定雜湊、記憶體裡的金鑰都在這裡 |
 | 其他 | supabase_flutter、google_sign_in、app_links、flutter_secure_storage、mobile_scanner、local_auth |
 | App ID | 各平台都是 `com.bityo.securibit`（iOS / macOS bundle id、Android applicationId 與 namespace、Linux application id）；Windows 安裝檔另有固定的 AppId（`tool/windows/securibit.iss`） |
 
@@ -94,6 +94,17 @@ iOS 和 Android 在 App 內直接跳出 Google 帳號選單（Android 走 Creden
 Android 的 Credential Manager 在 release 版需要的 R8 規則已經放在 `android/app/proguard-rules.pro`。
 Android 登入一按就回「已取消」通常是設定錯誤（package name、SHA-1 或網頁用戶端 ID 不對），不是使用者取消。
 
+### 4. Android 推播（選填）
+
+Android 的推播用 Firebase Cloud Messaging，只用原生的 `com.google.firebase:firebase-messaging`（`android/app/src/main/kotlin/com/bityo/securibit/Push.kt`），不用 Flutter 的 `firebase_core`／`firebase_messaging`（Windows 建置會被拉進 Firebase C++ SDK）。
+
+1. [Firebase Console](https://console.firebase.google.com/) 的專案新增 Android App，套件名稱 `com.bityo.securibit`
+2. 下載 `google-services.json` 放到 `android/app/`（已在 `.gitignore`，**不要提交**）；GitHub 版與 Google Play 版共用同一份
+3. 伺服器端（Edge Function `push`、`FCM_SERVICE_ACCOUNT`）見網站專案的 README
+
+沒有 `google-services.json` 時照樣能建置，只是沒有推播（`build.gradle.kts` 看到檔案才套用 google-services plugin）；鈴鐺與收件匣照常。
+iOS 先不接推播；桌面（macOS、Linux、Windows）在 App 開著或常駐選單列／系統匣時用系統通知。
+
 ## 執行
 
 ```bash
@@ -147,6 +158,13 @@ macOS、Linux、Windows、Android（GitHub 版）開啟時會讀 `env.json` 的 
 發版時標籤用 `v<版本>`（例如 `v0.4.0`，和 `pubspec.yaml` 的版本相同），附件直接用 `dist/` 的檔名：`Securibit-<版本>-macos.dmg` 與 `.zip`、`securibit_<版本>_<amd64|arm64>.deb`、`Securibit-<版本>-linux-<x64|arm64>.tar.gz`、`securibit-<版本>-<arm64-v8a|armeabi-v7a|x86_64>.apk`、`Securibit-<版本>-windows-x64-setup.exe` 與 `Securibit-<版本>-windows-x64.zip`，再加上 `SHA256SUMS.txt`（沒有附的話 App 只會提示用瀏覽器下載）。
 
 本機測試整個流程：`python3 tool/update_feed.py <放安裝檔的資料夾> <假的版本>` 在 `127.0.0.1:8765` 提供假的 `latest.json`、安裝檔與 `SHA256SUMS.txt`，App 用 `--dart-define=UPDATE_FEED_URL=http://127.0.0.1:8765/latest.json` 建置就會改讀這份（只有這時允許 http）。正式版不要設定。
+
+### 通知與強制更新
+
+- 鈴鐺與收件匣、設定的「通知」、後台的「發送通知」「通知設定」和網站一樣（`lib/features/notifications/`、`lib/features/admin/notifications/`），標題與內文都由資料庫產生
+- Android：登入後把推播 token 寫進目前的 session（`register_push_token`），登出前清掉；Android 13 以上第一次進主畫面時先說明再要通知權限。點推播打開對應的畫面（鎖著時等解鎖）
+- 桌面：收到 `sync_signals` 的 `notifications` 後讀新的通知，跳系統通知（使用者關掉的那一類不跳）；開 App 時把上次之後的未讀合併成「你有 N 則新通知」。原生端是 macOS 的 UNUserNotificationCenter、Linux 的 GNotification、Windows 系統匣圖示的通知，都不多帶套件
+- 強制更新：開 App 就讀 `app_config()`（不用登入），版本低於後台設定的最低版本時整頁顯示「需要更新」，蓋在 App 鎖定上面、不能關。桌面與 GitHub 版 Android 用上面的自動更新下載安裝，Google Play 版打開商店頁，iOS 請使用者到 App Store 或 TestFlight 更新；離線讀不到就不擋
 
 ### Linux
 
@@ -373,6 +391,8 @@ lib/
     settings/             主題、生物辨識鎖定、帳戶資訊、登出
     menubar/              macOS 選單列、Linux 與 Windows 系統匣的內容與原生端的溝通，Linux 的登入時自動開啟
                           （原生端在 macos/Runner/MenuBarController.swift、linux/runner/tray.cc、windows/runner/tray.cpp）
+    notifications/        鈴鐺與收件匣、通知設定、Android 推播（push/）、桌面系統通知
+    update/               檢查與自動更新、強制更新（min_version.dart、forced_update.dart）
     shell/                三欄 / 側欄的版面
 windows/runner/           Windows 的原生端：單一執行個體與連結轉交、視窗大小、截圖保護（securibit/privacy）、
                           系統匣（tray.cpp）、登入時自動開啟（launch_at_login.cpp）

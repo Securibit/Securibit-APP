@@ -1,5 +1,5 @@
 // 全站與群組的權限定義（同網站 src/lib/permissions/bits.ts、database/init.sql）
-// 資料庫是 bigint，App 用 int；目前只用到 bit 0～9
+// 資料庫是 bigint，App 用 int；全站用到 bit 0～10，群組用到 bit 0～9
 
 /// 一個權限位元的顯示資料
 class PermissionDef {
@@ -26,12 +26,13 @@ class SitePermission {
   static const viewAuditLog = 128;
   static const createGroups = 256;
   static const manageGroups = 512;
+  static const sendNotifications = 1024;
 
-  static const all = 1023;
+  static const all = 2047;
 }
 
 const sitePermissionDefs = <PermissionDef>[
-  PermissionDef(key: 'ADMINISTRATOR', bit: SitePermission.administrator, name: '管理員', description: '擁有所有全站權限，且不受身分組階層限制。請只給信任的人。'),
+  PermissionDef(key: 'ADMINISTRATOR', bit: SitePermission.administrator, name: '管理員', description: '擁有所有全站權限。請只給信任的人。'),
   PermissionDef(key: 'VIEW_ADMIN', bit: SitePermission.viewAdmin, name: '進入後台', description: '可以開啟後台頁面。'),
   PermissionDef(key: 'VIEW_USERS', bit: SitePermission.viewUsers, name: '查看使用者', description: '查看使用者列表與基本資料。'),
   PermissionDef(key: 'MANAGE_USERS', bit: SitePermission.manageUsers, name: '管理使用者', description: '修改使用者名稱與 @ID、刪除使用者。'),
@@ -41,6 +42,7 @@ const sitePermissionDefs = <PermissionDef>[
   PermissionDef(key: 'VIEW_AUDIT_LOG', bit: SitePermission.viewAuditLog, name: '查看操作紀錄', description: '查看全站的操作紀錄。'),
   PermissionDef(key: 'CREATE_GROUPS', bit: SitePermission.createGroups, name: '建立群組', description: '可以建立新的群組。'),
   PermissionDef(key: 'MANAGE_GROUPS', bit: SitePermission.manageGroups, name: '管理所有群組', description: '查看與管理所有群組，在任何群組內都擁有全部權限。'),
+  PermissionDef(key: 'SEND_NOTIFICATIONS', bit: SitePermission.sendNotifications, name: '發送通知', description: '在後台發送公告與推廣通知給指定的使用者或裝置，包括無法關閉的重要公告。'),
 ];
 
 // ---------- 群組權限（位元值見 core/permissions.dart 的 GroupPermission） ----------
@@ -55,6 +57,7 @@ const groupPermissionDefs = <PermissionDef>[
   PermissionDef(key: 'MANAGE_ROLES', bit: 64, name: '管理身分組', description: '建立、編輯、指派身分組，並設定單筆驗證碼的權限。只能管理比自己低的身分組。'),
   PermissionDef(key: 'MANAGE_GROUP', bit: 128, name: '管理群組', description: '修改群組名稱與說明、撤銷別人建立的邀請。'),
   PermissionDef(key: 'VIEW_AUDIT_LOG', bit: 256, name: '查看操作紀錄', description: '查看這個群組的操作紀錄。'),
+  PermissionDef(key: 'BAN_MEMBERS', bit: 512, name: '封鎖成員', description: '封鎖或解除封鎖使用者，被封鎖的人無法再透過邀請加入。只能封鎖身分組比自己低的成員。'),
 ];
 
 // ---------- 工具 ----------

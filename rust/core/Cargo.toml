@@ -13,9 +13,13 @@ aes-gcm = { version = "0.10", default-features = false, features = ["aes", "allo
 base64 = "0.22"
 getrandom = "0.2"
 hmac = "0.12"
+# 密碼備援（escrow）：HKDF-SHA256 從 ECDH 的共用秘密推出 AES 金鑰
+hkdf = "0.12"
 # 從圖片讀 QR Code（Linux 沒有系統內建的辨識）：只開截圖常見的格式，不要 rayon 與 AVIF、TIFF、EXR 等用不到的解碼器
 image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "webp", "gif", "bmp"] }
 pbkdf2 = { version = "0.12", default-features = false, features = ["hmac"] }
+# 密碼備援（escrow）：P-256 ECDH，用團隊的公鑰把加密密碼封起來
+p256 = { version = "0.13", default-features = false, features = ["ecdh", "arithmetic", "std"] }
 percent-encoding = "2.3"
 # 純 Rust 的 QR Code 辨識；不開 img（自己把灰階像素交給它，不用它綁的 image 版本）
 rqrr = { version = "0.11.0", default-features = false }

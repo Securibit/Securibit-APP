@@ -24,6 +24,7 @@ import '../groups/group_tabs.dart';
 import '../groups/groups_controller.dart';
 import '../groups/manage/group_entry.dart';
 import '../links/deep_link_host.dart';
+import '../notifications/notification_inbox.dart';
 import '../settings/settings_controller.dart';
 import '../settings/settings_view.dart';
 import 'collapsible_sidebar.dart';
@@ -279,14 +280,16 @@ class _NoGroup extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (onMenu != null || leading != null)
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(4, 12, 0, 0),
-              child: onMenu != null ? MenuButtonWithBadge(onPressed: onMenu!) : leading,
-            ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(4, 12, 8, 0),
+          child: Row(
+            children: [
+              if (onMenu != null) MenuButtonWithBadge(onPressed: onMenu!) else ?leading,
+              const Spacer(),
+              const NotificationBell(),
+            ],
           ),
+        ),
         Expanded(child: Align(alignment: Alignment.topCenter, child: body)),
       ],
     );

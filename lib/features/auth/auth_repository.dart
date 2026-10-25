@@ -22,11 +22,11 @@ Future<void> recordLogin() async {
 }
 
 // 刪除自己的帳戶：要用 service role 刪 auth 使用者，走網站的 API（同網站 deleteAccount）。
-// 還擁有有其他成員的群組時網站會拒絕，訊息由資料庫給
+// 還擁有有其他成員的群組時網站會拒絕，訊息由資料庫給；10 分鐘內沒登入過時 code 是 reauth_required（見 reauth.dart）
 Future<Result<void>> deleteAccount() async {
   final result = await callWebApi('/api/delete-account', null);
   return switch (result) {
     Ok() => const Ok(null),
-    Err(:final message, :final offline) => Err(message, offline: offline),
+    Err(:final message, :final offline, :final code) => Err(message, offline: offline, code: code),
   };
 }

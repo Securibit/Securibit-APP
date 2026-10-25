@@ -79,12 +79,14 @@ class RoleInput {
 
 /// me_permissions()：自己的全站權限（已展開，管理員是全部）
 class SiteAccess {
-  const SiteAccess({required this.permissions, required this.topPosition, required this.roles});
+  const SiteAccess({required this.permissions, required this.topPosition, required this.roles, this.isOwner = false});
 
   static const none = SiteAccess(permissions: 0, topPosition: 0, roles: []);
 
   final int permissions;
   final int topPosition;
+  // 我是全站擁有者（唯一不受全站階層限制的人）
+  final bool isOwner;
   // 不含 @everyone，由高到低
   final List<RoleBrief> roles;
 
@@ -95,6 +97,7 @@ class SiteAccess {
       permissions: asInt(map['permissions']),
       topPosition: asInt(map['top_position']),
       roles: asMapList(map['roles']).map(RoleBrief.fromJson).toList(),
+      isOwner: asBool(map['is_owner']),
     );
   }
 }
@@ -145,6 +148,7 @@ class AdminUser {
     required this.topPosition,
     required this.totpCount,
     required this.vaultEnabled,
+    this.isOwner,
   });
 
   final String id;
@@ -164,6 +168,8 @@ class AdminUser {
   // 預設群組的驗證碼數
   final int totpCount;
   final bool vaultEnabled;
+  // 全站擁有者（只有擁有者自己能管理）；舊的資料庫沒有這個欄位時是 null
+  final bool? isOwner;
 
   factory AdminUser.fromJson(Map<String, dynamic> json) => AdminUser(
         id: asString(json['id']),
@@ -181,6 +187,7 @@ class AdminUser {
         topPosition: asInt(json['top_position']),
         totpCount: asInt(json['totp_count']),
         vaultEnabled: asBool(json['vault_enabled']),
+        isOwner: json['is_owner'] is bool ? json['is_owner'] as bool : null,
       );
 
   String get displayName => name.isNotEmpty ? name : (email.isNotEmpty ? email : '使用者');
@@ -214,15 +221,24 @@ class AdminUserDetail {
 
 /// admin_users() 的一頁
 class AdminUserPage {
-  const AdminUserPage({required this.total, required this.users});
+  const AdminUserPage({required this.total, required this.users, this.siteOwnerId});
 
   final int total;
   final List<AdminUser> users;
+  // 全站擁有者的 id（還沒有擁有者或舊的資料庫時是 null）
+  final String? siteOwnerId;
 
   factory AdminUserPage.fromJson(Object? json) {
     final map = asMap(json);
-    return AdminUserPage(total: asInt(map['total']), users: asMapList(map['users']).map(AdminUser.fromJson).toList());
+    return AdminUserPage(
+      total: asInt(map['total']),
+      users: asMapList(map['users']).map(AdminUser.fromJson).toList(),
+      siteOwnerId: asNullableString(map['site_owner_id']),
+    );
   }
+
+  /// 這位是不是全站擁有者（admin_user_json 的 is_owner，沒有時比對 site_owner_id）
+  bool isOwner(AdminUser user) => user.isOwner ?? (siteOwnerId != null && siteOwnerId == user.id);
 }
 
 /// admin_user_totp() 的一筆：已加密的 secret 是 null

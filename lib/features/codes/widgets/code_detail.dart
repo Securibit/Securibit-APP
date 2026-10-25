@@ -371,6 +371,17 @@ class _CopyToGroupDialogState extends State<_CopyToGroupDialog> {
   Future<void> _copy() async {
     final target = _target;
     if (target == null || _copying) return;
+    // 從加密群組複製到沒加密的群組：金鑰會以明文存在伺服器，先確認（同網站）
+    if (widget.controller.group.encrypted && !target.encrypted) {
+      final ok = await confirmDialog(
+        context,
+        title: '複製到沒有加密的群組',
+        message: '這個群組沒有加密，複製過去後金鑰會以未加密的方式存在伺服器上。確定要複製嗎？',
+        confirmLabel: '複製',
+        danger: true,
+      );
+      if (!ok || !mounted) return;
+    }
     setState(() => _copying = true);
     final error = await widget.controller.copyTo(widget.account, target);
     if (!mounted) return;

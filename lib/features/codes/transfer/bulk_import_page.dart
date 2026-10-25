@@ -61,8 +61,16 @@ class _BulkImportPageState extends State<BulkImportPage> {
     }
     await controller.load();
     if (!mounted) return;
-    showToast(context, '已匯入 ${inputs.length} 筆驗證碼');
-    Navigator.of(context).pop(inputs.length);
+    // 有讀不到的行：用對話框列出行號與原因，免得被提示一閃而過（同網站）
+    final lineErrors = widget.result.errors;
+    final summary = importSummary(inputs.length, lineErrors);
+    final navigator = Navigator.of(context);
+    if (lineErrors.isNotEmpty) {
+      await showErrorDialog(context, summary, formatImportErrors(lineErrors));
+    } else {
+      showToast(context, summary);
+    }
+    navigator.pop(inputs.length);
   }
 
   @override
@@ -70,6 +78,7 @@ class _BulkImportPageState extends State<BulkImportPage> {
     final colors = context.colors;
     final batch = widget.result.batch;
     final errors = widget.result.errors;
+    final notes = widget.result.notes;
     final group = widget.controller.group;
     return Scaffold(
       backgroundColor: colors.surface,
@@ -116,14 +125,19 @@ class _BulkImportPageState extends State<BulkImportPage> {
                     '套用到勾選的全部，可留空；可選多個，會取代各筆原本的類別',
                     style: TextStyle(fontSize: AppText.caption, color: colors.inkMuted),
                   ),
-                  if (errors.isNotEmpty) ...[
+                  if (errors.isNotEmpty || notes.isNotEmpty) ...[
                     const SizedBox(height: 24),
-                    Text('以下內容無法匯入', style: TextStyle(fontSize: AppText.secondary, color: colors.alarm, fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 6),
-                    for (final error in errors)
+                    if (errors.isNotEmpty) ...[
+                      Text(
+                        '有 ${errors.length} 行無法讀取，其他的照常匯入',
+                        style: TextStyle(fontSize: AppText.secondary, color: colors.alarm, fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 6),
+                    ],
+                    for (final line in [...errors.map((e) => '$e'), ...notes])
                       Padding(
                         padding: const EdgeInsets.only(bottom: 4),
-                        child: Text('・$error', style: TextStyle(fontSize: AppText.secondary, color: colors.inkMuted)),
+                        child: Text('・$line', style: TextStyle(fontSize: AppText.secondary, color: colors.inkMuted)),
                       ),
                   ],
                 ],

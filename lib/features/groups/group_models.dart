@@ -1,4 +1,5 @@
 import '../../core/json.dart';
+import '../admin/admin_models.dart';
 
 // my_groups() 的一筆（網站 src/types/Group/Group.ts 的 GroupSummary）
 class GroupSummary {
@@ -142,6 +143,7 @@ class InviteInfo {
     required this.group,
     required this.inviter,
     required this.alreadyMember,
+    this.banned = false,
   });
 
   final bool valid;
@@ -150,6 +152,8 @@ class InviteInfo {
   final GroupBrief? group;
   final UserBrief? inviter;
   final bool alreadyMember;
+  // 我被這個群組封鎖了（不能加入）
+  final bool banned;
 
   factory InviteInfo.fromJson(Object? json) {
     final map = asMap(json);
@@ -159,9 +163,46 @@ class InviteInfo {
       group: GroupBrief.fromJson(map['group']),
       inviter: UserBrief.fromJson(map['inviter']),
       alreadyMember: asBool(map['already_member']),
+      banned: asBool(map['banned']),
     );
   }
 
   // 已經是成員時就算連結失效也可以直接前往群組
-  bool get usable => group != null && (valid || alreadyMember);
+  // 被封鎖時不能加入
+  bool get usable => group != null && (alreadyMember || (valid && !banned));
+}
+
+// group_bans() 的一筆：被封鎖的使用者（email 只有看得到成員 email 的人才有）
+class GroupBan {
+  const GroupBan({
+    required this.person,
+    required this.reason,
+    required this.createdAt,
+    required this.updatedAt,
+    required this.bannedBy,
+  });
+
+  // id 是被封鎖的使用者 id
+  final PersonBrief person;
+  final String reason;
+  final String? createdAt;
+  final String? updatedAt;
+  // 封鎖的人；帳號已刪除時是 null
+  final PersonBrief? bannedBy;
+
+  String get userId => person.id;
+
+  factory GroupBan.fromJson(Map<String, dynamic> json) => GroupBan(
+        person: PersonBrief(
+          id: asString(json['user_id']),
+          name: asString(json['name']),
+          username: asNullableString(json['username']),
+          photoUrl: asNullableString(json['photo_url']),
+          email: asNullableString(json['email']),
+        ),
+        reason: asString(json['reason']),
+        createdAt: asNullableString(json['created_at']),
+        updatedAt: asNullableString(json['updated_at']),
+        bannedBy: PersonBrief.fromJson(json['banned_by']),
+      );
 }

@@ -3,13 +3,13 @@ import 'admin_models.dart';
 /*
  * 「能不能管理」的判斷（同網站 src/lib/permissions/hierarchy.ts），只用來決定按鈕要不要顯示；
  * 真正的檢查在資料庫的 RPC。
- * 規則（Discord）：群組擁有者（或全站管理）、全站「最高位身分組的持有者」不受限；
- * 其他人（包含一般的全站 ADMINISTRATOR）只能管理 position 比自己最高身分組低的身分組與成員。
+ * 規則（Discord）：群組擁有者（或全站管理）、全站擁有者不受限（還沒有全站擁有者時是「最高位身分組的持有者」）；
+ * 其他人（包含全站 ADMINISTRATOR）只能管理 position 比自己最高身分組低的身分組與成員。沒有人能管理全站擁有者。
  */
 class Actor {
   const Actor({required this.unrestricted, required this.topPosition});
 
-  // 群組：擁有者 / 全站 ADMINISTRATOR / MANAGE_GROUPS；全站：最高位身分組的持有者（見 isSiteRoot）
+  // 群組：擁有者 / 全站 ADMINISTRATOR / MANAGE_GROUPS；全站：全站擁有者（見 siteUnrestricted）
   final bool unrestricted;
   final int topPosition;
 }
@@ -18,6 +18,17 @@ class Actor {
 /// 自己有身分組，而且沒有任何「有人持有」的身分組比自己的最高身分組還高
 bool isSiteRoot(int topPosition, List<Role> roles) =>
     topPosition > 0 && !roles.any((role) => !role.isDefault && role.memberCount > 0 && role.position > topPosition);
+
+/// 全站：不受階層限制的人（同網站 siteUnrestricted、SQL 的 site_is_root）。有全站擁有者時只有擁有者；
+/// 還沒有擁有者（ownerKnown 而且 ownerId 是 null）時才看「最高位身分組的持有者」。還沒讀到擁有者或身分組時當作受限
+bool siteUnrestricted({
+  required bool isOwner,
+  required bool ownerKnown,
+  required String? ownerId,
+  required int topPosition,
+  required List<Role>? roles,
+}) =>
+    isOwner || (ownerKnown && ownerId == null && roles != null && isSiteRoot(topPosition, roles));
 
 /// 指派身分組時：新加入的身分組權限不能超過自己（actorPermissions 是已展開的權限）
 bool canGrantRole(int actorPermissions, Role role) => (role.permissions & ~actorPermissions) == 0;

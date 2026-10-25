@@ -21,8 +21,10 @@ class Ok<T> extends Result<T> {
 }
 
 class Err<T> extends Result<T> {
-  const Err(this.message, {this.offline = false});
+  const Err(this.message, {this.offline = false, this.code});
   final String message;
   // 連不上伺服器（可以改用離線快取）
   final bool offline;
+  // 網站 API 回傳的錯誤代碼（例如 reauth_required），沒有時是 null
+  final String? code;
 }

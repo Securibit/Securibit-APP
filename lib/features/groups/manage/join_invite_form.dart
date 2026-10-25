@@ -208,9 +208,11 @@ class _InviteCard extends StatelessWidget {
           children: [
             const Text('無法使用這個邀請', textAlign: TextAlign.center, style: TextStyle(fontSize: 19, fontWeight: FontWeight.w700)),
             const SizedBox(height: 6),
-            MutedText(inviteReason(info.reason), center: true),
-            const SizedBox(height: 4),
-            Text('請向邀請你的人索取新的邀請連結', textAlign: TextAlign.center, style: TextStyle(fontSize: AppText.caption, color: colors.inkMuted)),
+            MutedText(info.banned && !info.alreadyMember ? bannedFromGroupText : inviteReason(info.reason), center: true),
+            if (!info.banned) ...[
+              const SizedBox(height: 4),
+              Text('請向邀請你的人索取新的邀請連結', textAlign: TextAlign.center, style: TextStyle(fontSize: AppText.caption, color: colors.inkMuted)),
+            ],
           ],
         ),
       );

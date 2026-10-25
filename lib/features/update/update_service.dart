@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../core/window_visibility.dart';
+import '../settings/app_lock.dart';
+import 'min_version.dart';
 import 'release.dart';
 import 'update_controller.dart';
 import 'update_dialog.dart';
@@ -12,6 +14,7 @@ import 'update_dialog.dart';
  * 開著的時候每 5 分鐘看一次、回到前景時也看一次，距離上次檢查超過一小時就再查（電腦睡眠、手機在背景的時間也算）。
  * 查到新版本就在背景下載，下載並驗證好才跳出「新版本已準備好」（強烈建議更新；按「稍後」下一個小時會再提示）；
  * 這台不能自動安裝時跳出用瀏覽器下載的提示。失敗什麼都不顯示。主視窗藏著時等它再顯示才提示。
+ * App 鎖著時提示直接開在鎖定畫面上，不用先解鎖；還沒回應就解鎖的話，改到 App 的畫面再提示一次。
  */
 class UpdateService {
   UpdateService({required this.updates, required this.navigatorKey});
@@ -47,14 +50,22 @@ class UpdateService {
   Future<void> _checkAndPrompt() => updates.checkAutomatically();
 
   void _prompt(AppRelease release) {
+    // 強制更新的整頁已經蓋著，下載進度與「重新啟動並更新」都在那裡
+    if (MinVersionController.active.value) return;
     if (!WindowVisibility.visible.value) {
       if (_pending == null) WindowVisibility.visible.addListener(_onVisible);
       _pending = release;
       return;
     }
-    final context = navigatorKey.currentContext;
+    final onLock = lockNavigatorKey.currentContext;
+    final context = onLock ?? navigatorKey.currentContext;
     if (context == null) return;
-    unawaited(showUpdatePrompt(context, updates, release));
+    unawaited(showUpdatePrompt(context, updates, release).then((answered) async {
+      if (answered || onLock == null) return;
+      await WidgetsBinding.instance.endOfFrame;
+      final app = navigatorKey.currentContext;
+      if (app != null && app.mounted) await showUpdatePrompt(app, updates, release);
+    }));
   }
 
   void _onVisible() {

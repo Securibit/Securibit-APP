@@ -18,6 +18,7 @@ enum GroupManageTab {
   members('成員'),
   roles('身分組'),
   invites('邀請'),
+  bans('封鎖名單'),
   settings('設定'),
   audit('紀錄');
 
@@ -32,11 +33,15 @@ enum GroupManageTab {
 bool canSeeInvites(int permissions, {required bool encrypted}) =>
     !encrypted && (hasPermission(permissions, GroupPermission.createInvite) || hasPermission(permissions, GroupPermission.manageGroup));
 
+/// 能不能管理封鎖名單（加密的群組也可以，只是沒有其他成員）
+bool canManageBans(int permissions) => hasPermission(permissions, GroupPermission.banMembers);
+
 /// 看得到的分頁（成員、身分組、設定所有成員都有）
 List<GroupManageTab> visibleTabs(AdminGroupDetail detail) => [
       GroupManageTab.members,
       GroupManageTab.roles,
       if (canSeeInvites(detail.permissions, encrypted: detail.group.encrypted)) GroupManageTab.invites,
+      if (canManageBans(detail.permissions)) GroupManageTab.bans,
       GroupManageTab.settings,
       if (hasPermission(detail.permissions, GroupPermission.viewAuditLog)) GroupManageTab.audit,
     ];
@@ -53,6 +58,17 @@ List<GroupMember> sortMembers(List<GroupMember> members) => [...members]..sort((
     final byTop = b.topPosition - a.topPosition;
     return byTop != 0 ? byTop : a.person.displayName.compareTo(b.person.displayName);
   });
+
+// ---------- 封鎖名單 ----------
+
+// 與資料庫的 check 一致
+const banReasonMax = 200;
+
+/// 封鎖名單一列下面的灰字：「由 某人 封鎖・時間」，改過原因時加上修改時間
+String banMeta(GroupBan ban) {
+  final edited = ban.updatedAt != null && ban.updatedAt != ban.createdAt ? '・${formatDateTime(ban.updatedAt)} 修改' : '';
+  return '${byText(ban.bannedBy)}封鎖・${formatDateTime(ban.createdAt)}$edited';
+}
 
 // ---------- 設定 ----------
 
@@ -125,6 +141,9 @@ const inviteReasonText = <String, String>{
   'expired': '這個邀請連結已過期',
   'used_up': '這個邀請連結的使用次數已用完',
 };
+
+/// 被群組封鎖時的說明（group_invite_info 的 banned）
+const bannedFromGroupText = '你已被這個群組封鎖';
 
 String inviteReason(String? reason) => inviteReasonText[reason] ?? '這個邀請連結無法使用';
 

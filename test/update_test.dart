@@ -357,4 +357,51 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('有新版本，強烈建議更新'), findsNothing);
   });
+
+  testWidgets('開在鎖定畫面上的提示：解鎖時跟著消失回傳 false，之後還能再提示', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final updates = UpdateController(
+      repo: _repo,
+      target: _mac,
+      readVersion: () async => '0.3.0',
+      client: MockClient((_) async => http.Response('{}', 404)),
+    );
+    await tester.runAsync(updates.load);
+    final release = AppRelease.fromJson(_releaseJson('v0.4.0'))!;
+    final locked = ValueNotifier(true);
+    final lockNavigator = GlobalKey<NavigatorState>();
+    final appNavigator = GlobalKey<NavigatorState>();
+    await tester.pumpWidget(MaterialApp(
+      theme: buildTheme(Brightness.light),
+      navigatorKey: appNavigator,
+      home: const SizedBox.shrink(),
+      builder: (context, child) => ValueListenableBuilder<bool>(
+        valueListenable: locked,
+        builder: (context, value, _) => Stack(children: [
+          child!,
+          if (value)
+            HeroControllerScope.none(
+              child: Navigator(key: lockNavigator, onGenerateRoute: (_) => PageRouteBuilder<void>(pageBuilder: (_, _, _) => const SizedBox.shrink())),
+            ),
+        ]),
+      ),
+    ));
+
+    bool? answered;
+    showUpdatePrompt(lockNavigator.currentContext!, updates, release).then((value) => answered = value);
+    await tester.pumpAndSettle();
+    expect(find.text('有新版本，強烈建議更新'), findsOneWidget);
+
+    locked.value = false;
+    await tester.pumpAndSettle();
+    expect(answered, isFalse);
+    expect(find.text('有新版本，強烈建議更新'), findsNothing);
+
+    showUpdatePrompt(appNavigator.currentContext!, updates, release).then((value) => answered = value);
+    await tester.pumpAndSettle();
+    expect(find.text('有新版本，強烈建議更新'), findsOneWidget);
+    await tester.tap(find.text('稍後'));
+    await tester.pumpAndSettle();
+    expect(answered, isTrue);
+  });
 }

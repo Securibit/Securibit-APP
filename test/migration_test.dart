@@ -46,7 +46,8 @@ Map<String, dynamic> migrationJson(Result<MigrationData> result) => switch (resu
 
 Map<String, dynamic> importJson(ImportTextResult result) => {
       'items': result.items.map(itemJson).toList(),
-      'errors': result.errors,
+      'errors': [for (final e in result.errors) {'line': e.line, 'reason': e.reason}],
+      'notes': result.notes,
       if (result.batch != null) 'batch': {'index': result.batch!.index, 'size': result.batch!.size},
     };
 

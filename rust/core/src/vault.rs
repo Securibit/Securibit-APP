@@ -17,6 +17,9 @@ use crate::sealed::RawSecrets;
 
 pub const PREFIX: &str = "enc:v1:";
 pub const ITERATIONS: u32 = 600_000;
+// 資料庫只收這個範圍的次數；超出時不推導（太大會讓手機卡很久，太小不安全）
+pub const MIN_ITERATIONS: u32 = 600_000;
+pub const MAX_ITERATIONS: u32 = 5_000_000;
 pub const CHECK_TEXT: &str = "securibit-vault-check";
 const SALT_LENGTH: usize = 16;
 const IV_LENGTH: usize = 12;
@@ -30,6 +33,8 @@ pub enum VaultError {
     Decrypt,
     // 加密設定（salt）格式不對
     Info,
+    // 加密設定的版本或 PBKDF2 次數不在允許範圍（不推導金鑰）
+    Unsupported,
 }
 
 impl std::fmt::Display for VaultError {
@@ -38,6 +43,7 @@ impl std::fmt::Display for VaultError {
             VaultError::Format => "密文格式錯誤",
             VaultError::Decrypt => "解密失敗",
             VaultError::Info => "加密設定的格式不正確",
+            VaultError::Unsupported => "加密設定異常，請聯絡我們",
         })
     }
 }
@@ -135,8 +141,11 @@ pub fn verify_key(check: &str, key: &VaultKey) -> bool {
     matches!(decrypt_text(key, check), Ok(text) if text.as_str() == CHECK_TEXT)
 }
 
-/// 用密碼解鎖：salt 是 base64；密碼錯誤回傳 Ok(None)，設定格式不對回傳錯誤
+/// 用密碼解鎖：salt 是 base64；密碼錯誤回傳 Ok(None)，設定格式不對、次數不在允許範圍回傳錯誤
 pub fn unlock(salt_b64: &str, iterations: u32, check: &str, passphrase: &str) -> Result<Option<VaultKey>, VaultError> {
+    if !(MIN_ITERATIONS..=MAX_ITERATIONS).contains(&iterations) {
+        return Err(VaultError::Unsupported);
+    }
     let salt = b64::decode(salt_b64).ok_or(VaultError::Info)?;
     let key = derive_key(passphrase, &salt, iterations);
     Ok(verify_key(check, &key).then_some(key))
@@ -232,6 +241,9 @@ pub(crate) mod tests {
     fn wrong_passphrase() {
         assert!(unlock(SALT, ITERATIONS, CHECK, "wrong").unwrap().is_none());
         assert_eq!(unlock("@@", ITERATIONS, CHECK, PASSPHRASE).err(), Some(VaultError::Info));
+        // 次數不在允許範圍：不推導（資料被改成很大的數字時不會卡住）
+        assert_eq!(unlock(SALT, 1000, CHECK, PASSPHRASE).err(), Some(VaultError::Unsupported));
+        assert_eq!(unlock(SALT, 5_000_001, CHECK, PASSPHRASE).err(), Some(VaultError::Unsupported));
     }
 
     #[test]

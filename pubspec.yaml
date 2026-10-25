@@ -18,6 +18,8 @@ dependencies:
   url_launcher: ^6.3.0
   package_info_plus: ^9.0.1
   http: ^1.2.0
+  # 上傳大頭照時標示檔案類型（multipart 的 Content-Type）；本來就是 http 的相依套件
+  http_parser: ^4.1.2
   # 檢查下載的更新檔（SHA-256）；本來就是 http、supabase 的相依套件，沒有多帶新的程式碼
   crypto: ^3.0.6
   provider: ^6.1.2

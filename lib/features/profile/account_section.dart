@@ -11,9 +11,10 @@ import '../admin/site_access.dart';
 import '../admin/widgets/admin_widgets.dart';
 import '../auth/auth_controller.dart';
 import '../auth/profile.dart';
+import '../auth/reauth.dart';
+import 'profile_background.dart';
 import 'profile_edit_form.dart';
 import 'profile_entry.dart';
-import 'profile_models.dart';
 import 'profile_repository.dart' as repo;
 import 'username_form.dart';
 
@@ -79,7 +80,7 @@ class AccountSection extends StatelessWidget {
         ),
         const SizedBox(height: 24),
         GroupedList(
-          footer: '同步會用 Google 帳號的名稱與大頭照蓋掉目前的資料，背景圖與電話保留',
+          footer: '同步會用 Google 帳號的名稱與大頭照蓋掉目前的資料，背景圖、電話與自己上傳的大頭照保留',
           children: [
             GroupedRow(
               label: '活動紀錄',
@@ -91,7 +92,7 @@ class AccountSection extends StatelessWidget {
               onTap: () => openDevices(context),
               trailing: Icon(Icons.chevron_right_rounded, color: colors.inkMuted),
             ),
-            const _SyncGoogleRow(),
+            _SyncGoogleRow(photoCustom: profile.photoCustom),
           ],
         ),
       ],
@@ -99,7 +100,7 @@ class AccountSection extends StatelessWidget {
   }
 }
 
-// 身分卡：有背景圖時放在上面，下面是大頭照、名稱、email 與「編輯」
+// 身分卡：背景圖（沒有時是內建的漸層）在上面，下面是大頭照、名稱、email 與「編輯」
 class _IdentityCard extends StatelessWidget {
   const _IdentityCard({required this.profile});
 
@@ -108,7 +109,6 @@ class _IdentityCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final bg = visibleBgPhoto(profile.bgPhotoUrl);
     return ClipRRect(
       borderRadius: BorderRadius.circular(AppRadius.medium),
       child: ColoredBox(
@@ -116,14 +116,8 @@ class _IdentityCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (bg != null)
-              Image.network(
-                bg,
-                height: 112,
-                fit: BoxFit.cover,
-                // 圖片讀不到就不顯示背景
-                errorBuilder: (_, _, _) => const SizedBox.shrink(),
-              ),
+            // 沒有背景圖時是內建的漸層
+            ProfileBackground(url: profile.bgPhotoUrl),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 8, 16),
               child: Row(
@@ -191,7 +185,10 @@ class _SiteRolesRow extends StatelessWidget {
 }
 
 class _SyncGoogleRow extends StatefulWidget {
-  const _SyncGoogleRow();
+  const _SyncGoogleRow({required this.photoCustom});
+
+  // 大頭照是自己上傳的：不蓋掉
+  final bool photoCustom;
 
   @override
   State<_SyncGoogleRow> createState() => _SyncGoogleRowState();
@@ -202,7 +199,7 @@ class _SyncGoogleRowState extends State<_SyncGoogleRow> {
 
   Future<void> _sync() async {
     setState(() => _syncing = true);
-    final result = await repo.syncGoogleProfile();
+    final result = await repo.syncGoogleProfile(photoCustom: widget.photoCustom);
     if (!mounted) return;
     if (result case Err(:final message)) {
       setState(() => _syncing = false);
@@ -256,9 +253,11 @@ Future<void> confirmDeleteAccount(BuildContext context) async {
   if (!ok || !context.mounted) return;
   final navigator = Navigator.of(context);
   final messenger = ScaffoldMessenger.maybeOf(context);
-  final error = await context.read<AuthController>().deleteAccount();
-  if (error != null) {
-    if (context.mounted) await showErrorDialog(context, '刪除帳戶失敗', error);
+  final auth = context.read<AuthController>();
+  // 太久沒登入時先重新登入再刪
+  final result = await withReauth(context, auth.deleteAccount);
+  if (result case Err(:final message)) {
+    if (context.mounted && !isReauthCancelled(result)) await showErrorDialog(context, '刪除帳戶失敗', message);
     return;
   }
   navigator.popUntil((route) => route.isFirst);

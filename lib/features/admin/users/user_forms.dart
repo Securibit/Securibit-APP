@@ -5,6 +5,7 @@ import '../../../core/theme/tokens.dart';
 import '../../../core/widgets/feedback.dart';
 import '../admin_format.dart';
 import '../admin_models.dart';
+import '../../auth/reauth.dart';
 import '../admin_repository.dart' as repo;
 import '../widgets/admin_widgets.dart';
 
@@ -134,11 +135,12 @@ class _UserDeleteFormState extends State<UserDeleteForm> {
   Future<void> _confirm() async {
     if (!_matched || _pending) return;
     setState(() => _pending = true);
-    final result = await repo.deleteAdminUser(widget.user.id);
+    // 我太久沒登入時先重新登入再刪
+    final result = await withReauth(context, () => repo.deleteAdminUser(widget.user.id));
     if (!mounted) return;
     setState(() => _pending = false);
     if (result case Err(:final message)) {
-      await showErrorDialog(context, '刪除使用者失敗', message);
+      if (!isReauthCancelled(result)) await showErrorDialog(context, '刪除使用者失敗', message);
       return;
     }
     showToast(context, '已刪除使用者');

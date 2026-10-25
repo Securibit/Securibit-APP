@@ -78,6 +78,8 @@ class UpdateController extends ChangeNotifier {
 
   /// 目前的版本（pubspec.yaml 的 version，不含 build 號）；還沒讀到是 null
   String? currentVersion;
+  // load() 跑完了（知道是不是 Google Play 版、能不能檢查）
+  bool loaded = false;
   bool checkOnLaunch = true;
   UpdateStatus status = UpdateStatus.idle;
   // 最近一次檢查到比目前新的版本
@@ -140,6 +142,7 @@ class UpdateController extends ChangeNotifier {
       // 讀不到版本就不檢查更新
     }
     if (target != null) _allowed = await _installer.selfUpdateAllowed();
+    loaded = true;
     notifyListeners();
     if (enabled) await _cleanUp();
   }
@@ -158,6 +161,9 @@ class UpdateController extends ChangeNotifier {
 
   /// 用瀏覽器下載的網址（找不到對應的檔案就是 Release 頁面）
   String downloadUrl(AppRelease release) => target == null ? release.pageUrl : release.downloadUrl(target!);
+
+  /// 還沒查到新版本時用瀏覽器打開的頁面（GitHub 的最新版）；用測試網址或沒設定 repo 時是 null
+  String? get releasesPageUrl => !usesTestFeed && _repoPattern.hasMatch(repo) ? 'https://github.com/$repo/releases/latest' : null;
 
   // 正在背景處理某一版（下載、等重試、已準備好、安裝中）：再檢查一次時不改變狀態
   bool get _busy => const {UpdateStatus.downloading, UpdateStatus.retrying, UpdateStatus.ready, UpdateStatus.installing}.contains(status);

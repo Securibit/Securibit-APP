@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../../core/result.dart';
 import 'admin_models.dart';
 import 'admin_repository.dart' as repo;
+import 'hierarchy.dart';
 import 'permission_defs.dart';
 
 /*
@@ -21,6 +22,9 @@ class SiteAccessController extends ChangeNotifier {
   SiteAccess access = SiteAccess.none;
   bool loaded = false;
   int _seq = 0;
+  // 全站擁有者的 id（site_owner()，要「進入後台」）；ownerLoaded 是 false 時還不知道
+  String? ownerId;
+  bool ownerLoaded = false;
 
   String? get uid => _uid;
 
@@ -31,12 +35,28 @@ class SiteAccessController extends ChangeNotifier {
 
   bool get canViewAdmin => can(SitePermission.viewAdmin);
 
+  bool get isOwner => access.isOwner;
+
+  /// 這個人是不是全站擁有者（還沒讀到時當作不是）
+  bool isOwnerId(String userId) => ownerLoaded && ownerId != null && ownerId == userId;
+
+  /// 我在全站是不是不受階層限制；roles 是全站身分組（還沒讀到是 null）
+  bool unrestricted(List<Role>? roles) => siteUnrestricted(
+        isOwner: access.isOwner,
+        ownerKnown: ownerLoaded,
+        ownerId: ownerId,
+        topPosition: access.topPosition,
+        roles: roles,
+      );
+
   /// 換了登入的使用者（登出時是 null）
   void attach(String? uid) {
     if (uid == _uid) return;
     _uid = uid;
     access = SiteAccess.none;
     loaded = false;
+    ownerId = null;
+    ownerLoaded = false;
     notifyListeners();
     if (uid != null) unawaited(reload());
   }
@@ -50,6 +70,23 @@ class SiteAccessController extends ChangeNotifier {
     if (result case Ok(:final data)) {
       access = data;
       loaded = true;
+      notifyListeners();
+      if (data.isOwner) {
+        ownerId = uid;
+        ownerLoaded = true;
+        notifyListeners();
+      } else if (canViewAdmin) {
+        await _loadOwner(uid, seq);
+      }
+    }
+  }
+
+  Future<void> _loadOwner(String uid, int seq) async {
+    final result = await repo.loadSiteOwner();
+    if (uid != _uid || seq != _seq) return;
+    if (result case Ok(:final data)) {
+      ownerId = data;
+      ownerLoaded = true;
       notifyListeners();
     }
   }

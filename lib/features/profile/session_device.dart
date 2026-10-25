@@ -43,6 +43,10 @@ class SessionDeviceReporter {
   static DeviceInfo? _device;
   static String? _lastSession;
   static DateTime? _lastAt;
+  static final _reported = StreamController<String>.broadcast();
+
+  /// 寫好了這個 session 的裝置資料（session id）；推播 token 要等這一列存在才寫得進去（見 push_registrar.dart）
+  static Stream<String> get reported => _reported.stream;
 
   static void start() {
     _subscription ??= supabase.auth.onAuthStateChange.listen(
@@ -121,6 +125,7 @@ class SessionDeviceReporter {
     );
     // 沒寫成功就讓下一次事件再試
     if (result is Err<void> && _lastSession == sessionId) _lastSession = null;
+    if (result is Ok<void>) _reported.add(sessionId);
   }
 
   static Future<DeviceInfo> _deviceInfo() async {

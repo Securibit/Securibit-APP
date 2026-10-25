@@ -1,4 +1,5 @@
 pub mod lock;
+pub mod photo;
 pub mod qr;
 pub mod secrets;
 pub mod totp;

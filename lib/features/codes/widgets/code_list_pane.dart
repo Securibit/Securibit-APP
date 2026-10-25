@@ -12,6 +12,7 @@ import '../../../core/widgets/pill.dart';
 import '../../groups/group_models.dart';
 import '../../groups/groups_controller.dart';
 import '../../groups/manage/group_entry.dart';
+import '../../notifications/notification_inbox.dart';
 import '../../settings/settings_controller.dart';
 import '../../vault/vault_unlock_view.dart';
 import '../codes_controller.dart';
@@ -42,7 +43,14 @@ class CodeListPane extends StatefulWidget {
 }
 
 class _CodeListPaneState extends State<CodeListPane> {
-  late final _search = TextEditingController(text: context.read<CodesController>().keyword);
+  // 在 initState 建好：排序模式時搜尋框不會出現，用到才建的話會在 dispose 時才去讀 context
+  late final TextEditingController _search;
+
+  @override
+  void initState() {
+    super.initState();
+    _search = TextEditingController(text: context.read<CodesController>().keyword);
+  }
 
   @override
   void dispose() {
@@ -285,6 +293,7 @@ class _Header extends StatelessWidget {
                   child: const Text('完成', style: TextStyle(fontSize: AppText.body, fontWeight: FontWeight.w700)),
                 )
               else ...[
+                const NotificationBell(),
                 if (controller.canAdd && !controller.locked)
                   IconButton(
                     tooltip: '新增驗證碼',

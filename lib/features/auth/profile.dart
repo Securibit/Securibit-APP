@@ -11,6 +11,7 @@ class Profile {
     required this.photoUrl,
     required this.vault,
     required this.defaultGroupId,
+    this.photoCustom = false,
     this.bgPhotoUrl = '',
     this.phoneNumber = '',
     this.emailVerified = false,
@@ -26,6 +27,8 @@ class Profile {
   final String username;
   final String email;
   final String photoUrl;
+  // 大頭照是自己上傳的（不是 Google 的）；同步 Google 資料時不蓋掉
+  final bool photoCustom;
   // 金鑰加密設定，null 代表未啟用
   final VaultInfo? vault;
   final String? defaultGroupId;
@@ -49,6 +52,7 @@ class Profile {
         username: asString(row['username']),
         email: asString(row['email']),
         photoUrl: asString(row['photo_url']),
+        photoCustom: asBool(row['photo_custom']),
         vault: VaultInfo.fromJson(row['vault']),
         defaultGroupId: asNullableString(row['default_group_id']),
         bgPhotoUrl: asString(row['bg_photo_url']),
@@ -67,6 +71,7 @@ class Profile {
         'username': username,
         'email': email,
         'photo_url': photoUrl,
+        'photo_custom': photoCustom,
         'vault': vault == null
             ? null
             : {'v': vault!.v, 'salt': vault!.salt, 'iterations': vault!.iterations, 'check': vault!.check},

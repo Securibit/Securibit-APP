@@ -8,6 +8,7 @@ import '../../core/widgets/feedback.dart';
 import '../../core/widgets/grouped_list.dart';
 import '../auth/auth_controller.dart';
 import '../menubar/desktop_tray.dart';
+import '../notifications/notification_settings_page.dart';
 import '../profile/account_section.dart';
 import '../update/update_controller.dart';
 import '../update/update_dialog.dart';
@@ -48,7 +49,7 @@ Future<void> _showSettings(BuildContext context) {
   return Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const SettingsView()));
 }
 
-// 設定頁：帳戶資料（可編輯）、主題、加密、App 鎖定、截圖、選單列（macOS）、關於與更新（iOS 沒有）、登出與刪除帳戶
+// 設定頁：帳戶資料（可編輯）、通知、主題、加密、App 鎖定、截圖、選單列（macOS）、關於與更新（iOS 沒有）、登出與刪除帳戶
 class SettingsView extends StatelessWidget {
   const SettingsView({super.key});
 
@@ -75,6 +76,17 @@ class SettingsView extends StatelessWidget {
         children: [
           if (profile != null) ...[
             AccountSection(profile: profile),
+            const SizedBox(height: 24),
+            // 通知開關（同網站帳戶設定的「通知」分頁）
+            GroupedList(
+              children: [
+                GroupedRow(
+                  label: '通知',
+                  trailing: Icon(Icons.chevron_right_rounded, color: colors.inkMuted),
+                  onTap: () => openNotificationSettings(context),
+                ),
+              ],
+            ),
             const SizedBox(height: 24),
           ],
           GroupedList(

@@ -118,10 +118,10 @@ class _CodeFormState extends State<CodeForm> {
 
   /// 匯入貼上、掃描或檔案的內容：一筆就填好欄位（類別沒填時才用連結裡的），多筆開整批匯入。
   /// inline 時錯誤顯示在連結欄位下面，否則跳出錯誤對話框
-  Future<bool> _importText(String text, {bool inline = true, String source = '連結', List<String> extraErrors = const []}) async {
-    final result = parseImportText(text)..errors.addAll(extraErrors);
+  Future<bool> _importText(String text, {bool inline = true, String source = '連結', List<String> extraNotes = const []}) async {
+    final result = parseImportText(text)..notes.addAll(extraNotes);
     if (result.items.isEmpty) {
-      final message = result.errors.join('\n');
+      final message = result.failureText;
       if (inline) {
         setState(() => _linkError = message);
       } else {
@@ -194,7 +194,7 @@ class _CodeFormState extends State<CodeForm> {
       await showErrorDialog(context, single?.errorTitle ?? '無法匯入', failures.join('\n'));
       return;
     }
-    await _importText(texts.join('\n'), inline: false, source: '檔案', extraErrors: failures);
+    await _importText(texts.join('\n'), inline: false, source: '檔案', extraNotes: failures);
   }
 
   Future<void> _submit() async {

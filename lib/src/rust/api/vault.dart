@@ -49,6 +49,20 @@ bool vaultRestoreLegacy({required String check, required String keyBase64}) =>
 String? vaultEncrypt({required String text}) =>
     RustLib.instance.api.crateApiVaultVaultEncrypt(text: text);
 
+/// 用團隊的公鑰把加密密碼封成 esc:v1 備援密文（設定、更改密碼時與解鎖後補存用）。
+/// public_key、key_id 來自 Dart 的備援金鑰設定；兩者不一致或格式不對時回傳錯誤訊息
+String escrowSeal({
+  required String publicKey,
+  required String keyId,
+  required String userId,
+  required String passphrase,
+}) => RustLib.instance.api.crateApiVaultEscrowSeal(
+  publicKey: publicKey,
+  keyId: keyId,
+  userId: userId,
+  passphrase: passphrase,
+);
+
 /// 設定或更改密碼的第一步：產生新的加密設定（PBKDF2 60 萬次，在背景執行緒計算），
 /// 新金鑰暫存在 Rust、還沒生效，要等 vault_rewrite_all 存到伺服器才換上
 Future<VaultSetup> vaultCreate({required String passphrase}) =>
@@ -59,17 +73,20 @@ Future<VaultSetup> vaultCreate({required String passphrase}) =>
 /// - 更改密碼：current 有值、use_pending 是 true；用舊金鑰解開，新金鑰加密
 /// - 停用加密：current 有值、use_pending 是 false；解開後寫回明文，群組改成沒加密
 /// expected_check 是目前 profile 的 vault.check（未啟用是 null），別的裝置先改過時資料庫會拒絕。
+/// escrow 是用 escrow_seal 把新密碼封起來的備援密文（停用時不用給），和新的設定一起存進資料庫。
 /// 成功回傳 null；失敗回傳給使用者看的訊息。成功後新金鑰（停用時是沒有金鑰）立即生效，加密群組的驗證碼金鑰要重新讀取
 Future<String?> vaultRewriteAll({
   required SupabaseConnection connection,
   VaultCurrent? current,
   required bool usePending,
   String? expectedCheck,
+  String? escrow,
 }) => RustLib.instance.api.crateApiVaultVaultRewriteAll(
   connection: connection,
   current: current,
   usePending: usePending,
   expectedCheck: expectedCheck,
+  escrow: escrow,
 );
 
 /// 開關一個群組的加密（同網站 rewriteGroup）：用目前解鎖的金鑰把群組裡的金鑰加密或解開，再整批寫回。
@@ -143,4 +160,4 @@ class VaultSetup {
           check == other.check;
 }
 
-enum VaultUnlockResult { unlocked, wrongPassphrase, badInfo }
+enum VaultUnlockResult { unlocked, wrongPassphrase, badInfo, unsupported }

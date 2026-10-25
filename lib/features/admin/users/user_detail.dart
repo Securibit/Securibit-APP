@@ -128,18 +128,20 @@ class _UserDetailViewState extends State<UserDetailView> {
     final user = detail.user;
     final myUid = context.select<AuthController, String?>((a) => a.profile?.uid);
     final isSelf = myUid == user.id;
-    // 只有最高位身分組的持有者不受階層限制；身分組載入前先當作受限
-    final actor = Actor(unrestricted: _rolesLoaded && isSiteRoot(access.topPosition, _roles), topPosition: access.topPosition);
-    final reachable = canManageMember(actor, topPosition: user.topPosition);
+    // 只有全站擁有者不受階層限制（還沒有擁有者時是最高位身分組的持有者）；資料載入前先當作受限
+    final actor = Actor(unrestricted: access.unrestricted(_rolesLoaded ? _roles : null), topPosition: access.topPosition);
+    // 全站擁有者只有自己能管理（舊的資料庫沒有 is_owner 時用 site_owner() 比對）
+    final targetIsOwner = user.isOwner ?? access.isOwnerId(user.id);
+    final reachable = canManageMember(actor, topPosition: user.topPosition, isOwner: targetIsOwner);
     final canManageUser = access.can(SitePermission.manageUsers) && !isSelf && reachable;
-    final canAssignRoles = access.can(SitePermission.manageRoles);
+    final canAssignRoles = access.can(SitePermission.manageRoles) && (!targetIsOwner || access.isOwner);
     final canReachTotp = isSelf || reachable;
     final userRoles = _roles.where((r) => user.roleIds.contains(r.id)).toList();
 
     return AdminScrollBody(
       onRefresh: _load,
       children: [
-        _identity(context, user, canManageUser),
+        _identity(context, user, canManageUser, isOwner: targetIsOwner),
         const SizedBox(height: 24),
         GroupedList(
           header: '帳號',
@@ -224,7 +226,7 @@ class _UserDetailViewState extends State<UserDetailView> {
     );
   }
 
-  Widget _identity(BuildContext context, AdminUser user, bool canEdit) {
+  Widget _identity(BuildContext context, AdminUser user, bool canEdit, {required bool isOwner}) {
     final colors = context.colors;
     return SoftCard(
       padding: const EdgeInsets.all(16),
@@ -242,6 +244,7 @@ class _UserDetailViewState extends State<UserDetailView> {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontSize: AppText.title, fontWeight: FontWeight.w700),
                 ),
+                if (isOwner) const Padding(padding: EdgeInsets.symmetric(vertical: 4), child: Tag('擁有者', accent: true)),
                 Text(
                   user.username != null ? '@${user.username}' : (user.email.isNotEmpty ? user.email : '沒有電子郵件'),
                   maxLines: 1,

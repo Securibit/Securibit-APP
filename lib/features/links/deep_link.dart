@@ -109,7 +109,7 @@ DeepLink _invite(String text) {
 DeepLink _code(String text, {required bool bulk}) {
   final result = parseImportText(text);
   if (result.items.isEmpty) {
-    final reason = result.errors.isEmpty ? '連結裡沒有可以新增的驗證碼' : result.errors.join('\n');
+    final reason = result.errors.isEmpty && result.notes.isEmpty ? '連結裡沒有可以新增的驗證碼' : result.failureText;
     return InvalidLink(bulk ? '無法匯入驗證碼' : '無法新增驗證碼', reason);
   }
   return CodeLink(text, bulk: bulk);

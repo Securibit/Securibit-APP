@@ -63,6 +63,21 @@ Future<Result<void>> deleteGroupRole(String roleId) => rpcVoid('group_role_delet
 Future<Result<void>> reorderGroupRoles(String gid, List<String> roleIds) =>
     rpcVoid('group_roles_reorder', {'gid': gid, 'role_ids': roleIds});
 
+// ---------- 封鎖名單（要有「封鎖成員」） ----------
+
+/// 封鎖名單，最新的在前面
+Future<Result<List<GroupBan>>> loadGroupBans(String gid) =>
+    rpc('group_bans', (data) => asMapList(data).map(GroupBan.fromJson).toList(), {'gid': gid});
+
+/// target：使用者 id、@ID 或電子郵件；是成員時會一併移出群組
+Future<Result<void>> banUser(String gid, String target, String reason) =>
+    rpcVoid('group_ban', {'gid': gid, 'target': target.trim(), 'reason': reason.trim()});
+
+Future<Result<void>> updateBanReason(String gid, String userId, String reason) =>
+    rpcVoid('group_ban_update', {'gid': gid, 'user_id': userId, 'reason': reason.trim()});
+
+Future<Result<void>> unbanUser(String gid, String userId) => rpcVoid('group_unban', {'gid': gid, 'user_id': userId});
+
 // ---------- 邀請 ----------
 
 /// expiresInHours：最長 720（30 天）；maxUses：null 代表不限次數。回傳邀請碼

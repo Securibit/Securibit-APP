@@ -20,8 +20,14 @@ import 'features/links/deep_link_controller.dart';
 import 'features/links/deep_link_service.dart';
 import 'features/menubar/menu_bar_codes.dart';
 import 'features/menubar/menu_bar_service.dart';
+import 'features/notifications/desktop_notifier.dart';
+import 'features/notifications/notification_link_queue.dart';
+import 'features/notifications/notifications_controller.dart';
+import 'features/notifications/push/android_push.dart';
+import 'features/notifications/push/push_registrar.dart';
 import 'features/profile/session_device.dart';
 import 'features/settings/settings_controller.dart';
+import 'features/update/min_version.dart';
 import 'features/update/release.dart';
 import 'features/update/update_controller.dart';
 import 'features/update/update_installer.dart';
@@ -60,22 +66,46 @@ Future<void> main(List<String> args) async {
   final settings = SettingsController();
   await settings.load();
 
+  // 最低版本：開 App 就檢查（不用登入），低於最低版本時整頁蓋上「強制更新」（見 ForcedUpdateGate）
+  final minVersion = MinVersionController();
+  unawaited(minVersion.start());
+
   const cache = OfflineCache();
   final vault = VaultController();
   final groups = GroupsController(cache: cache);
+  // 鈴鐺與收件匣；點了推播或系統通知等著打開的畫面
+  final notifications = NotificationsController();
+  final notificationLinks = NotificationLinkQueue();
+  // 桌面：App 開著或常駐時，新的通知跳系統通知
+  DesktopNotifier.start(notifications, notificationLinks);
+  // Android 推播：登入後把 token 寫進這個 session（等 session 的裝置資料寫好），登出前清掉
+  PushRegistrar.start();
   final auth = AuthController(
     cache: cache,
     onSignedIn: (profile) {
       vault.attach(profile);
       groups.start(profile.uid);
+      unawaited(notifications.start(profile.uid));
     },
     onSignedOut: (uid) {
       // Rust 記憶體裡的金鑰全部歸零
       SecretSeal.clearAll();
       vault.detach(uid);
       groups.clear();
+      notifications.clear();
+      notificationLinks.clear();
     },
   )..start();
+  // 有新的通知（即時通知、背景同步）時重新讀收件匣
+  groups.notificationSignals.listen((_) => unawaited(notifications.refresh()));
+  // 登出前取消這台的推播 token
+  auth.beforeSignOut = PushRegistrar.unregister;
+  // 點推播打開對應的畫面（鎖著時等解鎖，見 NotificationHost）；App 在前景收到時重新讀收件匣
+  AndroidPush.opened.listen(notificationLinks.push);
+  AndroidPush.received.listen((_) => unawaited(notifications.refresh()));
+  unawaited(AndroidPush.takeLaunchLink().then((link) {
+    if (link != null) notificationLinks.push(link);
+  }));
   // 設定、更改、停用加密密碼後重新讀個人資料（vault 設定存在 profile）
   vault.onProfileChanged = () async {
     await auth.refreshProfile();
@@ -115,6 +145,9 @@ Future<void> main(List<String> args) async {
         ChangeNotifierProvider.value(value: groups),
         ChangeNotifierProvider.value(value: updates),
         ChangeNotifierProvider.value(value: links),
+        ChangeNotifierProvider.value(value: notifications),
+        ChangeNotifierProvider.value(value: notificationLinks),
+        ChangeNotifierProvider.value(value: minVersion),
       ],
       child: SecuribitApp(home: const RootView(), navigatorKey: navigatorKey),
     ),

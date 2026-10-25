@@ -5,6 +5,15 @@ plugins {
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+    // 推播：版本在 settings.gradle.kts，這裡先不套用，下面確定有 google-services.json 才套用
+    id("com.google.gms.google-services") apply false
+}
+
+// 推播（Firebase Cloud Messaging，見 MainActivity.kt 旁的 Push.kt）：android/app/google-services.json 不進 git，
+// 有這個檔案才套用 google-services plugin；沒有時照樣能建置，只是沒有推播（Push.available 回傳 false）。
+// github 與 play 兩種發行管道的 applicationId 相同，共用同一份設定
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
 }
 
 // 正式發版金鑰：android/key.properties（不進 git）指向專案外的金鑰檔；沒有這個檔案時用 debug 金鑰簽，`flutter run --release` 照樣能跑
@@ -77,4 +86,7 @@ flutter {
 dependencies {
     // MainActivity is a FlutterFragmentActivity and the themes are AppCompat.
     implementation("androidx.appcompat:appcompat:1.7.0")
+    // 推播：只用原生的 Firebase Cloud Messaging，不用 Flutter 的 firebase_messaging（Windows 建置會拉進 Firebase C++ SDK）
+    implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
+    implementation("com.google.firebase:firebase-messaging")
 }

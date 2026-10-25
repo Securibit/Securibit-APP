@@ -15,7 +15,8 @@ import 'manage/group_rules.dart';
  * 側欄的群組清單與邀請（同網站 CodeClient 的群組切換）。
  * 目前看的群組記在這台裝置；記住的群組已不在（被刪掉、被移出）時改用預設群組（沒有就第一個）。
  * 跟資料庫同步（網站或其他裝置改了）：
- * - 即時通知（LiveSync）：群組清單變了重新讀群組，邀請變了重新讀邀請，驗證碼變了通知那個群組的 CodesController
+ * - 即時通知（LiveSync）：群組清單變了重新讀群組，邀請變了重新讀邀請，驗證碼變了通知那個群組的 CodesController，
+ *   有新的通知轉給 NotificationsController（notificationSignals）
  * - 備援：每 60 秒、App 回到前景（桌面是視窗取得焦點）、即時通知斷線重連時，背景同步一次全部
  * 背景同步不顯示讀取中、讀不到時保留原本的資料，內容沒變就不通知畫面。
  */
@@ -42,9 +43,13 @@ class GroupsController extends ChangeNotifier with WidgetsBindingObserver {
 
   late final LiveSync _live = LiveSync(onSignals: _onSignals, onReconnected: () => unawaited(syncAll()));
   final _codesSignals = StreamController<CodesSignal>.broadcast();
+  final _notificationSignals = StreamController<void>.broadcast();
 
   /// 要重新讀取某個群組驗證碼的通知（即時通知與背景同步）
   Stream<CodesSignal> get codesSignals => _codesSignals.stream;
+
+  /// 要重新讀取通知（即時通知的 notifications、背景同步）
+  Stream<void> get notificationSignals => _notificationSignals.stream;
 
   String? uid;
   List<GroupSummary>? groups;
@@ -180,6 +185,7 @@ class GroupsController extends ChangeNotifier with WidgetsBindingObserver {
     _syncedAt = DateTime.now();
     final gid = selectedId;
     if (gid != null) _codesSignals.add(CodesSignal(gid, confirmed: false));
+    _notificationSignals.add(null);
     await reload(quiet: true);
   }
 
@@ -189,6 +195,7 @@ class GroupsController extends ChangeNotifier with WidgetsBindingObserver {
     if (batch.groups) unawaited(reload(quiet: true, invitations: false));
     if (batch.invitations) unawaited(refreshInvitations());
     batch.codes.forEach((gid, secrets) => _codesSignals.add(CodesSignal(gid, secrets: secrets)));
+    if (batch.notifications) _notificationSignals.add(null);
   }
 
   void _startPolling() {
@@ -222,6 +229,7 @@ class GroupsController extends ChangeNotifier with WidgetsBindingObserver {
     _stopPolling();
     _live.stop();
     unawaited(_codesSignals.close());
+    unawaited(_notificationSignals.close());
     super.dispose();
   }
 

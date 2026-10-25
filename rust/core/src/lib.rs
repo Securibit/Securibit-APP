@@ -6,16 +6,20 @@
  * - totp：TOTP / HOTP（RFC 6238 / 4226）
  * - otpauth：otpauth:// 連結
  * - vault：加密群組 enc:v1（PBKDF2-SHA256 60 萬次 → AES-GCM 256，與網站 src/lib/vault/crypto.ts 逐位元組相容）
+ * - escrow：加密密碼的備援（esc:v1，用團隊的 P-256 公鑰封起來，只有團隊離線保管的私鑰能解開）
  * - lock：App 鎖定的圖形 / 密碼雜湊（PBKDF2-SHA256 2 萬次，固定時間比對）
  * - sealed：用這台裝置的金鑰把離線快取的金鑰封起來
  * - rpc_body：送給伺服器、含金鑰的 JSON（寫在會歸零的緩衝區）
  * - store：記憶體裡的金鑰保管（依群組、驗證碼 id），只回傳驗證碼
+ * - photo：上傳大頭照前把縮小的圖片編成 JPEG
  * - qr_image：從圖片讀 QR Code（Linux 沒有系統內建的辨識時用）
  */
 
 pub mod base32;
+pub mod escrow;
 pub mod lock;
 pub mod otpauth;
+pub mod photo;
 pub mod qr_image;
 pub mod rpc_body;
 pub mod sealed;

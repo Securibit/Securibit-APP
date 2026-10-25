@@ -13,6 +13,9 @@ import 'profile.dart';
 
 enum AuthStatus { loading, signedOut, signedIn }
 
+/// 使用者在「請重新登入」按了取消，或登入時自己取消（呼叫端不用再顯示錯誤）
+const reauthCancelledCode = 'reauth_cancelled';
+
 /*
  * 登入狀態：全 App 只訂閱一次 Supabase 的 onAuthStateChange。
  * 登入後先 ensure_profile 再讀 profile；連不上時改用離線快取的 profile，讓驗證碼還能顯示。
@@ -24,6 +27,9 @@ class AuthController extends ChangeNotifier {
   // 拿到 profile 後通知其他狀態（加密、群組）
   final void Function(Profile profile) onSignedIn;
   final void Function(String? uid) onSignedOut;
+
+  /// 登出前（session 還在）要做的事：取消這台裝置的推播 token。失敗或逾時都不擋登出
+  Future<void> Function()? beforeSignOut;
 
   AuthStatus status = AuthStatus.loading;
   Profile? profile;
@@ -168,6 +174,14 @@ class AuthController extends ChangeNotifier {
   /// 登出：撤銷這台裝置的 session，清掉離線快取與記住的加密金鑰
   Future<String?> signOut() async {
     final uid = profile?.uid ?? user?.id;
+    final before = beforeSignOut;
+    if (before != null) {
+      try {
+        await before().timeout(const Duration(seconds: 3));
+      } catch (_) {
+        // 取消不了也照樣登出（session 刪掉時 token 會一起消失）
+      }
+    }
     try {
       await supabase.auth.signOut();
     } catch (error) {
@@ -181,11 +195,48 @@ class AuthController extends ChangeNotifier {
     return null;
   }
 
-  /// 刪除自己的帳戶（網站的 /api/delete-account）；成功後登出並清掉這台裝置的快取。回傳錯誤訊息，成功為 null
-  Future<String?> deleteAccount() async {
+  /// 重新登入確認是本人（刪除帳戶這類操作，網站回 reauth_required 時）：跑一次和登入一樣的 Google 登入，
+  /// 等到同一個使用者拿到新的 session。成功回傳 Ok；使用者取消時 Err 的 code 是 reauthCancelledCode
+  Future<Result<void>> reauthenticate({Duration timeout = const Duration(minutes: 5)}) async {
+    final uid = user?.id;
+    final oldToken = supabase.auth.currentSession?.accessToken;
+    if (uid == null) return const Err('尚未登入');
+    final done = Completer<Result<void>>();
+    // 先開始等再開始登入，才不會漏掉事件
+    final subscription = supabase.auth.onAuthStateChange.listen((state) {
+      final session = state.session;
+      if (state.event != AuthChangeEvent.signedIn || session == null || session.accessToken == oldToken) return;
+      if (done.isCompleted) return;
+      done.complete(session.user.id == uid ? const Ok(null) : const Err('登入的不是原本的帳號，已取消這次操作'));
+    });
+    try {
+      final error = await signInWithGoogle();
+      if (error != null && !done.isCompleted) done.complete(Err(error));
+      // 原生登入回來時 session 已經換好；沒換代表使用者取消了。瀏覽器版要等使用者在瀏覽器登入完回來
+      if (!usesBrowser && !done.isCompleted) {
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+        if (!done.isCompleted) {
+          final session = supabase.auth.currentSession;
+          done.complete(
+            session != null && session.accessToken != oldToken
+                ? (session.user.id == uid ? const Ok(null) : const Err('登入的不是原本的帳號，已取消這次操作'))
+                : const Err('已取消', code: reauthCancelledCode),
+          );
+        }
+      }
+      return await done.future.timeout(timeout, onTimeout: () => const Err('沒有完成重新登入，請再試一次'));
+    } finally {
+      await subscription.cancel();
+      if (signingIn) cancelSignIn();
+    }
+  }
+
+  /// 刪除自己的帳戶（網站的 /api/delete-account）；成功後登出並清掉這台裝置的快取。
+  /// 太久沒登入時網站回 reauth_required，Err 的 code 帶著它（由 withReauth 重新登入後再試）
+  Future<Result<void>> deleteAccount() async {
     final uid = profile?.uid ?? user?.id;
     final result = await repo.deleteAccount();
-    if (result case Err(:final message)) return message;
+    if (result case Err()) return result;
     // 帳戶已經不在：伺服器端的登出可能失敗，本機的 session 一樣會先移除
     try {
       await supabase.auth.signOut();
@@ -195,7 +246,7 @@ class AuthController extends ChangeNotifier {
     if (uid != null) await cache.clear(uid);
     await NativeGoogleSignIn.signOut();
     if (status != AuthStatus.signedOut) _handleSignedOut();
-    return null;
+    return const Ok(null);
   }
 
   @override

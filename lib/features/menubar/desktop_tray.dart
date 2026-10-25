@@ -120,6 +120,31 @@ class DesktopTray {
     }
   }
 
+  /// 系統通知（見 lib/features/notifications/desktop_notifier.dart）：id 相同的會取代前一則；
+  /// 點了之後原生端叫回主視窗並送 notificationClicked（帶 link）
+  static Future<void> notify({required String id, required String title, required String body, String? link}) async {
+    if (!supported) return;
+    try {
+      await channel.invokeMethod<void>('notify', {'id': id, 'title': title, 'body': body, 'link': link ?? ''});
+    } on MissingPluginException {
+      // 測試環境沒有原生端
+    } on PlatformException {
+      // 顯示不了就算了
+    }
+  }
+
+  /// macOS 第一次跳通知前要先問使用者（其他平台不用，直接回傳 true）
+  static Future<bool> requestNotifyPermission() async {
+    if (!supported) return false;
+    try {
+      return await channel.invokeMethod<bool>('notifyPermission') ?? true;
+    } on MissingPluginException {
+      return false;
+    } on PlatformException {
+      return false;
+    }
+  }
+
   /// 把算好的選單內容交給原生端（只有顯示用的文字）
   static Future<void> update(Map<String, Object?> model) async {
     if (!supported) return;

@@ -8,10 +8,12 @@ import 'core/widgets/empty_state.dart';
 import 'core/widgets/logo.dart';
 import 'features/auth/auth_controller.dart';
 import 'features/links/deep_link_host.dart';
+import 'features/notifications/notification_host.dart';
 import 'features/onboarding/signed_out_view.dart';
 import 'features/settings/app_lock.dart';
 import 'features/settings/settings_controller.dart';
 import 'features/shell/home_shell.dart';
+import 'features/update/forced_update.dart';
 
 const _locale = Locale('zh', 'TW');
 
@@ -36,8 +38,9 @@ class SecuribitApp extends StatelessWidget {
       locale: _locale,
       supportedLocales: const [_locale],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
-      // App 鎖定蓋在 Navigator 外層，推上去的頁面與對話框也一起遮住
-      builder: (context, child) => AppLockGate(child: child ?? const SizedBox.shrink()),
+      // App 鎖定蓋在 Navigator 外層，推上去的頁面與對話框也一起遮住；
+      // 強制更新再蓋在 App 鎖定外面（不用先解鎖）
+      builder: (context, child) => ForcedUpdateGate(child: AppLockGate(child: child ?? const SizedBox.shrink())),
       home: home,
     );
   }
@@ -54,7 +57,8 @@ class RootView extends StatelessWidget {
       AuthStatus.loading => const _Splash(),
       AuthStatus.signedOut => const SignedOutView(),
       // 點連結打開 App 時，登入後的主畫面出來才處理（見 DeepLinkHost）
-      AuthStatus.signedIn when auth.profile != null => const DeepLinkHost(child: HomeShell()),
+      // 點了推播或系統通知也一樣（見 NotificationHost）
+      AuthStatus.signedIn when auth.profile != null => const DeepLinkHost(child: NotificationHost(child: HomeShell())),
       AuthStatus.signedIn when auth.profileError != null => _ProfileError(message: auth.profileError!),
       AuthStatus.signedIn => const _Splash(),
     };

@@ -22,6 +22,7 @@ import '../../auth/auth_controller.dart';
 import '../../profile/profile_entry.dart';
 import '../groups_controller.dart';
 import '../groups_repository.dart' as repo;
+import 'group_bans_tab.dart';
 import 'group_invites_tab.dart';
 import 'group_members_tab.dart';
 import 'group_rules.dart';
@@ -29,7 +30,7 @@ import 'group_settings_tab.dart';
 import 'group_tab_context.dart';
 
 /*
- * 群組管理（同網站 src/app/groups/[id]/_components/GroupView.tsx）：成員、身分組、邀請、設定、紀錄，依權限顯示。
+ * 群組管理（同網站 src/app/groups/[id]/_components/GroupView.tsx）：成員、身分組、邀請、封鎖名單、設定、紀錄，依權限顯示。
  * 前台（側欄「管理群組」）與後台（adminMode）共用；驗證碼在主畫面，不在這裡。
  * 全站「管理所有群組」在群組裡有全部權限，不受階層限制；直接新增成員只在後台（前台一律走邀請）。
  */
@@ -147,6 +148,7 @@ class _GroupViewState extends State<GroupView> {
       GroupManageTab.members => GroupMembersTab(tab: tabContext),
       GroupManageTab.roles => _RolesTab(tab: tabContext, load: _load),
       GroupManageTab.invites => GroupInvitesTab(tab: tabContext),
+      GroupManageTab.bans => GroupBansTab(tab: tabContext),
       GroupManageTab.settings => GroupSettingsTab(tab: tabContext),
       GroupManageTab.audit => _AuditTab(tab: tabContext),
     };

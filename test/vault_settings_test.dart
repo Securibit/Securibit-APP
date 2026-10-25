@@ -88,7 +88,7 @@ void main() {
     await tester.enterText(fields.at(1), 'long enough');
     await tester.pump();
     expect(submit().onPressed, isNull, reason: '還沒勾選「我了解」');
-    await tester.tap(find.text('我了解忘記密碼就無法救回金鑰，只能清空重新綁定'));
+    await tester.tap(find.text('我了解密碼會另外用團隊離線保管的備援金鑰加密保存，忘記時可以寫信請團隊協助還原'));
     await tester.pump();
     expect(submit().onPressed, isNotNull);
 
@@ -109,7 +109,7 @@ void main() {
 
     await tester.tap(find.text('忘記密碼'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('密碼沒有辦法找回，也沒有人能幫你解開'), findsOneWidget);
+    expect(find.textContaining('寫信到 service@bityo.tw'), findsOneWidget);
     expect(find.text('清空並停用加密'), findsOneWidget);
     await tester.tap(find.text('取消'));
     await tester.pumpAndSettle();
