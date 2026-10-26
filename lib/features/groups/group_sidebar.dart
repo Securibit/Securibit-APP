@@ -333,23 +333,27 @@ class _AccountTile extends StatelessWidget {
                     builder: (context, _) {
                       final access = SiteAccessController.shared;
                       final role = access.uid == profile.uid && access.access.roles.isNotEmpty ? access.access.roles.first : null;
-                      return Row(
-                        children: [
-                          // 名稱占 2/3、身分組占 1/3：兩個都可能截成「…」，名稱永遠看得到
-                          Flexible(
-                            flex: 2,
-                            child: Text(
-                              profile.displayName,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontSize: AppText.body, fontWeight: FontWeight.w600),
+                      // 身分組照自己的寬度顯示（最多半行），剩下的給名稱；放不下時先把名稱截成「…」
+                      return LayoutBuilder(
+                        builder: (context, constraints) => Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                profile.displayName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: AppText.body, fontWeight: FontWeight.w600),
+                              ),
                             ),
-                          ),
-                          if (role != null) ...[
-                            const SizedBox(width: 6),
-                            Flexible(child: RoleChip(name: role.name, color: role.color)),
+                            if (role != null) ...[
+                              const SizedBox(width: 6),
+                              ConstrainedBox(
+                                constraints: BoxConstraints(maxWidth: constraints.maxWidth / 2),
+                                child: RoleChip(name: role.name, color: role.color),
+                              ),
+                            ],
                           ],
-                        ],
+                        ),
                       );
                     },
                   ),
