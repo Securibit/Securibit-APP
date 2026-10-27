@@ -2,7 +2,7 @@ name: securibit
 description: "Securibit 兩步驟驗證器（iOS、Android、macOS、Linux），後端與網站共用 Supabase。"
 publish_to: 'none'
 
-version: 1.5.2+9
+version: 1.5.3+10
 
 environment:
   sdk: ^3.9.0
