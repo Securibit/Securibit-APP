@@ -16,6 +16,9 @@ import io.flutter.plugin.common.MethodChannel
 
 // local_auth 需要 FragmentActivity
 class MainActivity : FlutterFragmentActivity() {
+    // Google Play 的立即更新（見 PlayUpdate.kt）；要在 Activity STARTED 之前註冊
+    private val playUpdate = PlayUpdate(this)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         // 預設不允許截圖：在 Flutter 讀到設定之前就先擋住，冷啟動時的多工畫面也不會露出內容
         window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
@@ -71,6 +74,7 @@ class MainActivity : FlutterFragmentActivity() {
         /*
          * 自動更新（lib/features/update/update_installer.dart 的 AndroidApkInstaller）：
          * selfUpdate → 這個 APK 是不是 GitHub 版（manifest 有 REQUEST_INSTALL_PACKAGES）；Google Play 版回傳 false，整個檢查更新關掉
+         * playUpdate → Google Play 版的強制更新：打開 Play 的立即更新畫面（PlayUpdate.kt）
          * updatesDir → 下載 APK 的資料夾（cacheDir/updates，FileProvider 只分享這裡）
          * canInstall → 使用者允許了「安裝不明應用程式」；openInstallSettings 打開那個設定
          * install → 用 FileProvider 把下載好（已通過檢查碼）的 APK 交給系統的安裝畫面
@@ -78,6 +82,7 @@ class MainActivity : FlutterFragmentActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "securibit/update").setMethodCallHandler { call, result ->
             when (call.method) {
                 "selfUpdate" -> result.success(selfUpdate())
+                "playUpdate" -> if (selfUpdate()) result.success("unavailable") else playUpdate.start(result)
                 "updatesDir" -> result.success(File(cacheDir, "updates").apply { mkdirs() }.absolutePath)
                 "canInstall" -> result.success(canInstallPackages())
                 "openInstallSettings" -> {

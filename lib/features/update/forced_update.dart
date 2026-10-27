@@ -10,6 +10,7 @@ import '../../core/widgets/feedback.dart';
 import '../../core/widgets/lock_backdrop.dart';
 import '../../core/widgets/logo.dart';
 import 'min_version.dart';
+import 'play_update.dart';
 import 'update_controller.dart';
 import 'update_dialog.dart';
 
@@ -20,7 +21,7 @@ const playStoreUrl = 'https://play.google.com/store/apps/details?id=com.bityo.se
 enum ForcedUpdateRoute {
   // 桌面與 GitHub 版 Android：用現有的更新流程，在背景下載後「重新啟動並更新」
   selfUpdate,
-  // Google Play 版：打開商店頁
+  // Google Play 版：打開 Google Play 的立即更新畫面，不行時打開商店頁
   playStore,
   // iOS：到 App Store 或 TestFlight 更新
   appStore,
@@ -76,6 +77,24 @@ class ForcedUpdatePage extends StatefulWidget {
 
 class _ForcedUpdatePageState extends State<ForcedUpdatePage> {
   bool _started = false;
+  // Google Play 版：正在打開立即更新的畫面、上次的結果
+  bool _playing = false;
+  bool _playTried = false;
+  PlayUpdateOutcome? _play;
+
+  Future<void> _startPlay() async {
+    if (_playing) return;
+    setState(() {
+      _playing = true;
+      _playTried = true;
+    });
+    final outcome = await PlayUpdate.start();
+    if (!mounted) return;
+    setState(() {
+      _playing = false;
+      _play = outcome;
+    });
+  }
 
   // 開始在背景下載（自動檢查更新關掉了也要下載）；已經在下載或下載好就不動
   void _ensureDownload(UpdateController updates) {
@@ -110,6 +129,10 @@ class _ForcedUpdatePageState extends State<ForcedUpdatePage> {
       updatesSupported: updates.supported,
     );
     if (route == ForcedUpdateRoute.selfUpdate) _ensureDownload(updates);
+    if (route == ForcedUpdateRoute.playStore && !_playTried) {
+      _playTried = true;
+      scheduleMicrotask(() => unawaited(_startPlay()));
+    }
     final message = widget.minimum.message.isNotEmpty
         ? widget.minimum.message
         : '這個版本已經不能使用，請更新到 ${widget.minimum.version} 以上才能繼續使用 Securibit';
@@ -157,7 +180,7 @@ class _ForcedUpdatePageState extends State<ForcedUpdatePage> {
       case ForcedUpdateRoute.appStore:
         return note('請到 App Store 或 TestFlight 更新 Securibit');
       case ForcedUpdateRoute.playStore:
-        return button('前往 Google Play 更新', () => _openUrl(playStoreUrl));
+        return _playActions(context);
       case ForcedUpdateRoute.browser:
         return note('請到 Securibit 的下載頁下載新版');
       case ForcedUpdateRoute.selfUpdate:
@@ -201,6 +224,36 @@ class _ForcedUpdatePageState extends State<ForcedUpdatePage> {
           const Center(child: SizedBox.square(dimension: 22, child: CircularProgressIndicator(strokeWidth: 2))),
         ],
     };
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: children);
+  }
+
+  Widget _playActions(BuildContext context) {
+    final colors = context.colors;
+    Widget note(String text) => Text(text, textAlign: TextAlign.center, style: TextStyle(fontSize: AppText.secondary, color: colors.inkMuted));
+    final store = TextButton(onPressed: () => _openUrl(playStoreUrl), child: const Text('前往 Google Play'));
+
+    final List<Widget> children = _playing || _play == null
+        ? [
+            note('正在開啟 Google Play'),
+            const SizedBox(height: 12),
+            const Center(child: SizedBox.square(dimension: 22, child: CircularProgressIndicator(strokeWidth: 2))),
+          ]
+        : switch (_play!) {
+            PlayUpdateOutcome.ok => [note('正在安裝更新'), const SizedBox(height: 12), const LinearProgressIndicator()],
+            PlayUpdateOutcome.canceled || PlayUpdateOutcome.failed => [
+                FilledButton(onPressed: () => unawaited(_startPlay()), child: const Text('立即更新')),
+                const SizedBox(height: 4),
+                store,
+              ],
+            // Google Play 還沒顯示新版（剛上架要等一段時間）：打開商店頁
+            PlayUpdateOutcome.unavailable => [
+                note('Google Play 還沒有顯示新版本，可以稍後再試，或到商店頁更新'),
+                const SizedBox(height: 12),
+                FilledButton(onPressed: () => _openUrl(playStoreUrl), child: const Text('前往 Google Play 更新')),
+                const SizedBox(height: 4),
+                TextButton(onPressed: () => unawaited(_startPlay()), child: const Text('重試')),
+              ],
+          };
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: children);
   }
 }

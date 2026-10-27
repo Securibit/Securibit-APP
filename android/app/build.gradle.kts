@@ -89,4 +89,6 @@ dependencies {
     // 推播：只用原生的 Firebase Cloud Messaging，不用 Flutter 的 firebase_messaging（Windows 建置會拉進 Firebase C++ SDK）
     implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
     implementation("com.google.firebase:firebase-messaging")
+    // Google Play 版的強制更新（PlayUpdate.kt）：Play 的 App 內更新；GitHub 版不會呼叫
+    implementation("com.google.android.play:app-update:2.1.0")
 }

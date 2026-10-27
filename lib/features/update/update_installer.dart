@@ -434,7 +434,7 @@ class AndroidApkInstaller extends UpdateInstaller {
   @override
   bool get exitsApp => false;
 
-  // TODO(play): Google Play 版之後接 Play In-App Updates（com.google.android.play:app-update），由商店下載與安裝；這次先整個關掉
+  // Google Play 版的一般更新交給商店；低於最低版本時由 ForcedUpdatePage 打開 Play 的立即更新（play_update.dart）
   @override
   Future<bool> selfUpdateAllowed() async {
     try {
